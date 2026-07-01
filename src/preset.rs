@@ -122,7 +122,7 @@ pub struct MlSection {
 
 #[derive(Debug, Deserialize, Serialize)]
 pub struct AmpSection {
-    /// "marshall" | "mesa" | "randall"
+    /// "marshall" | "mesa" | "randall" | "vox"
     pub model: Option<String>,
     pub gain: f32,
     pub bass: f32,
@@ -265,6 +265,7 @@ impl Preset {
             AmpModel::Marshall => "marshall",
             AmpModel::Mesa => "mesa",
             AmpModel::Randall => "randall",
+            AmpModel::Vox => "vox",
         };
         let cab_model = CabModel::from_u8(params.cab_model.load(Relaxed));
         let cab_model_str = match cab_model {
@@ -521,6 +522,7 @@ impl Preset {
         let model = match amp.model.as_deref() {
             Some("mesa") => AmpModel::Mesa,
             Some("randall") => AmpModel::Randall,
+            Some("vox") => AmpModel::Vox,
             _ => AmpModel::Marshall,
         };
         params.amp_model.store(model as u8, Relaxed);

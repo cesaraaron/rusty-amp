@@ -27,11 +27,11 @@ On top of that sit complex effects which add width and depth to sound. All of it
 
 ## Highlights
 
-- 🔊 **3 amplifiers** — Marshall JCM800, Mesa Dual Rectifier, and Randall Warhead, switchable while you play
+- 🔊 **4 amplifiers** — Marshall JCM800, Mesa Dual Rectifier, Randall Warhead, and Vox AC30, switchable while you play
 - 📦 **3 cabinets + your own IRs** — Mesa, Marshall, and Orange 4×12s, each captured with three blendable mics; load your own favourite external `wav` IR
 - 🎛️ **A full pedalboard** — noise gate, whammy pitch shifter, auto-wah, compressor, fuzz, Tube Screamer, DS-1, ML-2 Metal Core, graphic EQ, parametric EQ, flanger, chorus, phaser, tremolo/vibrato, ping-pong delay, and stereo reverb; add, remove, and bypass on the fly
 - 🎧 **True studio-grade stereo** — wide, three-dimensional sound from the cab, delay, and reverb
-- 💾 **Ready-made presets** — instant tones inspired by Metallica, Pantera, Slayer, Death, and more
+- 💾 **Ready-made presets** — instant tones for the Hotel California, Comfortably Numb, "Time", and Stairway to Heaven solos
 - 🔌 **CLAP plugin host** — drop a third-party CLAP effect into the chain and tweak its parameters from the TUI
 - 🎚️ **AU amp host (macOS)** — load an Audio Unit amp sim (e.g. a Marshall plugin) as an amp-position override, either amp+cab or amp-only (keeping the built-in cab/IR), with unit-aware params and latency-aligned
 - 🎵 **Built-in tuner** — a chromatic tuner with a ±cents needle and a live note spectrum

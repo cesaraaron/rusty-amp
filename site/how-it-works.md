@@ -119,6 +119,7 @@ Every block below is processed per sample. Bracketed stages are `[bypassable]` �
       <div class="flow__sub"><b>JCM800</b> — dual 12AX7 atan soft-clip + grid-blocking → passive FMV tone stack → tube sag with 100 Hz supply ripple (ghost notes) → speaker-load bloom → dynamic NFB presence</div>
       <div class="flow__sub"><b>Mesa DR</b> — triple gain stage (atan → atan → exponential) + grid-blocking → passive FMV tone stack → silicon sag with 120 Hz supply ripple → speaker-load bloom → dynamic NFB presence</div>
       <div class="flow__sub"><b>Randall</b> — FET → BJT → rail-clip → active tone stack → stiff solid-state power section → static speaker load</div>
+      <div class="flow__sub"><b>Vox AC30</b> — dual 12AX7 atan soft-clip → passive FMV tone stack (brighter, less scoop) → no-NFB Class A sag → speaker-load bloom</div>
     </div>
   </div>
 
@@ -205,15 +206,16 @@ For the per-knob behaviour of each pedal, see [Pedals & effects](pedals.html).
 
 ## The amp stages {#amp}
 
-All three amps share an **8× oversampled** nonlinear core with a linear-phase polyphase-FIR anti-alias filter, plus a dynamic grid-bias "bloom" that makes the gain respond to how hard you play. Beyond that, each model diverges:
+All four amps share an **8× oversampled** nonlinear core with a linear-phase polyphase-FIR anti-alias filter, plus a dynamic grid-bias "bloom" that makes the gain respond to how hard you play. Beyond that, each model diverges:
 
 | Model | Character | Tone stack | Rectifier / power | Gain stages |
 | ----- | --------- | ---------- | ----------------- | ----------- |
 | **Marshall JCM800** | Punchy, dynamic, touch-sensitive | Passive FMV (Marshall values) | Tube sag (5 ms / 150 ms) + 100 Hz supply ripple + dynamic speaker-load bloom | 2 × 12AX7 atan soft-clip |
 | **Mesa Dual Rectifier** | Compressed, aggressive, modern | Passive FMV (Fender values) | Silicon sag (0.5 ms / 80 ms) + 120 Hz supply ripple + dynamic speaker-load bloom | 3-stage: atan → atan → exponential |
 | **Randall Warhead** | Tight, crushing, solid-state | Active, independent bands + fixed +3 dB presence | No sag — stiff solid-state rails + static speaker resonance | FET (x/√(1+x²)) → BJT (tanh) → rail-clip |
+| **Vox AC30** | Chimey, touch-sensitive, Class A | Passive FMV (Vox values — lighter scoop, brighter) | Class A sag (3.8 ms / 260 ms, no NFB) + dynamic speaker-load bloom | 2 × 12AX7 atan soft-clip |
 
-The **passive FMV tone stack** is a single RC network where bass, mid, and treble interact and the mids inherently scoop — exactly like a real amp — followed by a **power-amp ↔ speaker interaction** model: the speaker's impedance resonance blooms the low end dynamically as the supply sags under hard playing. The Randall keeps an active, independent-band stack and a small static speaker resonance, true to its stiff solid-state design. See [Amps & cabinets](amps-cabs.html#amp) for the per-knob breakdown.
+The **passive FMV tone stack** is a single RC network where bass, mid, and treble interact and the mids inherently scoop — exactly like a real amp — followed by a **power-amp ↔ speaker interaction** model: the speaker's impedance resonance blooms the low end dynamically as the supply sags under hard playing. The Vox has no global negative-feedback loop, so it sags more readily and blooms harder than the Marshall/Mesa. The Randall keeps an active, independent-band stack and a small static speaker resonance, true to its stiff solid-state design. See [Amps & cabinets](amps-cabs.html#amp) for the per-knob breakdown.
 
 Three further pieces of tube-amp physics live in the two tube models:
 
