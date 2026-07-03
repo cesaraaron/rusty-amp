@@ -11,23 +11,25 @@ use crate::dsp::biquad::Biquad;
 ///
 /// Greenback close-mic (SM57) signature (the skeleton), voiced against measured
 /// commercial 4×12 captures (see the note in the Mesa `voicing_sm57`):
-///   • Resonant sub HP at 66 Hz (looser than V30 — GB has more low-end air)
-///   • +3 dB low shelf at 120 Hz + a +6 dB resonant hump at 115 Hz (cab depth)
-///   • +5 dB wide mound at 210 Hz and +3 dB at 480 Hz (low-mid body plateau)
+///   • Resonant sub HP at 74 Hz (keeps the low-E fundamental, cuts the rumble)
+///   • +2 dB low shelf at 120 Hz + a +6 dB resonant hump at 115 Hz (cab depth)
+///   • +5 dB wide mound at 210 Hz and +5.5 dB at 480 Hz (low-mid body plateau)
 ///   • +1 dB at 800 Hz (a hint of the GB "vintage" honk)
-///   • -3.5 dB wide dip at 1500 Hz (the mid "pocket" of a real capture)
-///   • +4.5 dB at 2500 Hz and +2.5 dB at 4 kHz (GB presence — warmer/lower
-///     than V30's 3.5 kHz, but held through the 3–5 kHz band like a real capture)
-///   • -11 dB high shelf at 6000 Hz (softer cone rolloff vs V30)
-///   • LP at 8 kHz (fizz cut — GBs are inherently smoother on top)
+///   • −6 dB dip at 1400 Hz (the mid "pocket" of a real capture)
+///   • +5.5 dB at 2500 Hz and +6 dB at 4.3 kHz (GB presence — the crunch peak
+///     sits lower than the V30's, but the level holds through 3–5 kHz like a
+///     real capture)
+///   • −15 dB high shelf at 6600 Hz (cone rolloff)
+///   • LP at 7.2 kHz (fizz cut — GBs are inherently smoother on top)
 pub struct MarshallCab {
     inner: BlendedCab,
 }
 
-// Gentler, slightly later reflections than the V30 (smoother Greenback cone),
-// timed so the early comb notches land in the mid pocket rather than the body
-// (see the Mesa texture note); breakup mode lower at ~2.5 kHz. The two low modes
-// near 90–115 Hz add a subtle thump ring where the direct sound is strong.
+// Slightly later, tail-gentler reflections than the V30 cabs (smoother
+// Greenback cone), timed so the early comb notches land in the mid pocket
+// rather than the body (see the Mesa texture note); breakup mode lower at
+// ~2.5 kHz. The two low modes near 90–115 Hz add a subtle thump ring where the
+// direct sound is strong.
 const TEX_L: Texture = Texture {
     predelay: 0,
     reflections: &[
@@ -50,8 +52,8 @@ const TEX_L: Texture = Texture {
         seed: 21,
         count: 22,
         band: (1800.0, 6400.0),
-        t60_ms: (2.0, 5.0),
-        gain: 0.016,
+        t60_ms: (5.0, 12.0),
+        gain: 0.030,
     }),
 };
 const TEX_R: Texture = Texture {
@@ -76,8 +78,8 @@ const TEX_R: Texture = Texture {
         seed: 22,
         count: 22,
         band: (1800.0, 6400.0),
-        t60_ms: (2.0, 5.0),
-        gain: 0.016,
+        t60_ms: (5.0, 12.0),
+        gain: 0.030,
     }),
 };
 
@@ -136,13 +138,20 @@ impl MarshallCab {
             Biquad::low_shelf(sr, 120.0, 2.0),
             Biquad::peak_eq(sr, 115.0, 1.1, 6.0),
             Biquad::peak_eq(sr, 210.0, 0.7, 5.0),
-            Biquad::peak_eq(sr, 480.0, 0.9, 3.0),
-            Biquad::peak_eq(sr, 800.0, 1.5, 2.0),
-            Biquad::peak_eq(sr, 1500.0, 0.6, -2.0),
-            // Greenback presence: broadened and trimmed (Q 1.8→1.4, +5→+4 dB) for a
-            // smoother top — Greenbacks are inherently softer up here than V30s.
+            Biquad::peak_eq(sr, 480.0, 0.8, 5.5),
+            Biquad::peak_eq(sr, 800.0, 1.5, 1.0),
+            // Deep pocket at 1.4 kHz: real captures dip through the 1–2 kHz
+            // octave, and the 2.5 kHz crunch peak's lower skirt fills part of it
+            // back in — −6 dB here nets out to the measured shallow pocket
+            // (honk-free) while the GB's upper-mid identity stays in the crunch
+            // peak below.
+            Biquad::peak_eq(sr, 1400.0, 0.7, -6.0),
+            // Greenback crunch: a wide 2.5 kHz peak — the GB's signature
+            // upper-mid bark, sitting lower than the V30's presence.
             Biquad::peak_eq(sr, 2500.0, 1.0, 5.5),
-            Biquad::peak_eq(sr, 4300.0, 1.2, 3.5),
+            // A Greenback is darker than a V30 up top, but real captures still
+            // hold their level through 4–5 kHz before the cone rolls off.
+            Biquad::peak_eq(sr, 4300.0, 1.2, 6.0),
             Biquad::high_shelf(sr, 6600.0, -15.0),
             Biquad::lowpass(sr, 7200.0, 0.707),
         ];
