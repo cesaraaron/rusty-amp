@@ -21,13 +21,15 @@ description: "rusty-amp recreates classic tube and solid-state guitar amps, a fu
       <a class="btn btn--primary" href="getting-started.html">▶ Get started</a>
       <a class="btn" href="https://github.com/danylokravchenko/rusty-amp/releases/latest">⬇ Download binary</a>
       <a class="btn" href="how-it-works.html">⚙ How it works</a>
-      <a class="btn" href="#demo">🎬 Watch demo</a>
       <a class="btn" href="#hear">🔊 Hear samples</a>
     </div>
 
     <figure class="shot">
       <div class="shot__bar"><i></i><i></i><i></i></div>
-      <img src="assets/screenshot.png" alt="rusty-amp running in a terminal: amp head, pedalboard, and live meters" />
+      <video controls muted loop playsinline preload="none" poster="assets/screenshot.png" style="width:100%;display:block">
+        <source src="assets/demo.mp4" type="video/mp4" />
+        <img src="assets/demo.gif" alt="rusty-amp demo: switching amps and stacking pedals from the terminal" />
+      </video>
     </figure>
   </div>
 </header>
@@ -108,18 +110,6 @@ description: "rusty-amp recreates classic tube and solid-state guitar amps, a fu
     </div>
   </section>
 
-  <section id="demo">
-    <h2>Demo</h2>
-    <p class="lead">A quick tour of the rig — switching amps, stacking pedals, and live metering, all from the keyboard.</p>
-    <figure class="shot">
-      <div class="shot__bar"><i></i><i></i><i></i></div>
-      <video controls muted loop playsinline preload="none" poster="assets/screenshot.png" style="width:100%;display:block">
-        <source src="assets/demo.mp4" type="video/mp4" />
-        <img src="assets/demo.gif" alt="rusty-amp demo: switching amps and stacking pedals from the terminal" />
-      </video>
-    </figure>
-  </section>
-
   <section id="hear">
     <h2>Hear it</h2>
     <p class="lead">Nothing is better than a showcase! DI guitar track — no re-amping, no post-processing, straight out of rusty-amp.</p>
@@ -138,6 +128,16 @@ description: "rusty-amp recreates classic tube and solid-state guitar amps, a fu
         <div class="sample__head"><span class="sample__name">Solo seeker</span><span class="sample__rig">Mesa Dual Rectifier · Mesa V30</span></div>
         <p class="sample__desc">Lead tone — sustain-focused, delay + reverb, on-axis mic for pick-attack clarity.</p>
         <audio controls preload="none" src="assets/audio/solo_seeker.wav"></audio>
+      </div>
+      <div class="sample" style="--c:var(--magenta)">
+        <div class="sample__head"><span class="sample__name">Metalcore shred</span><span class="sample__rig">Mesa Dual Rectifier · Mesa V30</span></div>
+        <p class="sample__desc">Tight djent-adjacent rhythm and singing high-gain leads — Tube Screamer slamming the front end, pre-amp EQ tightening the chug.</p>
+        <audio controls preload="none" src="assets/audio/metalcore.wav"></audio>
+      </div>
+      <div class="sample" style="--c:var(--purple)">
+        <div class="sample__head"><span class="sample__name">Crowbar sludge</span><span class="sample__rig">Marshall JCM800 · Orange PPC412</span></div>
+        <p class="sample__desc">Downtuned NOLA sludge — a massive low-mid wall of raw Marshall grind, Tube Screamer firming the drop tuning, cavernous Orange weight.</p>
+        <audio controls preload="none" src="assets/audio/crowbar.wav"></audio>
       </div>
       <div class="sample sample--soon">
         <div class="sample__head"><span class="sample__name">More coming soon</span></div>
