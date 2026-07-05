@@ -103,16 +103,19 @@ impl Marshall {
             // JCM-family rig: a real driven Marshall carries its 110–350 Hz
             // low-mid body ~12 dB above the 1–1.4 kHz pocket; ours ran nearly
             // flat, which read as thin and quiet next to it.
-            voice: VoiceBalance::new(sr, 180.0, 8.0, 750.0, -7.0),
+            // Tilt eased −7 → −6 dB: with the cab, A3's overtone band
+            // (0.9–2.4 kHz) measured a harmonic centroid of 1.42 vs a
+            // professional rig's 2.18 — the note spoke as fundamental thump
+            // ("palm muted"); see the pluck probes in examples/amp_analysis.
+            voice: VoiceBalance::new(sr, 180.0, 8.0, 750.0, -6.0),
             out_hp: Biquad::highpass(sr, 12.0, 0.707),
             envelope: 0.0,
             // UK mains → full-wave ripple at 100 Hz; depth sized so ghost-note
             // sidebands sit ~30 dB under the notes only when the supply is loaded.
             ripple: SupplyRipple::new(sr, 100.0, 0.05),
-            // 8×12 resonance ~95 Hz; tube amp has moderate damping. Dynamic bloom
-            // trimmed (0.55→0.30): the big sag-driven low resonance was ringing on
-            // after a palm-muted chug, smearing the percussive tightness — a real
-            // power amp blooms, but not so much the chug stops feeling muted.
+            // 8×12 resonance ~95 Hz; tube amp has moderate damping. The bloom is
+            // kept light so the low resonance supports the note without hanging
+            // over the next palm-muted chug, preserving a percussive, muted feel.
             speaker: SpeakerLoad::new(sr, 95.0, 1.0, 0.06, 0.30, 0.8),
         };
         m.update_tone_stack(0.5, 0.45, 0.65);
@@ -139,28 +142,31 @@ impl Marshall {
         let coeff = if abs_x > self.envelope {
             1.0 - (-220.0 / self.sr).exp()
         } else {
-            // Sag recovery sped up (~200 ms → ~60 ms): the slow release held the gain
-            // reduction long after a palm-muted chug's attack, then recovered into a
-            // swell that re-energised the note 20–40 ms in — so the chug built up
-            // instead of punching. A quicker recovery keeps the attack percussive.
-            1.0 - (-16.0 / self.sr).exp()
+            // Sag recovery ~150 ms. The original 200 ms release swelled palm-muted
+            // chugs 20–40 ms in (fixed by dropping to 60 ms), but 60 ms also erased
+            // the *singing* half of sag: on a held note the supply recovering over
+            // the decay is what lifts the tail — the professional reference rig
+            // holds a plucked note ~8 dB above its natural decay at 300 ms (see
+            // examples/amp_analysis.rs), and with a 60 ms release all recovery
+            // happened inside the attack, adding nothing. 150 ms keeps the chug
+            // attack percussive (the 5 ms attack still ducks it instantly) while
+            // the recovery spreads across the note's decay as sustain.
+            1.0 - (-6.7 / self.sr).exp()
         };
         self.envelope += coeff * (abs_x - self.envelope);
-        // Deep sag, light static drive (measured against a commercial JCM-family
-        // reference): a real driven power amp gets most of its squash from the
-        // supply sagging — a *slow gain reduction* that compresses level without
-        // bending the waveform — while the tube curve itself stays on its round
-        // knee. Loading the compression onto the static drive instead pushes the
-        // clipper toward its plateau, whose square-ish waveform carries the
-        // slowly-decaying h5/h7 series that reads as cheap fizz. Sag deepened
-        // (0.6 → 1.5) and static drive backed off (2.5 → 1.5) so total
-        // compression stays but the harmonic series falls off fast.
+        // The sag term stays strong so the supply compression reduces level
+        // without bending the waveform, which keeps the attack percussive
+        // while adding a little sustain under load.
         let sag = 1.0 / (1.0 + self.envelope * 1.5);
         // Mains ripple rides on the loaded supply: the 100 Hz gain modulation
         // intermodulates with the signal (ghost-note sidebands), fading out as
         // the supply unloads at idle.
         let supply = self.ripple.gain(sag, self.envelope);
-        tube_clip_asym(x * supply * 1.5) * 0.62
+        // The static drive stays around 2.2 so the decay remains on the tube
+        // curve's knee, which adds tail compression without losing the note's
+        // touch-sensitive even-harmonic growth. Pushing it much higher would
+        // flatten the asymmetry and make the amp feel less responsive.
+        tube_clip_asym(x * supply * 2.2) * 0.62
     }
 }
 
@@ -248,10 +254,9 @@ impl Amplifier for Marshall {
         // a real output transformer passes no DC, so strip it here before the trim.
         let x = self.out_hp.process(x);
 
-        // Output trim: the tube power stage runs at a conservative level; this
-        // makeup brings the JCM800 up to the same loudness as the (much hotter)
-        // solid-state Randall so switching models doesn't jump in volume.
-        x * master * 6.4
+        // Output trim: level-matches the JCM800 to the other models so switching
+        // doesn't jump in volume (re-measured after the power-drive increase).
+        x * master * 6.0
     }
 }
 

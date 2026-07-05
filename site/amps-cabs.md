@@ -45,7 +45,7 @@ Three amp models, switchable live with <kbd>A</kbd> (or <kbd>↑</kbd>/<kbd>↓<
     <div class="specs">
       <div class="spec"><div class="spec__k">Gain range</div><div class="spec__v">1×–40× into dual 12AX7</div></div>
       <div class="spec"><div class="spec__k">Tone stack</div><div class="spec__v">Passive FMV (Marshall values)</div></div>
-      <div class="spec"><div class="spec__k">Rectifier &amp; power</div><div class="spec__v">Deep tube sag (5 ms / 60 ms) + 100 Hz supply ripple (ghost notes) + dynamic speaker-load bloom</div></div>
+      <div class="spec"><div class="spec__k">Rectifier &amp; power</div><div class="spec__v">Deep tube sag (5 ms / 150 ms) + 100 Hz supply ripple (ghost notes) + dynamic speaker-load bloom</div></div>
       <div class="spec"><div class="spec__k">Gain stages</div><div class="spec__v">2 × 12AX7 atan soft-clip</div></div>
     </div>
     <div class="kv"><span class="kv__k">Gain</span><span class="kv__v">Preamp gain 1×–40× into dual 12AX7.</span></div>
@@ -58,12 +58,12 @@ Three amp models, switchable live with <kbd>A</kbd> (or <kbd>↑</kbd>/<kbd>↓<
 
   <div class="tab-panel" role="tabpanel" data-panel="mesa">
     <div class="specs">
-      <div class="spec"><div class="spec__k">Gain range</div><div class="spec__v">1×–36× into three stages</div></div>
+      <div class="spec"><div class="spec__k">Gain range</div><div class="spec__v">1×–31× into three stages</div></div>
       <div class="spec"><div class="spec__k">Tone stack</div><div class="spec__v">Passive FMV (Fender values)</div></div>
       <div class="spec"><div class="spec__k">Rectifier &amp; power</div><div class="spec__v">Silicon sag (0.5 ms / 80 ms) + 120 Hz supply ripple (ghost notes) + dynamic speaker-load bloom</div></div>
       <div class="spec"><div class="spec__k">Gain stages</div><div class="spec__v">3-stage: atan → atan → exponential</div></div>
     </div>
-    <div class="kv"><span class="kv__k">Gain</span><span class="kv__v">Preamp gain 1×–36× into three stages.</span></div>
+    <div class="kv"><span class="kv__k">Gain</span><span class="kv__v">Preamp gain 1×–31× into three stages.</span></div>
     <div class="kv"><span class="kv__k">Bass</span><span class="kv__v">Passive FMV stack (Fender-type values: fuller lows, gentler scoop).</span></div>
     <div class="kv"><span class="kv__k">Mid</span><span class="kv__v">Gentler scoop than the Marshall.</span></div>
     <div class="kv"><span class="kv__k">Treble</span><span class="kv__v">Same interacting network.</span></div>
@@ -73,12 +73,12 @@ Three amp models, switchable live with <kbd>A</kbd> (or <kbd>↑</kbd>/<kbd>↓<
 
   <div class="tab-panel" role="tabpanel" data-panel="randall">
     <div class="specs">
-      <div class="spec"><div class="spec__k">Gain range</div><div class="spec__v">1×–46× into FET+BJT stages</div></div>
+      <div class="spec"><div class="spec__k">Gain range</div><div class="spec__v">1×–35× into FET+BJT stages</div></div>
       <div class="spec"><div class="spec__k">Tone stack</div><div class="spec__v">Active, independent bands + fixed +3 dB presence</div></div>
       <div class="spec"><div class="spec__k">Rectifier &amp; power</div><div class="spec__v">No sag — stiff solid-state rails + static speaker resonance</div></div>
       <div class="spec"><div class="spec__k">Gain stages</div><div class="spec__v">FET (x/√(1+x²)) → BJT (tanh) → rail-clip</div></div>
     </div>
-    <div class="kv"><span class="kv__k">Gain</span><span class="kv__v">Preamp gain 1×–46× into FET+BJT stages.</span></div>
+    <div class="kv"><span class="kv__k">Gain</span><span class="kv__v">Preamp gain 1×–35× into FET+BJT stages.</span></div>
     <div class="kv"><span class="kv__k">Bass</span><span class="kv__v">Active tone stack — low shelf at 80 Hz.</span></div>
     <div class="kv"><span class="kv__k">Mid</span><span class="kv__v">Peak EQ at 500 Hz.</span></div>
     <div class="kv"><span class="kv__k">Treble</span><span class="kv__v">High shelf at 4.5 kHz.</span></div>
@@ -170,32 +170,32 @@ Three multi-mic'd 4×12s, switchable live with <kbd>C</kbd>. Pick one to see its
     <div class="freqs">
       <span class="freq"><b>+6.5 dB</b> @ 120 Hz · depth hump</span>
       <span class="freq"><b>+4 dB</b> @ 220 Hz · body plateau</span>
-      <span class="freq"><b>−4 dB</b> @ 1.3 kHz · mid pocket</span>
-      <span class="freq"><b>+5.5 dB</b> @ 4.5 kHz · presence held to 5 kHz</span>
+      <span class="freq"><b>−5 dB</b> @ 1.25 kHz · mid pocket</span>
+      <span class="freq"><b>+4 dB</b> @ 2.5 kHz &amp; <b>+5.5 dB</b> @ 4.5 kHz · presence held to 5 kHz</span>
     </div>
   </div>
   <div class="tab-panel" role="tabpanel" data-panel="cab-marshall">
     <p class="muted" style="margin:2px 0 4px">Warm and mid-forward with a smooth top end — the classic rock voice.</p>
     <div class="freqs">
       <span class="freq"><b>+6 dB</b> @ 115 Hz · depth hump</span>
-      <span class="freq"><b>+5 dB</b> @ 210 Hz · body plateau</span>
-      <span class="freq"><b>+5.5 dB</b> @ 2.5 kHz · presence held to 5 kHz</span>
-      <span class="freq"><b>soft rolloff</b> above 6 kHz</span>
+      <span class="freq"><b>+4.3 dB</b> @ 210 Hz · body plateau</span>
+      <span class="freq"><b>+3.5 dB</b> @ 2.5 kHz · crunch held to 5 kHz</span>
+      <span class="freq"><b>steep rolloff</b> above 7 kHz</span>
     </div>
   </div>
   <div class="tab-panel" role="tabpanel" data-panel="cab-orange">
     <p class="muted" style="margin:2px 0 4px">Thick and chunky from the closed-back birch enclosure — a wall of low-mids.</p>
     <div class="freqs">
-      <span class="freq"><b>+6 dB</b> @ 118 Hz · chest thump</span>
-      <span class="freq"><b>+3.5 dB</b> @ 230 Hz · low-mid “wall”</span>
-      <span class="freq"><b>+4 dB</b> @ 3.2 kHz · presence held to 5 kHz</span>
+      <span class="freq"><b>+6 dB</b> @ 115 Hz · chest thump</span>
+      <span class="freq"><b>+3.8 dB</b> @ 230 Hz · low-mid “wall”</span>
+      <span class="freq"><b>+3.5 dB</b> @ 2.9 kHz · presence held to 5 kHz</span>
     </div>
   </div>
 </div>
 
-Each cabinet is rendered by **impulse-response convolution** rather than a plain EQ. The built-in IRs are synthesized in-code (nothing to ship or download): the model's voiced EQ provides the magnitude skeleton — including the low resonant hump near 120 Hz and the broad 120–600 Hz body plateau that give a real close-mic'd 4×12 its depth — then early reflections (comb filtering), late cabinet/room reflections, and speaker modal resonances with a deep, long-decaying cone "thump" add the time-domain depth of a real miked cab. Each IR runs ~93 ms (~4500 taps at 48 kHz), so the low-end ring and room decay fully develop, and a seeded cone-breakup scatter adds the jagged 2–7.5 kHz ripple texture real captures show. Two slightly different L/R IRs decorrelate the stereo image for natural width.
+Each cabinet is rendered by **impulse-response convolution** rather than a plain EQ. The built-in IRs are synthesized in-code (nothing to ship or download): the model's voiced EQ provides the magnitude skeleton — including the low resonant hump near 120 Hz and the broad 120–600 Hz body plateau that give a real close-mic'd 4×12 its depth — then early reflections, a dense 6–21 ms reflection tail, speaker modal resonances with a short, controlled cone "thump" ring, and two seeded scatter clusters (fine 0.5–2.3 kHz reflection ripple plus jagged cone-breakup texture) add the time-domain structure real captures show. Each IR runs ~93 ms (~4500 taps at 48 kHz). The close-mic textures are shared between left and right — real close captures are effectively mono, and heavy decorrelation reads as phasey rather than wide — with only the scatter seeds differing per side, plus a genuinely decorrelated stereo room-mic pair for width over a solid centre.
 
-Before the mics, the drive signal also picks up **neighbour-cone interference** derived from real 4×12 geometry: the close mic hears the three other cones arriving ~0.6–0.9 ms late, lowpassed above ~2 kHz and 15–20 dB down — the low/mid comb texture of a real multi-speaker box, matching the ~3 dB echo comb real captures measure. One octave up, **dust-cap & grille echoes** add the presence/air sheen a close capture picks up off the speaker's own front geometry: a ~0.13 ms round-trip reflection off the metal grille (highpassed — the lows diffract past the perforations, so only the treble is combed) and a ~45 µs ripple off the proud central dust cap. Both are highpassed and power-normalised so they comb only the 2–8 kHz band and never touch the body — tuned so the added ripple tracks a real grille-position capture. After the mics, a genuinely tiny **mic/transformer saturation** squeezes only the hottest peaks.
+Before the mics, the drive signal passes the **nonlinear speaker stage** — excursion-driven motor droop, cone breakup, thermal power compression and Doppler "growl", with its operating point calibrated to the levels the amps actually deliver so a cranked amp genuinely pushes back. It also picks up **neighbour-cone interference** derived from real 4×12 geometry: the close mic hears the three other cones arriving ~0.6–0.9 ms late, lowpassed above ~2 kHz and 13–23 dB down. Each neighbour is an extended source (a 12" cone, not a point), so its arrival is smeared across a short sub-tap cluster — the comb ripples the body by a couple of dB like a real echo scan instead of carving a notch through it. One octave up, **dust-cap & grille echoes** add the presence/air sheen a close capture picks up off the speaker's own front geometry: a ~0.13 ms round-trip reflection off the metal grille (highpassed — the lows diffract past the perforations, so only the treble is combed) and a ~45 µs ripple off the proud central dust cap. Both are highpassed and power-normalised so they comb only the 2–8 kHz band and never touch the body. After the mics, a genuinely tiny **mic/transformer saturation** squeezes only the hottest peaks.
 
 Cycle cabinets with <kbd>C</kbd> at any time. The **Mic** knob applies a ±6 dB high shelf at 5 kHz per channel after convolution, modelling on-axis vs off-axis placement. For the partitioned-FFT convolution engine, see [How it works](how-it-works.html#cabinet).
 
@@ -260,7 +260,7 @@ Practically any guitar IR works as-is.
 [God's Cab](https://wilkinsonaudio.com/products/gods-cab) is a large, free (donationware) IR pack laid out as `Gods_Cab_1.4/<rate>/<mic>/<NO-TS|TS>/<name>.wav`. Pick the sample-rate folder matching your interface, prefer the **NO-TS** captures (no Tube Screamer baked in, so rusty-amp's own TS-808 isn't stacked on top), and copy a few mics into `irs/`:
 
 ```bash
-SRC=~/.config/rusty-amp/IR/Gods_Cab_1.4/48   # use 44.1 / 48 / 96 to taste
+SRC=~/.config/rusty-amp/irs/Gods_Cab_1.4/48   # use 44.1 / 48 / 96 to taste
 DST=~/.config/rusty-amp/irs
 mkdir -p "$DST"
 
