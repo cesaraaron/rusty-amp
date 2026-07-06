@@ -102,12 +102,15 @@ The preset is written to `~/.config/rusty-amp/presets/<name>.toml` and appears i
 | `slipknot.toml` | Mesa Dual Rectifier | Mesa V30 | Mick Thomson / Jim Root — TS boost, modern EQ scoop, full saturation |
 | `death.toml` | Mesa Dual Rectifier | Mesa V30 | Chuck Schuldiner — TS boost, mids-up for note clarity |
 | `slayer.toml` | Marshall JCM800 | Marshall Greenback | Hanneman & King's thrash assault — cranked JCM800, extreme mid-scoop, zero mercy |
-| `metalcore_shred.toml` | Mesa Dual Rectifier | Mesa V30 | Modern metalcore shred — TS tight boost, djent-adjacent EQ, slapback delay |
+| `metalcore_shred.toml` | Mesa Dual Rectifier | Mesa V30 | Modern metalcore shred — ML-2 tight boost, djent-adjacent EQ, slapback delay |
 | `solo_seeker.toml` | Mesa Dual Rectifier | Mesa V30 | Lead tone — sustain-focused, delay + reverb, on-axis mic for pick-attack clarity |
 | `clean_melodic.toml` | Marshall JCM800 | Marshall Greenback | Warm glassy clean — gentle compression, edge-of-breakup gain, delay + hall reverb |
 | `disturbed.toml` | Mesa Dual Rectifier | Mesa V30 | Dan Donegan's nu-metal chug — TS boost, scooped-but-punchy grind, bone-dry rhythm |
 | `deftones.toml` | Mesa Dual Rectifier | Mesa V30 | Stephen Carpenter's thick, warm wall — un-scooped mids, compressed, chorus + reverb wash |
 | `crowbar.toml` | Marshall JCM800 | Orange PPC412 (V30) | Kirk Windstein's NOLA sludge — TS tightening boost, forward low-mid wall, cavernous room |
+| `cosmic_lead.toml` | Marshall JCM800 | Mesa V30 | Floating synth-like lead — octave-up whammy shimmer, liquid phaser swirl, deep delay + reverb wash |
+| `alice_in_chains_would.toml` | Mesa Dual Rectifier | Mesa V30 | Moody, dark lead — subtle wah sweep and slow phaser movement |
+| `detuned_doom_wash.toml` | Marshall JCM800 | Orange PPC412 (V30) | Seasick stoner-doom — octave-down whammy sub, Big-Muff fuzz wall, slow deep phaser, cavernous reverb |
 
 ## Writing your own preset {#write}
 
@@ -133,6 +136,23 @@ sustain = 0.40      # 0.0 – 1.0  (compression amount)
 attack  = 0.30      # 0.0 – 1.0  (0.5 ms → 50 ms)
 level   = 0.50      # 0.0 – 1.0  (output makeup, 0.5 = unity)
 
+# Omit [pitch] entirely to leave it off (the default for the bundled presets),
+# or include it with enabled = false to store values but keep it bypassed.
+[pitch]
+enabled = false     # optional, defaults to true when the section is present
+pitch = 0.50        # 0.0 – 1.0  (0 = −12 st, 0.5 = unison, 1 = +12 st)
+mix   = 0.50        # 0.0 – 1.0  (dry/wet blend)
+tone  = 0.70        # 0.0 – 1.0  (wet low-pass, 0 = dark, 1 = open)
+
+# Omit [wah] entirely to leave it off (the default for the bundled presets),
+# or include it with enabled = false to store values but keep it bypassed.
+[wah]
+enabled = false     # optional, defaults to true when the section is present
+freq = 0.40         # 0.0 – 1.0  (base peak position, ~300 Hz–1.5 kHz)
+sens = 0.55         # 0.0 – 1.0  (auto-sweep amount; 0 = static cocked wah)
+q    = 0.50         # 0.0 – 1.0  (resonance / sharpness of the quack)
+mix  = 0.90         # 0.0 – 1.0  (dry/wet; a real wah is fully wet)
+
 # Omit [fuzz] entirely to leave it off (the default for the bundled presets),
 # or include it with enabled = false to store values but keep it bypassed.
 [fuzz]
@@ -154,6 +174,16 @@ enabled = true
 drive = 0.50
 tone  = 0.55
 level = 0.65
+
+# Boss ML-2 Metal Core — ultra-high-gain distortion with an active two-band EQ.
+# Omit [metal_core] entirely to leave it off,
+# or include it with enabled = false to store values but keep it bypassed.
+[metal_core]
+enabled = false       # optional, defaults to true when the section is present
+dist  = 0.65          # 0.0 – 1.0  (gain into the two cascaded clip stages)
+low   = 0.50          # 0.0 – 1.0  (active low shelf @ 120 Hz, ±15 dB; 0.5 = flat)
+high  = 0.50          # 0.0 – 1.0  (active high shelf @ 3.2 kHz, ±15 dB; 0.5 = flat)
+level = 0.60          # 0.0 – 1.0  (output volume)
 
 # Pre-amp EQ — shapes the signal before the amp's gain stage.
 # Omit [preamp_eq] entirely to leave it off, or include it with enabled = false.
@@ -199,6 +229,15 @@ enabled  = false      # optional, defaults to true when the section is present
 rate     = 0.25       # 0.0 – 1.0  (LFO speed, 0.05–5 Hz, exponential)
 depth    = 0.50       # 0.0 – 1.0  (sweep width; delay swings ~8–20 ms)
 mix      = 0.50       # 0.0 = dry, 0.5 = classic chorus, 1.0 = fully wet
+
+# Omit [phaser] entirely to leave it off (the default for the bundled presets),
+# or include it with enabled = false to store values but keep it bypassed.
+[phaser]
+enabled  = false      # optional, defaults to true when the section is present
+rate     = 0.30       # 0.0 – 1.0  (LFO speed, 0.05–5 Hz, exponential)
+depth    = 0.70       # 0.0 – 1.0  (sweep width; break freq glides ~200 Hz–1.6 kHz)
+feedback = 0.40       # 0.0 – 1.0  (regeneration, capped at 90%; higher = resonant)
+mix      = 0.50       # 0.0 = dry, 0.5 = deepest phase, 1.0 = fully wet
 
 [delay]
 enabled  = true       # optional, defaults to true

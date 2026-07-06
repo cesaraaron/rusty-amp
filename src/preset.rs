@@ -28,15 +28,19 @@ pub struct Preset {
     pub path: Option<PathBuf>,
     pub noise_gate: Option<NgSection>,
     pub compressor: Option<CmpSection>,
+    pub pitch: Option<PitchSection>,
+    pub wah: Option<WahSection>,
     pub fuzz: Option<FuzzSection>,
     pub tube_screamer: TsSection,
     pub distortion: Option<DsSection>,
+    pub metal_core: Option<MlSection>,
     pub preamp_eq: Option<PeqSection>,
     pub amp: AmpSection,
     pub cabinet: Option<CabSection>,
     pub eq: Option<EqSection>,
     pub flanger: Option<FlangerSection>,
     pub chorus: Option<ChorusSection>,
+    pub phaser: Option<PhaserSection>,
     pub delay: Option<DelaySection>,
     pub reverb: ReverbSection,
 }
@@ -54,6 +58,23 @@ pub struct CmpSection {
     pub sustain: f32,
     pub attack: f32,
     pub level: f32,
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+pub struct PitchSection {
+    pub enabled: Option<bool>,
+    pub pitch: f32,
+    pub mix: f32,
+    pub tone: f32,
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+pub struct WahSection {
+    pub enabled: Option<bool>,
+    pub freq: f32,
+    pub sens: f32,
+    pub q: f32,
+    pub mix: f32,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -85,6 +106,15 @@ pub struct DsSection {
     pub enabled: Option<bool>,
     pub drive: f32,
     pub tone: f32,
+    pub level: f32,
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+pub struct MlSection {
+    pub enabled: Option<bool>,
+    pub dist: f32,
+    pub low: f32,
+    pub high: f32,
     pub level: f32,
 }
 
@@ -166,6 +196,15 @@ pub struct ChorusSection {
 }
 
 #[derive(Debug, Deserialize, Serialize)]
+pub struct PhaserSection {
+    pub enabled: Option<bool>,
+    pub rate: f32,
+    pub depth: f32,
+    pub feedback: f32,
+    pub mix: f32,
+}
+
+#[derive(Debug, Deserialize, Serialize)]
 pub struct ReverbSection {
     pub enabled: Option<bool>,
     pub room: f32,
@@ -221,6 +260,19 @@ impl Preset {
                 attack: params.cmp_attack.load(Relaxed),
                 level: params.cmp_level.load(Relaxed),
             }),
+            pitch: Some(PitchSection {
+                enabled: Some(params.pitch_enabled.load(Relaxed)),
+                pitch: params.pitch_pitch.load(Relaxed),
+                mix: params.pitch_mix.load(Relaxed),
+                tone: params.pitch_tone.load(Relaxed),
+            }),
+            wah: Some(WahSection {
+                enabled: Some(params.wah_enabled.load(Relaxed)),
+                freq: params.wah_freq.load(Relaxed),
+                sens: params.wah_sens.load(Relaxed),
+                q: params.wah_q.load(Relaxed),
+                mix: params.wah_mix.load(Relaxed),
+            }),
             fuzz: Some(FuzzSection {
                 enabled: Some(params.fz_enabled.load(Relaxed)),
                 fuzz: params.fz_fuzz.load(Relaxed),
@@ -238,6 +290,13 @@ impl Preset {
                 drive: params.ds_drive.load(Relaxed),
                 tone: params.ds_tone.load(Relaxed),
                 level: params.ds_level.load(Relaxed),
+            }),
+            metal_core: Some(MlSection {
+                enabled: Some(params.ml_enabled.load(Relaxed)),
+                dist: params.ml_dist.load(Relaxed),
+                low: params.ml_low.load(Relaxed),
+                high: params.ml_high.load(Relaxed),
+                level: params.ml_level.load(Relaxed),
             }),
             preamp_eq: Some(PeqSection {
                 enabled: Some(params.peq_enabled.load(Relaxed)),
@@ -284,6 +343,13 @@ impl Preset {
                 rate: params.ch_rate.load(Relaxed),
                 depth: params.ch_depth.load(Relaxed),
                 mix: params.ch_mix.load(Relaxed),
+            }),
+            phaser: Some(PhaserSection {
+                enabled: Some(params.ph_enabled.load(Relaxed)),
+                rate: params.ph_rate.load(Relaxed),
+                depth: params.ph_depth.load(Relaxed),
+                feedback: params.ph_feedback.load(Relaxed),
+                mix: params.ph_mix.load(Relaxed),
             }),
             reverb: ReverbSection {
                 enabled: Some(params.rev_enabled.load(Relaxed)),
@@ -335,6 +401,31 @@ impl Preset {
             params.cmp_enabled.store(false, Relaxed);
         }
 
+        if let Some(pitch) = &self.pitch {
+            params
+                .pitch_enabled
+                .store(pitch.enabled.unwrap_or(true), Relaxed);
+            params
+                .pitch_pitch
+                .store(pitch.pitch.clamp(0.0, 1.0), Relaxed);
+            params.pitch_mix.store(pitch.mix.clamp(0.0, 1.0), Relaxed);
+            params.pitch_tone.store(pitch.tone.clamp(0.0, 1.0), Relaxed);
+        } else {
+            params.pitch_enabled.store(false, Relaxed);
+        }
+
+        if let Some(wah) = &self.wah {
+            params
+                .wah_enabled
+                .store(wah.enabled.unwrap_or(true), Relaxed);
+            params.wah_freq.store(wah.freq.clamp(0.0, 1.0), Relaxed);
+            params.wah_sens.store(wah.sens.clamp(0.0, 1.0), Relaxed);
+            params.wah_q.store(wah.q.clamp(0.0, 1.0), Relaxed);
+            params.wah_mix.store(wah.mix.clamp(0.0, 1.0), Relaxed);
+        } else {
+            params.wah_enabled.store(false, Relaxed);
+        }
+
         if let Some(fz) = &self.fuzz {
             params.fz_enabled.store(fz.enabled.unwrap_or(true), Relaxed);
             params.fz_fuzz.store(fz.fuzz.clamp(0.0, 1.0), Relaxed);
@@ -357,6 +448,16 @@ impl Preset {
             params.ds_level.store(ds.level.clamp(0.0, 1.0), Relaxed);
         } else {
             params.ds_enabled.store(false, Relaxed);
+        }
+
+        if let Some(ml) = &self.metal_core {
+            params.ml_enabled.store(ml.enabled.unwrap_or(true), Relaxed);
+            params.ml_dist.store(ml.dist.clamp(0.0, 1.0), Relaxed);
+            params.ml_low.store(ml.low.clamp(0.0, 1.0), Relaxed);
+            params.ml_high.store(ml.high.clamp(0.0, 1.0), Relaxed);
+            params.ml_level.store(ml.level.clamp(0.0, 1.0), Relaxed);
+        } else {
+            params.ml_enabled.store(false, Relaxed);
         }
 
         if let Some(peq) = &self.preamp_eq {
@@ -441,6 +542,18 @@ impl Preset {
             params.ch_mix.store(ch.mix.clamp(0.0, 1.0), Relaxed);
         } else {
             params.ch_enabled.store(false, Relaxed);
+        }
+
+        if let Some(ph) = &self.phaser {
+            params.ph_enabled.store(ph.enabled.unwrap_or(true), Relaxed);
+            params.ph_rate.store(ph.rate.clamp(0.0, 1.0), Relaxed);
+            params.ph_depth.store(ph.depth.clamp(0.0, 1.0), Relaxed);
+            params
+                .ph_feedback
+                .store(ph.feedback.clamp(0.0, 1.0), Relaxed);
+            params.ph_mix.store(ph.mix.clamp(0.0, 1.0), Relaxed);
+        } else {
+            params.ph_enabled.store(false, Relaxed);
         }
 
         let rev = &self.reverb;

@@ -3,10 +3,10 @@ layout: page.njk
 permalink: pedals.html
 title: "Pedals & effects · rusty-amp"
 ogTitle: "rusty-amp · pedals & effects"
-description: "Every rusty-amp pedal explained: noise gate, compressor, fuzz, TS-808, DS-1, pre-amp EQ, parametric EQ, flanger, chorus, delay, and stereo reverb — with full knob reference tables."
+description: "Every rusty-amp pedal explained: noise gate, whammy pitch shifter, auto-wah, compressor, fuzz, TS-808, DS-1, ML-2 Metal Core, pre-amp EQ, parametric EQ, flanger, chorus, phaser, delay, and stereo reverb — with full knob reference tables."
 eyebrow: "Pedals & effects"
 heading: "Configuring the board"
-lead: "Eleven effects you can add, remove, and bypass independently. Each knob runs 0–10; here's exactly what every one does."
+lead: "Fifteen effects you can add, remove, and bypass independently. Each knob runs 0–10; here's exactly what every one does."
 toc:
   - { href: "#board", label: "The board" }
   - { href: "#pedals", label: "All pedals" }
@@ -34,7 +34,7 @@ The **Guitar Rig** shows one compact tile per pedal that's on the board, followe
 
 <div class="note">
 <b>Chain order is fixed</b> and follows the signal flow shown on the header ribbon:
-Gate → Comp → Fuzz → TS-808 → DS-1 → Pre-EQ → <b>Amp</b> → <b>Cab</b> → Parametric EQ → Flanger → Chorus → Delay → Reverb.
+Gate → Whammy → Wah → Comp → Fuzz → TS-808 → DS-1 → ML-2 → Pre-EQ → <b>Amp</b> → <b>Cab</b> → Parametric EQ → Flanger → Chorus → Phaser → Delay → Reverb.
 Where a pedal sits in that order is part of its character — see <a href="how-it-works.html">How it works</a>.
 </div>
 
@@ -47,6 +47,14 @@ Pick a pedal to load it into the editor — exactly like tabbing to its tile in 
     <button class="tile is-active" style="--c:var(--gray)" role="tab" aria-selected="true" data-tab="gate">
       <div class="tile__name"><span class="tile__dot"></span>Noise Gate</div>
       <div class="tile__sub">Thresh · Release</div>
+    </button>
+    <button class="tile" style="--c:var(--cyan)" role="tab" aria-selected="false" data-tab="whammy">
+      <div class="tile__name"><span class="tile__dot"></span>Whammy</div>
+      <div class="tile__sub">Pitch · Mix · Tone</div>
+    </button>
+    <button class="tile" style="--c:var(--orchid)" role="tab" aria-selected="false" data-tab="wah">
+      <div class="tile__name"><span class="tile__dot"></span>Auto-Wah</div>
+      <div class="tile__sub">Freq · Sens · Q · Mix</div>
     </button>
     <button class="tile" style="--c:var(--gold)" role="tab" aria-selected="false" data-tab="comp">
       <div class="tile__name"><span class="tile__dot"></span>Compressor</div>
@@ -64,6 +72,10 @@ Pick a pedal to load it into the editor — exactly like tabbing to its tile in 
       <div class="tile__name"><span class="tile__dot"></span>DS-1</div>
       <div class="tile__sub">Drive · Tone · Level</div>
     </button>
+    <button class="tile" style="--c:var(--steel)" role="tab" aria-selected="false" data-tab="ml2">
+      <div class="tile__name"><span class="tile__dot"></span>ML-2 Metal Core</div>
+      <div class="tile__sub">Dist · Low · High · Level</div>
+    </button>
     <button class="tile" style="--c:var(--lime)" role="tab" aria-selected="false" data-tab="preeq">
       <div class="tile__name"><span class="tile__dot"></span>Pre-amp EQ</div>
       <div class="tile__sub">Low · Mid · High</div>
@@ -80,6 +92,10 @@ Pick a pedal to load it into the editor — exactly like tabbing to its tile in 
       <div class="tile__name"><span class="tile__dot"></span>Chorus</div>
       <div class="tile__sub">Rate · Depth · Mix</div>
     </button>
+    <button class="tile" style="--c:var(--yellow)" role="tab" aria-selected="false" data-tab="phaser">
+      <div class="tile__name"><span class="tile__dot"></span>Phaser</div>
+      <div class="tile__sub">Rate · Depth · Feedback · Mix</div>
+    </button>
     <button class="tile" style="--c:var(--purple)" role="tab" aria-selected="false" data-tab="delay">
       <div class="tile__name"><span class="tile__dot"></span>Delay</div>
       <div class="tile__sub">Time · Feedback · Mix</div>
@@ -94,6 +110,21 @@ Pick a pedal to load it into the editor — exactly like tabbing to its tile in 
     <p class="muted">An envelope follower drives a smooth gain ramp (no clicks) that silences hum and string noise between phrases. Runs first so it cleans the rawest signal.</p>
     <div class="kv"><span class="kv__k">Thresh</span><span class="kv__v"><span class="kv__r">0–10</span> Gate open threshold. 0 = opens at very low levels (−80 dB), 10 = always open. Start around 2–3 for high-gain tones.</span></div>
     <div class="kv"><span class="kv__k">Release</span><span class="kv__v"><span class="kv__r">0–10</span> How long the gate stays open after the signal drops below threshold. Higher = slower, more natural decay.</span></div>
+  </div>
+
+  <div class="tab-panel" style="--c:var(--cyan)" role="tabpanel" data-panel="whammy">
+    <p class="muted">A time-domain pitch shifter that transposes your note up or down by up to an octave. It sits right after the gate — a real whammy's spot, in front of everything — so the <em>shifted</em> note is what the compressor and drives then work on: octave-down for a fake-baritone heaviness, octave-up shrieks and dive-bombs feeding raw into the distortion. Two crossfaded grains sweep a delay line at the pitch ratio; a little warble is inherent to the method and part of the whammy character.</p>
+    <div class="kv"><span class="kv__k">Pitch</span><span class="kv__v"><span class="kv__r">0–10</span> Transpose interval. 0 = −12 semitones (octave down), 5 = unison, 10 = +12 semitones (octave up).</span></div>
+    <div class="kv"><span class="kv__k">Mix</span><span class="kv__v"><span class="kv__r">0–10</span> Dry/wet blend. 0 = dry, 10 = fully wet (full dive-bomb / pure interval).</span></div>
+    <div class="kv"><span class="kv__k">Tone</span><span class="kv__v"><span class="kv__r">0–10</span> Low-pass on the wet path, taming the granular fizz. 0 = dark (~800 Hz), 10 = open (~10 kHz).</span></div>
+  </div>
+
+  <div class="tab-panel" style="--c:var(--orchid)" role="tabpanel" data-panel="wah">
+    <p class="muted">A resonant bandpass whose peak is swept by an envelope follower — the filter "opens" as you dig in and closes as the note decays. A real wah is treadle-swept, but a terminal has no expression pedal, so your picking dynamics drive it: with <b>Sens</b> at 0 it's a static "cocked wah" parked at the <b>Freq</b> position; turn Sens up and it's a dynamic, vocal auto-wah. Sits early — after the whammy, before the compressor and the drives — so it rides raw pick dynamics (a compressor ahead of it would flatten the envelope it sweeps on) and the vocal quack is what the distortion then saturates, the classic wah-into-fuzz voice. Built on a TPT state-variable filter so the peak can sweep continuously with no per-sample coefficient-rebuild cost.</p>
+    <div class="kv"><span class="kv__k">Freq</span><span class="kv__v"><span class="kv__r">0–10</span> Base peak position (the heel-down point), ~300 Hz–1.5 kHz. With Sens at 0 this is a fixed cocked-wah tone.</span></div>
+    <div class="kv"><span class="kv__k">Sens</span><span class="kv__v"><span class="kv__r">0–10</span> How far the envelope sweeps the peak up from the base (0 = static, 10 = a wide auto-sweep on your picking).</span></div>
+    <div class="kv"><span class="kv__k">Q</span><span class="kv__v"><span class="kv__r">0–10</span> Resonance — the sharpness of the peak. Higher = a narrower, more vocal "quack".</span></div>
+    <div class="kv"><span class="kv__k">Mix</span><span class="kv__v"><span class="kv__r">0–10</span> Dry/wet blend. A real wah is fully wet (10); a lower blend keeps some dry body under the filter.</span></div>
   </div>
 
   <div class="tab-panel" style="--c:var(--gold)" role="tabpanel" data-panel="comp">
@@ -124,6 +155,14 @@ Pick a pedal to load it into the editor — exactly like tabbing to its tile in 
     <div class="kv"><span class="kv__k">Level</span><span class="kv__v"><span class="kv__r">0–10</span> Output volume of the pedal into the next stage.</span></div>
   </div>
 
+  <div class="tab-panel" style="--c:var(--steel)" role="tabpanel" data-panel="ml2">
+    <p class="muted">The Boss ML-2 Metal Core — an ultra-high-gain distortion built to make any amp sound metal on its own. Far more gain than the DS-1, from <b>two cascaded clipping stages</b> that saturate then square off into a long, compressed, singing sustain. A fixed mid-scoop gives it that aggressive metal voice, and a powerful active two-band EQ (Low/High, ±15 dB) reshapes the whole tone. Runs last in the drive chain, after the DS-1, so it's the most aggressive stage feeding the pre-amp EQ. Tightened on both sides of the clipper and 8× oversampled so the brutal gain stays articulate, not fizzy.</p>
+    <div class="kv"><span class="kv__k">Dist</span><span class="kv__v"><span class="kv__r">0–10</span> Gain into the two cascaded clip stages (1×–101× on the first, plus a fixed second push). High = a wall of compressed saturation.</span></div>
+    <div class="kv"><span class="kv__k">Low</span><span class="kv__v"><span class="kv__r">0–10</span> Active low shelf at 120 Hz, ±15 dB. 5 = flat, 0 = tight/thin, 10 = a bass-heavy wall.</span></div>
+    <div class="kv"><span class="kv__k">High</span><span class="kv__v"><span class="kv__r">0–10</span> Active high shelf at 3.2 kHz, ±15 dB. 5 = flat, 0 = dark, 10 = bright and cutting.</span></div>
+    <div class="kv"><span class="kv__k">Level</span><span class="kv__v"><span class="kv__r">0–10</span> Output volume of the pedal into the next stage.</span></div>
+  </div>
+
   <div class="tab-panel" style="--c:var(--lime)" role="tabpanel" data-panel="preeq">
     <p class="muted">Sits <b>before the amp</b>, so it shapes the signal that the gain stage actually clips — a different job from the post-cab Parametric EQ, which colours the final mix. Scoop the mids going in for a tighter chug, or push them for lead sustain. All three bands map 0–10 to −12 dB → 0 dB → +12 dB; centre (5.0) is flat.</p>
     <div class="kv"><span class="kv__k">Low</span><span class="kv__v"><span class="kv__r">100 Hz</span> Low shelf.</span></div>
@@ -151,6 +190,14 @@ Pick a pedal to load it into the editor — exactly like tabbing to its tile in 
     <div class="kv"><span class="kv__k">Rate</span><span class="kv__v"><span class="kv__r">0–10</span> LFO speed, 0.05–5 Hz (exponential). Low = a slow, glassy drift; high = a fast, vibrato-like warble.</span></div>
     <div class="kv"><span class="kv__k">Depth</span><span class="kv__v"><span class="kv__r">0–10</span> Sweep width — how far the delay swings (up to ~12 ms). Higher = more detuning and a thicker, more obvious effect.</span></div>
     <div class="kv"><span class="kv__k">Mix</span><span class="kv__v"><span class="kv__r">0–10</span> Dry/wet blend. 0 = dry, 5 = classic chorus (equal dry/wet), 10 = fully wet (pitch-vibrato).</span></div>
+  </div>
+
+  <div class="tab-panel" style="--c:var(--yellow)" role="tabpanel" data-panel="phaser">
+    <p class="muted">The third sibling to the flanger and chorus — but where those sweep a delay line, the phaser sweeps a cascade of four all-pass filters and sums the result with the dry signal. The all-pass chain is flat on its own; the notches only appear in the dry+wet sum, gliding up and down the spectrum for that hollow, vocal "whoosh" (Phase 90 / Small Stone territory). Sits after the chorus, before the delay, in stereo — the two channels read one LFO a quarter-cycle apart so the sweep drifts across the image.</p>
+    <div class="kv"><span class="kv__k">Rate</span><span class="kv__v"><span class="kv__r">0–10</span> LFO speed, 0.05–5 Hz (exponential). Low = a slow, deep swirl; high = a fast throb.</span></div>
+    <div class="kv"><span class="kv__k">Depth</span><span class="kv__v"><span class="kv__r">0–10</span> Sweep width — how far the all-pass break frequency glides (~200 Hz up to ~1.6 kHz). Higher = a wider, more dramatic sweep.</span></div>
+    <div class="kv"><span class="kv__k">Feedback</span><span class="kv__v"><span class="kv__r">0–10</span> Regeneration (0–90%). Feeds the wet output back in, sharpening the notches into resonant, throaty peaks.</span></div>
+    <div class="kv"><span class="kv__k">Mix</span><span class="kv__v"><span class="kv__r">0–10</span> Dry/wet blend. 0 = dry, 5 = deepest phase (equal dry/wet), 10 = fully wet (the notches fade as the dry sum vanishes).</span></div>
   </div>
 
   <div class="tab-panel" style="--c:var(--purple)" role="tabpanel" data-panel="delay">

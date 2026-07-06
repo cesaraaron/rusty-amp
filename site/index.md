@@ -40,12 +40,12 @@ description: "rusty-amp recreates classic tube and solid-state guitar amps, a fu
     <div class="panel">
       <span class="panel__label">Signal chain</span>
       <p class="chain">
-        <b>Guitar</b> <span class="arr">→</span> GATE <span class="arr">→</span> COMP
-        <span class="arr">→</span> FUZZ <span class="arr">→</span> TS-808
-        <span class="arr">→</span> DS-1 <span class="arr">→</span> PRE-EQ
+        <b>Guitar</b> <span class="arr">→</span> GATE <span class="arr">→</span> WHAMMY
+        <span class="arr">→</span> WAH <span class="arr">→</span> COMP <span class="arr">→</span> FUZZ <span class="arr">→</span> TS-808
+        <span class="arr">→</span> DS-1 <span class="arr">→</span> ML-2 <span class="arr">→</span> PRE-EQ
         <span class="arr">→</span> <b>AMP</b> <span class="arr">→</span> <b>CAB</b>
         <span class="arr">→</span> EQ <span class="arr">→</span> FLANGER
-        <span class="arr">→</span> CHORUS <span class="arr">→</span> DELAY
+        <span class="arr">→</span> CHORUS <span class="arr">→</span> PHASER <span class="arr">→</span> DELAY
         <span class="arr">→</span> REVERB <span class="arr">→</span> <b>OUTPUT</b>
       </p>
       <div class="meter"></div>
@@ -152,14 +152,18 @@ description: "rusty-amp recreates classic tube and solid-state guitar amps, a fu
     <p class="lead">Eleven effects, each added, removed, and bypassed independently — the board shows only what you're using.</p>
     <div class="pedalgrid" style="margin-top:18px">
       <div class="pedal" style="--c:var(--gray)"><div class="pedal__name"><span class="dot"></span>Noise Gate</div><div class="pedal__knobs">Thresh · Release</div><div class="pedal__desc">Envelope-follower gate that silences hum and hiss between riffs.</div></div>
+      <div class="pedal" style="--c:var(--cyan)"><div class="pedal__name"><span class="dot"></span>Whammy</div><div class="pedal__knobs">Pitch · Mix · Tone</div><div class="pedal__desc">Octave-up/down pitch shifter in front of the amp — dive-bombs and fake-baritone heaviness.</div></div>
+      <div class="pedal" style="--c:var(--orchid)"><div class="pedal__name"><span class="dot"></span>Auto-Wah</div><div class="pedal__knobs">Freq · Sens · Q · Mix</div><div class="pedal__desc">Envelope-swept resonant filter — a vocal auto-wah that tracks your picking.</div></div>
       <div class="pedal" style="--c:var(--gold)"><div class="pedal__name"><span class="dot"></span>Compressor</div><div class="pedal__knobs">Sustain · Attack · Level</div><div class="pedal__desc">Hard-knee compressor with auto makeup — evens out picking, adds sustain.</div></div>
       <div class="pedal" style="--c:var(--magenta)"><div class="pedal__name"><span class="dot"></span>Fuzz</div><div class="pedal__knobs">Fuzz · Tone · Level</div><div class="pedal__desc">Big-Muff-style two-stage clipper with a scooped “wall of sound” voice.</div></div>
       <div class="pedal" style="--c:var(--green)"><div class="pedal__name"><span class="dot"></span>TS-808</div><div class="pedal__knobs">Drive · Tone · Level</div><div class="pedal__desc">The legendary Tube Screamer — asymmetric diode clip, mid-hump boost.</div></div>
       <div class="pedal" style="--c:#e08840"><div class="pedal__name"><span class="dot"></span>DS-1</div><div class="pedal__knobs">Drive · Tone · Level</div><div class="pedal__desc">Aggressive cubic distortion with a bass↔treble tilt tone control.</div></div>
+      <div class="pedal" style="--c:var(--steel)"><div class="pedal__name"><span class="dot"></span>ML-2 Metal Core</div><div class="pedal__knobs">Dist · Low · High · Level</div><div class="pedal__desc">Ultra-high-gain cascaded distortion with a powerful active two-band EQ.</div></div>
       <div class="pedal" style="--c:var(--lime)"><div class="pedal__name"><span class="dot"></span>Pre-amp EQ</div><div class="pedal__knobs">Low · Mid · High</div><div class="pedal__desc">Shapes the signal <em>before</em> the amp clips — tighten the chug or push leads.</div></div>
       <div class="pedal" style="--c:var(--teal)"><div class="pedal__name"><span class="dot"></span>Parametric EQ</div><div class="pedal__knobs">Low · Mid · High</div><div class="pedal__desc">Post-cabinet tone shaping of the final stereo mix.</div></div>
       <div class="pedal" style="--c:var(--indigo)"><div class="pedal__name"><span class="dot"></span>Flanger</div><div class="pedal__knobs">Rate · Depth · Feedback · Mix</div><div class="pedal__desc">LFO-swept comb filter — the classic metallic “jet plane” sweep, in stereo.</div></div>
       <div class="pedal" style="--c:var(--pink)"><div class="pedal__name"><span class="dot"></span>Chorus</div><div class="pedal__knobs">Rate · Depth · Mix</div><div class="pedal__desc">LFO-swept long delay, no feedback — lush, watery thickening in stereo.</div></div>
+      <div class="pedal" style="--c:var(--yellow)"><div class="pedal__name"><span class="dot"></span>Phaser</div><div class="pedal__knobs">Rate · Depth · Feedback · Mix</div><div class="pedal__desc">Four-stage all-pass sweep — the hollow, vocal “whoosh”, in stereo.</div></div>
       <div class="pedal" style="--c:var(--purple)"><div class="pedal__name"><span class="dot"></span>Delay</div><div class="pedal__knobs">Time · Feedback · Mix</div><div class="pedal__desc">Stereo ping-pong — repeats bounce L↔R, up to 500 ms.</div></div>
       <div class="pedal" style="--c:var(--blue)"><div class="pedal__name"><span class="dot"></span>Stereo Reverb</div><div class="pedal__knobs">Room · Damp · Mix</div><div class="pedal__desc">Dual decorrelated Freeverb cores for a wide, deep tail.</div></div>
     </div>

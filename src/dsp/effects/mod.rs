@@ -20,11 +20,15 @@ pub mod delay;
 pub mod distortion;
 pub mod flanger;
 pub mod fuzz;
+pub mod metal_core;
 pub mod noise_gate;
 pub mod parametric_eq;
+pub mod phaser;
+pub mod pitch;
 pub mod preamp_eq;
 pub mod reverb;
 pub mod tube_screamer;
+pub mod wah;
 
 pub use chorus::Chorus;
 pub use compressor::Compressor;
@@ -32,11 +36,15 @@ pub use delay::Delay;
 pub use distortion::Distortion;
 pub use flanger::Flanger;
 pub use fuzz::Fuzz;
+pub use metal_core::MetalCore;
 pub use noise_gate::NoiseGate;
 pub use parametric_eq::ParametricEq;
+pub use phaser::Phaser;
+pub use pitch::Pitch;
 pub use preamp_eq::PreampEq;
 pub use reverb::Reverb;
 pub use tube_screamer::TubeScreamer;
+pub use wah::Wah;
 
 /// A knob is "dirty" — worth rebuilding filter coefficients for — only once it has
 /// moved by more than this. Filter rebuilds aren't free, so we skip them while a

@@ -18,8 +18,8 @@ use std::sync::atomic::{AtomicBool, AtomicU8, AtomicUsize, Ordering::Relaxed};
 use amp::AmpBank;
 use cab::{CabBank, ExternalIrCab};
 use effects::{
-    Chorus, Compressor, Delay, Distortion, Flanger, Fuzz, NoiseGate, ParametricEq, PreampEq,
-    Reverb, TubeScreamer,
+    Chorus, Compressor, Delay, Distortion, Flanger, Fuzz, MetalCore, NoiseGate, ParametricEq,
+    Phaser, Pitch, PreampEq, Reverb, TubeScreamer, Wah,
 };
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
@@ -138,6 +138,17 @@ const DEFAULT_CMP_SUSTAIN: f32 = 0.40;
 const DEFAULT_CMP_ATTACK: f32 = 0.30;
 const DEFAULT_CMP_LEVEL: f32 = 0.50;
 
+const DEFAULT_PITCH_ENABLED: bool = false;
+const DEFAULT_PITCH_PITCH: f32 = 0.50; // unison
+const DEFAULT_PITCH_MIX: f32 = 0.50;
+const DEFAULT_PITCH_TONE: f32 = 0.70;
+
+const DEFAULT_WAH_ENABLED: bool = false;
+const DEFAULT_WAH_FREQ: f32 = 0.40;
+const DEFAULT_WAH_SENS: f32 = 0.55;
+const DEFAULT_WAH_Q: f32 = 0.50;
+const DEFAULT_WAH_MIX: f32 = 0.90;
+
 const DEFAULT_PEQ_ENABLED: bool = false;
 const DEFAULT_PEQ_LOW: f32 = 0.50;
 const DEFAULT_PEQ_MID: f32 = 0.50;
@@ -157,6 +168,12 @@ const DEFAULT_DS_ENABLED: bool = false;
 const DEFAULT_DS_DRIVE: f32 = 0.40;
 const DEFAULT_DS_TONE: f32 = 0.50;
 const DEFAULT_DS_LEVEL: f32 = 0.65;
+
+const DEFAULT_ML_ENABLED: bool = false;
+const DEFAULT_ML_DIST: f32 = 0.65;
+const DEFAULT_ML_LOW: f32 = 0.50;
+const DEFAULT_ML_HIGH: f32 = 0.50;
+const DEFAULT_ML_LEVEL: f32 = 0.60;
 
 const DEFAULT_REV_ENABLED: bool = true;
 const DEFAULT_REV_ROOM: f32 = 0.55;
@@ -183,6 +200,12 @@ const DEFAULT_CH_ENABLED: bool = false;
 const DEFAULT_CH_RATE: f32 = 0.25;
 const DEFAULT_CH_DEPTH: f32 = 0.50;
 const DEFAULT_CH_MIX: f32 = 0.50;
+
+const DEFAULT_PH_ENABLED: bool = false;
+const DEFAULT_PH_RATE: f32 = 0.30;
+const DEFAULT_PH_DEPTH: f32 = 0.70;
+const DEFAULT_PH_FEEDBACK: f32 = 0.40;
+const DEFAULT_PH_MIX: f32 = 0.50;
 
 const DEFAULT_AMP_GAIN: f32 = 0.75;
 const DEFAULT_AMP_BASS: f32 = 1.00;
@@ -237,6 +260,19 @@ pub struct Params {
     pub cmp_attack: Arc<AtomicF32>,
     pub cmp_level: Arc<AtomicF32>,
 
+    // Pitch shifter / Whammy (early mono chain, after the gate)
+    pub pitch_enabled: Arc<AtomicBool>,
+    pub pitch_pitch: Arc<AtomicF32>,
+    pub pitch_mix: Arc<AtomicF32>,
+    pub pitch_tone: Arc<AtomicF32>,
+
+    // Auto-wah (after the whammy, before the compressor)
+    pub wah_enabled: Arc<AtomicBool>,
+    pub wah_freq: Arc<AtomicF32>,
+    pub wah_sens: Arc<AtomicF32>,
+    pub wah_q: Arc<AtomicF32>,
+    pub wah_mix: Arc<AtomicF32>,
+
     // Pre-amp EQ (before the amp)
     pub peq_enabled: Arc<AtomicBool>,
     pub peq_low: Arc<AtomicF32>,
@@ -260,6 +296,13 @@ pub struct Params {
     pub ds_drive: Arc<AtomicF32>,
     pub ds_tone: Arc<AtomicF32>,
     pub ds_level: Arc<AtomicF32>,
+
+    // Boss ML-2 Metal Core (high-gain distortion, after the DS-1)
+    pub ml_enabled: Arc<AtomicBool>,
+    pub ml_dist: Arc<AtomicF32>,
+    pub ml_low: Arc<AtomicF32>,
+    pub ml_high: Arc<AtomicF32>,
+    pub ml_level: Arc<AtomicF32>,
 
     // Reverb
     pub rev_enabled: Arc<AtomicBool>,
@@ -291,6 +334,13 @@ pub struct Params {
     pub ch_rate: Arc<AtomicF32>,
     pub ch_depth: Arc<AtomicF32>,
     pub ch_mix: Arc<AtomicF32>,
+
+    // Phaser (stereo rack, post-cab modulation, after the chorus)
+    pub ph_enabled: Arc<AtomicBool>,
+    pub ph_rate: Arc<AtomicF32>,
+    pub ph_depth: Arc<AtomicF32>,
+    pub ph_feedback: Arc<AtomicF32>,
+    pub ph_mix: Arc<AtomicF32>,
 
     // Amp (shared by all models)
     pub amp_gain: Arc<AtomicF32>,
@@ -342,6 +392,17 @@ impl Params {
             cmp_attack: p!(DEFAULT_CMP_ATTACK),
             cmp_level: p!(DEFAULT_CMP_LEVEL),
 
+            pitch_enabled: b!(DEFAULT_PITCH_ENABLED),
+            pitch_pitch: p!(DEFAULT_PITCH_PITCH),
+            pitch_mix: p!(DEFAULT_PITCH_MIX),
+            pitch_tone: p!(DEFAULT_PITCH_TONE),
+
+            wah_enabled: b!(DEFAULT_WAH_ENABLED),
+            wah_freq: p!(DEFAULT_WAH_FREQ),
+            wah_sens: p!(DEFAULT_WAH_SENS),
+            wah_q: p!(DEFAULT_WAH_Q),
+            wah_mix: p!(DEFAULT_WAH_MIX),
+
             peq_enabled: b!(DEFAULT_PEQ_ENABLED),
             peq_low: p!(DEFAULT_PEQ_LOW),
             peq_mid: p!(DEFAULT_PEQ_MID),
@@ -361,6 +422,12 @@ impl Params {
             ds_drive: p!(DEFAULT_DS_DRIVE),
             ds_tone: p!(DEFAULT_DS_TONE),
             ds_level: p!(DEFAULT_DS_LEVEL),
+
+            ml_enabled: b!(DEFAULT_ML_ENABLED),
+            ml_dist: p!(DEFAULT_ML_DIST),
+            ml_low: p!(DEFAULT_ML_LOW),
+            ml_high: p!(DEFAULT_ML_HIGH),
+            ml_level: p!(DEFAULT_ML_LEVEL),
 
             rev_enabled: b!(DEFAULT_REV_ENABLED),
             rev_room: p!(DEFAULT_REV_ROOM),
@@ -387,6 +454,12 @@ impl Params {
             ch_rate: p!(DEFAULT_CH_RATE),
             ch_depth: p!(DEFAULT_CH_DEPTH),
             ch_mix: p!(DEFAULT_CH_MIX),
+
+            ph_enabled: b!(DEFAULT_PH_ENABLED),
+            ph_rate: p!(DEFAULT_PH_RATE),
+            ph_depth: p!(DEFAULT_PH_DEPTH),
+            ph_feedback: p!(DEFAULT_PH_FEEDBACK),
+            ph_mix: p!(DEFAULT_PH_MIX),
 
             amp_gain: p!(DEFAULT_AMP_GAIN),
             amp_bass: p!(DEFAULT_AMP_BASS),
@@ -423,6 +496,17 @@ impl Params {
         self.cmp_attack.store(DEFAULT_CMP_ATTACK, Relaxed);
         self.cmp_level.store(DEFAULT_CMP_LEVEL, Relaxed);
 
+        self.pitch_enabled.store(DEFAULT_PITCH_ENABLED, Relaxed);
+        self.pitch_pitch.store(DEFAULT_PITCH_PITCH, Relaxed);
+        self.pitch_mix.store(DEFAULT_PITCH_MIX, Relaxed);
+        self.pitch_tone.store(DEFAULT_PITCH_TONE, Relaxed);
+
+        self.wah_enabled.store(DEFAULT_WAH_ENABLED, Relaxed);
+        self.wah_freq.store(DEFAULT_WAH_FREQ, Relaxed);
+        self.wah_sens.store(DEFAULT_WAH_SENS, Relaxed);
+        self.wah_q.store(DEFAULT_WAH_Q, Relaxed);
+        self.wah_mix.store(DEFAULT_WAH_MIX, Relaxed);
+
         self.peq_enabled.store(DEFAULT_PEQ_ENABLED, Relaxed);
         self.peq_low.store(DEFAULT_PEQ_LOW, Relaxed);
         self.peq_mid.store(DEFAULT_PEQ_MID, Relaxed);
@@ -442,6 +526,12 @@ impl Params {
         self.ds_drive.store(DEFAULT_DS_DRIVE, Relaxed);
         self.ds_tone.store(DEFAULT_DS_TONE, Relaxed);
         self.ds_level.store(DEFAULT_DS_LEVEL, Relaxed);
+
+        self.ml_enabled.store(DEFAULT_ML_ENABLED, Relaxed);
+        self.ml_dist.store(DEFAULT_ML_DIST, Relaxed);
+        self.ml_low.store(DEFAULT_ML_LOW, Relaxed);
+        self.ml_high.store(DEFAULT_ML_HIGH, Relaxed);
+        self.ml_level.store(DEFAULT_ML_LEVEL, Relaxed);
 
         self.rev_enabled.store(DEFAULT_REV_ENABLED, Relaxed);
         self.rev_room.store(DEFAULT_REV_ROOM, Relaxed);
@@ -468,6 +558,12 @@ impl Params {
         self.ch_rate.store(DEFAULT_CH_RATE, Relaxed);
         self.ch_depth.store(DEFAULT_CH_DEPTH, Relaxed);
         self.ch_mix.store(DEFAULT_CH_MIX, Relaxed);
+
+        self.ph_enabled.store(DEFAULT_PH_ENABLED, Relaxed);
+        self.ph_rate.store(DEFAULT_PH_RATE, Relaxed);
+        self.ph_depth.store(DEFAULT_PH_DEPTH, Relaxed);
+        self.ph_feedback.store(DEFAULT_PH_FEEDBACK, Relaxed);
+        self.ph_mix.store(DEFAULT_PH_MIX, Relaxed);
 
         self.amp_gain.store(DEFAULT_AMP_GAIN, Relaxed);
         self.amp_bass.store(DEFAULT_AMP_BASS, Relaxed);
@@ -548,16 +644,20 @@ macro_rules! stereo_stage {
 
 pub struct DspChain {
     ng: NoiseGate,
+    pitch: Pitch,
+    wah: Wah,
     cmp: Compressor,
     fz: Fuzz,
     ts: TubeScreamer,
     ds: Distortion,
+    ml: MetalCore,
     peq: PreampEq,
     amp: AmpBank,
     cab: CabBank,
     eq: ParametricEq,
     flanger: Flanger,
     chorus: Chorus,
+    phaser: Phaser,
     delay: Delay,
     reverb: Reverb,
     params: Arc<Params>,
@@ -583,16 +683,20 @@ impl DspChain {
     pub fn new(sr: f32, params: Arc<Params>) -> Self {
         Self {
             ng: NoiseGate::new(sr),
+            pitch: Pitch::new(sr),
+            wah: Wah::new(sr),
             cmp: Compressor::new(sr),
             fz: Fuzz::new(sr),
             ts: TubeScreamer::new(sr),
             ds: Distortion::new(sr),
+            ml: MetalCore::new(sr),
             peq: PreampEq::new(sr),
             amp: AmpBank::new(sr),
             cab: CabBank::new(sr),
             eq: ParametricEq::new(sr),
             flanger: Flanger::new(sr),
             chorus: Chorus::new(sr),
+            phaser: Phaser::new(sr),
             delay: Delay::new(sr),
             reverb: Reverb::new(sr),
             params,
@@ -669,16 +773,43 @@ impl DspChain {
         self.rack(l, r)
     }
 
-    /// Mono pre-amp path: gate → compressor → fuzz → TS → DS → pre-amp EQ.
+    /// Mono pre-amp path: gate → pitch → wah → compressor → fuzz → TS → DS → ML-2 → pre-amp EQ.
     ///
-    /// Fuzz comes first so it sees the rawest signal; the pre-amp EQ comes last so it
-    /// shapes exactly what the amp's gain stage clips. This is the mono signal fed to
-    /// either the built-in amp or a hosted external amp.
+    /// The pitch shifter sits right after the gate so it transposes a clean, tracked
+    /// note and the *shifted* signal is what everything downstream — wah, compressor,
+    /// drives, amp — then works on (the classic whammy-in-front placement). The auto-wah
+    /// comes before the compressor so its envelope follower rides the raw pick dynamics
+    /// (a compressor ahead of it would flatten the very envelope it sweeps on). Fuzz
+    /// comes before the screamers so it sees the rawest signal; the ML-2 Metal Core is
+    /// the most aggressive drive, last in the dirt chain, and the pre-amp EQ comes after
+    /// it so it shapes exactly what the amp's gain stage clips. This is the mono signal
+    /// fed to either the built-in amp or a hosted external amp.
     #[inline]
     fn pre_amp(&mut self, sample: f32) -> f32 {
         let p = &self.params;
         let x = sample;
         let x = mono_stage!(self, p, x, ng_enabled, ng, ng_threshold, ng_release);
+        let x = mono_stage!(
+            self,
+            p,
+            x,
+            pitch_enabled,
+            pitch,
+            pitch_pitch,
+            pitch_mix,
+            pitch_tone
+        );
+        let x = mono_stage!(
+            self,
+            p,
+            x,
+            wah_enabled,
+            wah,
+            wah_freq,
+            wah_sens,
+            wah_q,
+            wah_mix
+        );
         let x = mono_stage!(
             self,
             p,
@@ -692,6 +823,9 @@ impl DspChain {
         let x = mono_stage!(self, p, x, fz_enabled, fz, fz_fuzz, fz_tone, fz_level);
         let x = mono_stage!(self, p, x, ts_enabled, ts, ts_drive, ts_tone, ts_level);
         let x = mono_stage!(self, p, x, ds_enabled, ds, ds_drive, ds_tone, ds_level);
+        let x = mono_stage!(
+            self, p, x, ml_enabled, ml, ml_dist, ml_low, ml_high, ml_level
+        );
         mono_stage!(self, p, x, peq_enabled, peq, peq_low, peq_mid, peq_high)
     }
 
@@ -741,9 +875,9 @@ impl DspChain {
         }
     }
 
-    /// Stereo rack (parametric EQ → flanger → chorus → ping-pong delay → reverb).
-    /// The flanger and chorus modulate the finished tone ahead of the time-based
-    /// ambience. Runs after both the built-in and external amp paths.
+    /// Stereo rack (parametric EQ → flanger → chorus → phaser → ping-pong delay →
+    /// reverb). The flanger, chorus and phaser modulate the finished tone ahead of
+    /// the time-based ambience. Runs after both the built-in and external amp paths.
     #[inline]
     fn rack(&mut self, l: f32, r: f32) -> (f32, f32) {
         let p = &self.params;
@@ -761,6 +895,18 @@ impl DspChain {
             fl_mix
         );
         let (l, r) = stereo_stage!(self, p, l, r, ch_enabled, chorus, ch_rate, ch_depth, ch_mix);
+        let (l, r) = stereo_stage!(
+            self,
+            p,
+            l,
+            r,
+            ph_enabled,
+            phaser,
+            ph_rate,
+            ph_depth,
+            ph_feedback,
+            ph_mix
+        );
         let (l, r) = stereo_stage!(
             self,
             p,

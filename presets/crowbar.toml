@@ -10,6 +10,29 @@ enabled   = true
 threshold = 0.18   # moderate — tames hiss without clamping the sustain
 release   = 0.35   # slow — lets the heavy chords ring and bloom
 
+# ── Whammy / Pitch shifter ────────────────────────────────────────────────────
+# An octave *down*, blended under the dry note, adds a fake-baritone sub beneath
+# the downtuned wall — subterranean weight without retuning. It sits in front of
+# the amp, so the octave-down copy is saturated into the grind rather than sitting
+# on top; a blend keeps the real fundamental leading so the pitch tracks cleanly on
+# the slow power chords and single-note riffs.
+[pitch]
+enabled = true
+pitch = 0.00   # −12 semitones — octave down
+mix   = 0.34   # heavy sub weight, but the fundamental still leads
+tone  = 0.42   # dark — the sub stays thick, not fizzy
+
+# ── Compressor ────────────────────────────────────────────────────────────────
+# Sits after the gate, before the drive stages, evening out the slow, deliberate
+# picking and adding sustain going into the amp — sludge lives on chords that ring
+# and bloom, so a moderate squash keeps the wall consistent without choking the
+# pick attack that gives the riffs their weight.
+[compressor]
+enabled = true
+sustain = 0.45   # moderate — sustains the ringing chords without over-squashing
+attack  = 0.55   # slow-ish — lets the palm-mute pick transient punch through first
+level   = 0.50   # unity with auto makeup
+
 # ── Tube Screamer ─────────────────────────────────────────────────────────────
 # A near-clean boost in front of the amp, used the way every downtuned player
 # uses it: not for drive but to firm up a floppy low end so the drop tuning stays

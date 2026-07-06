@@ -149,14 +149,18 @@ fn render_header(
     f.render_widget(Paragraph::new(Line::from(title_spans)), rows[0]);
 
     let ng_on = params.ng_enabled.load(Relaxed);
+    let pitch_on = params.pitch_enabled.load(Relaxed);
+    let wah_on = params.wah_enabled.load(Relaxed);
     let cmp_on = params.cmp_enabled.load(Relaxed);
     let fz_on = params.fz_enabled.load(Relaxed);
     let ts_on = params.ts_enabled.load(Relaxed);
     let ds_on = params.ds_enabled.load(Relaxed);
+    let ml_on = params.ml_enabled.load(Relaxed);
     let peq_on = params.peq_enabled.load(Relaxed);
     let eq_on = params.eq_enabled.load(Relaxed);
     let fl_on = params.fl_enabled.load(Relaxed);
     let ch_on = params.ch_enabled.load(Relaxed);
+    let ph_on = params.ph_enabled.load(Relaxed);
     let delay_on = params.delay_enabled.load(Relaxed);
     let rev_on = params.rev_enabled.load(Relaxed);
 
@@ -167,16 +171,20 @@ fn render_header(
     // anchor the pre-amp pedals to their post-cab counterparts.
     let pre_pedals = [
         ("GATE", ng_on),
+        ("WHAMMY", pitch_on),
+        ("WAH", wah_on),
         ("COMP", cmp_on),
         ("FUZZ", fz_on),
         ("TS-808", ts_on),
         ("DS-1", ds_on),
+        ("ML-2", ml_on),
         ("PRE-EQ", peq_on),
     ];
     let post_pedals = [
         ("EQ", eq_on),
         ("FLANGER", fl_on),
         ("CHORUS", ch_on),
+        ("PHASER", ph_on),
         ("DELAY", delay_on),
         ("REVERB", rev_on),
     ];

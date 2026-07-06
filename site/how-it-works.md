@@ -56,6 +56,20 @@ Every block below is processed per sample. Bracketed stages are `[bypassable]` �
     </div>
   </div>
 
+  <div class="flow__stage" style="--c:var(--cyan)">
+    <div class="flow__card">
+      <div class="flow__head"><span class="flow__name">Whammy</span><span class="flow__badge flow__badge--bypass">Bypassable</span></div>
+      <div class="flow__sig">Two-tap crossfaded varispeed delay line → ±12-semitone transpose → wet tone LP, blended with dry.</div>
+    </div>
+  </div>
+
+  <div class="flow__stage" style="--c:var(--orchid)">
+    <div class="flow__card">
+      <div class="flow__head"><span class="flow__name">Auto-Wah</span><span class="flow__badge flow__badge--bypass">Bypassable</span></div>
+      <div class="flow__sig">Envelope follower (fast attack / slow release) → sweeps a resonant TPT state-variable bandpass (~300 Hz–3 kHz) → dry/wet blend · FREQ base position · SENS auto-sweep · Q resonance.</div>
+    </div>
+  </div>
+
   <div class="flow__stage" style="--c:var(--gold)">
     <div class="flow__card">
       <div class="flow__head"><span class="flow__name">Compressor</span><span class="flow__badge flow__badge--bypass">Bypassable</span></div>
@@ -81,6 +95,13 @@ Every block below is processed per sample. Bracketed stages are `[bypassable]` �
     <div class="flow__card">
       <div class="flow__head"><span class="flow__name">DS-1 Distortion</span><span class="flow__badge flow__badge--bypass">Bypassable</span></div>
       <div class="flow__sig">DC block → 80 Hz HP → 800 Hz mid-emphasis → <span class="os">[4× OS: pre-clip HP → near-symmetric cubic diode clip]</span> → post-clip HP → tilt tone → 6.5 kHz post-clip LP.</div>
+    </div>
+  </div>
+
+  <div class="flow__stage" style="--c:var(--steel)">
+    <div class="flow__card">
+      <div class="flow__head"><span class="flow__name">ML-2 Metal Core</span><span class="flow__badge flow__badge--bypass">Bypassable</span></div>
+      <div class="flow__sig">DC block → 90 Hz HP → fixed 650 Hz mid-scoop → <span class="os">[8× OS: pre-clip HP → two cascaded soft-clip stages]</span> → post-clip HP → active Low/High shelves (±15 dB) → 7 kHz post-clip LP.</div>
     </div>
   </div>
 
@@ -126,6 +147,13 @@ Every block below is processed per sample. Bracketed stages are `[bypassable]` �
     <div class="flow__card">
       <div class="flow__head"><span class="flow__name">Chorus</span><span class="flow__badge flow__badge--stereo">Stereo</span><span class="flow__badge flow__badge--bypass">Bypassable</span></div>
       <div class="flow__sig">LFO-swept long delay (~8–20 ms), no feedback, mixed with the dry signal — lush pitch-shimmer, not a comb sweep · RATE 0.05–5 Hz · DEPTH · dry/wet MIX · L/R read half a cycle apart for stereo width.</div>
+    </div>
+  </div>
+
+  <div class="flow__stage" style="--c:var(--yellow)">
+    <div class="flow__card">
+      <div class="flow__head"><span class="flow__name">Phaser</span><span class="flow__badge flow__badge--stereo">Stereo</span><span class="flow__badge flow__badge--bypass">Bypassable</span></div>
+      <div class="flow__sig">4-stage LFO-swept all-pass cascade summed with the dry signal — sweeping notches in the dry+wet sum · RATE 0.05–5 Hz · DEPTH (~200 Hz–1.6 kHz) · FEEDBACK 0–90% resonance · dry/wet MIX · L/R read a quarter-cycle apart for stereo width.</div>
     </div>
   </div>
 
