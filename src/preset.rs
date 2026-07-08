@@ -37,10 +37,12 @@ pub struct Preset {
     pub preamp_eq: Option<PeqSection>,
     pub amp: AmpSection,
     pub cabinet: Option<CabSection>,
+    pub graphic_eq: Option<GraphicEqSection>,
     pub eq: Option<EqSection>,
     pub flanger: Option<FlangerSection>,
     pub chorus: Option<ChorusSection>,
     pub phaser: Option<PhaserSection>,
+    pub tremolo: Option<TremoloSection>,
     pub delay: Option<DelaySection>,
     pub reverb: ReverbSection,
 }
@@ -162,6 +164,21 @@ fn mic_room_default() -> f32 {
     0.15
 }
 
+/// Boss GE-7 graphic EQ: seven band faders (low → high) plus an output level,
+/// all 0–1 with 0.5 = flat/unity.
+#[derive(Debug, Deserialize, Serialize)]
+pub struct GraphicEqSection {
+    pub enabled: Option<bool>,
+    pub band1: f32,
+    pub band2: f32,
+    pub band3: f32,
+    pub band4: f32,
+    pub band5: f32,
+    pub band6: f32,
+    pub band7: f32,
+    pub level: f32,
+}
+
 #[derive(Debug, Deserialize, Serialize)]
 pub struct EqSection {
     pub enabled: Option<bool>,
@@ -202,6 +219,17 @@ pub struct PhaserSection {
     pub depth: f32,
     pub feedback: f32,
     pub mix: f32,
+}
+
+/// Tremolo / Vibrato: one LFO, blended between amplitude (tremolo) and pitch
+/// (vibrato) modulation. All fields 0.0–1.0.
+#[derive(Debug, Deserialize, Serialize)]
+pub struct TremoloSection {
+    pub enabled: Option<bool>,
+    pub rate: f32,
+    pub depth: f32,
+    pub shape: f32,
+    pub mode: f32,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -319,6 +347,17 @@ impl Preset {
                 mic_blend: params.mic_blend.load(Relaxed),
                 mic_room: params.mic_room.load(Relaxed),
             }),
+            graphic_eq: Some(GraphicEqSection {
+                enabled: Some(params.geq_enabled.load(Relaxed)),
+                band1: params.geq_b1.load(Relaxed),
+                band2: params.geq_b2.load(Relaxed),
+                band3: params.geq_b3.load(Relaxed),
+                band4: params.geq_b4.load(Relaxed),
+                band5: params.geq_b5.load(Relaxed),
+                band6: params.geq_b6.load(Relaxed),
+                band7: params.geq_b7.load(Relaxed),
+                level: params.geq_level.load(Relaxed),
+            }),
             eq: Some(EqSection {
                 enabled: Some(params.eq_enabled.load(Relaxed)),
                 low: params.eq_low.load(Relaxed),
@@ -350,6 +389,13 @@ impl Preset {
                 depth: params.ph_depth.load(Relaxed),
                 feedback: params.ph_feedback.load(Relaxed),
                 mix: params.ph_mix.load(Relaxed),
+            }),
+            tremolo: Some(TremoloSection {
+                enabled: Some(params.trem_enabled.load(Relaxed)),
+                rate: params.trem_rate.load(Relaxed),
+                depth: params.trem_depth.load(Relaxed),
+                shape: params.trem_shape.load(Relaxed),
+                mode: params.trem_mode.load(Relaxed),
             }),
             reverb: ReverbSection {
                 enabled: Some(params.rev_enabled.load(Relaxed)),
@@ -501,6 +547,22 @@ impl Preset {
             params.mic_room.store(cab.mic_room.clamp(0.0, 1.0), Relaxed);
         }
 
+        if let Some(geq) = &self.graphic_eq {
+            params
+                .geq_enabled
+                .store(geq.enabled.unwrap_or(true), Relaxed);
+            params.geq_b1.store(geq.band1.clamp(0.0, 1.0), Relaxed);
+            params.geq_b2.store(geq.band2.clamp(0.0, 1.0), Relaxed);
+            params.geq_b3.store(geq.band3.clamp(0.0, 1.0), Relaxed);
+            params.geq_b4.store(geq.band4.clamp(0.0, 1.0), Relaxed);
+            params.geq_b5.store(geq.band5.clamp(0.0, 1.0), Relaxed);
+            params.geq_b6.store(geq.band6.clamp(0.0, 1.0), Relaxed);
+            params.geq_b7.store(geq.band7.clamp(0.0, 1.0), Relaxed);
+            params.geq_level.store(geq.level.clamp(0.0, 1.0), Relaxed);
+        } else {
+            params.geq_enabled.store(false, Relaxed);
+        }
+
         if let Some(eq) = &self.eq {
             params.eq_enabled.store(eq.enabled.unwrap_or(true), Relaxed);
             params.eq_low.store(eq.low.clamp(0.0, 1.0), Relaxed);
@@ -554,6 +616,18 @@ impl Preset {
             params.ph_mix.store(ph.mix.clamp(0.0, 1.0), Relaxed);
         } else {
             params.ph_enabled.store(false, Relaxed);
+        }
+
+        if let Some(tr) = &self.tremolo {
+            params
+                .trem_enabled
+                .store(tr.enabled.unwrap_or(true), Relaxed);
+            params.trem_rate.store(tr.rate.clamp(0.0, 1.0), Relaxed);
+            params.trem_depth.store(tr.depth.clamp(0.0, 1.0), Relaxed);
+            params.trem_shape.store(tr.shape.clamp(0.0, 1.0), Relaxed);
+            params.trem_mode.store(tr.mode.clamp(0.0, 1.0), Relaxed);
+        } else {
+            params.trem_enabled.store(false, Relaxed);
         }
 
         let rev = &self.reverb;

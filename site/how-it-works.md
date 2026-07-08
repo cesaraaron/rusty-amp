@@ -129,6 +129,13 @@ Every block below is processed per sample. Bracketed stages are `[bypassable]` �
     </div>
   </div>
 
+  <div class="flow__stage" style="--c:var(--sand)">
+    <div class="flow__card">
+      <div class="flow__head"><span class="flow__name">Graphic EQ</span><span class="flow__badge flow__badge--stereo">Stereo</span><span class="flow__badge flow__badge--bypass">Bypassable</span></div>
+      <div class="flow__sig">Boss GE-7 style seven-band peak bank (100 · 220 · 470 · 1k · 2.2k · 4.7k · 10k Hz, constant Q ≈ 2) in series, each fader ±12 dB → output level ±15 dB — a fixed-frequency curve you draw in the effects loop, before the parametric shelves.</div>
+    </div>
+  </div>
+
   <div class="flow__stage" style="--c:var(--teal)">
     <div class="flow__card">
       <div class="flow__head"><span class="flow__name">Parametric EQ</span><span class="flow__badge flow__badge--stereo">Stereo</span><span class="flow__badge flow__badge--bypass">Bypassable</span></div>
@@ -154,6 +161,13 @@ Every block below is processed per sample. Bracketed stages are `[bypassable]` �
     <div class="flow__card">
       <div class="flow__head"><span class="flow__name">Phaser</span><span class="flow__badge flow__badge--stereo">Stereo</span><span class="flow__badge flow__badge--bypass">Bypassable</span></div>
       <div class="flow__sig">4-stage LFO-swept all-pass cascade summed with the dry signal — sweeping notches in the dry+wet sum · RATE 0.05–5 Hz · DEPTH (~200 Hz–1.6 kHz) · FEEDBACK 0–90% resonance · dry/wet MIX · L/R read a quarter-cycle apart for stereo width.</div>
+    </div>
+  </div>
+
+  <div class="flow__stage" style="--c:var(--rose)">
+    <div class="flow__card">
+      <div class="flow__head"><span class="flow__name">Tremolo / Vibrato</span><span class="flow__badge flow__badge--stereo">Stereo</span><span class="flow__badge flow__badge--bypass">Bypassable</span></div>
+      <div class="flow__sig">One LFO driving both modulations, blended by MODE — amplitude tremolo (shaped sine → soft-square chop) and pitch vibrato (a ±3 ms LFO-swept delay tap) · RATE 0.5–14 Hz · DEPTH · SHAPE sine→square · runs on both channels for a coherent pulse/wobble.</div>
     </div>
   </div>
 

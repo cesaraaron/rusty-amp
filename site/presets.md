@@ -207,6 +207,19 @@ mic_pos   = 0.5       # 0.0 = edge/dark, 0.5 = neutral, 1.0 = center/bright (def
 mic_blend = 0.15      # 0.0 = SM57 dynamic, 1.0 = R121 ribbon (default 0.15)
 mic_room  = 0.15      # 0.0 = dry close mic, 1.0 = full room mic (default 0.15)
 
+# Graphic EQ (Boss GE-7): seven band faders + output level, all 0.0–1.0 with
+# 0.5 = flat/unity. Sits in the effects loop, just after the cab.
+[graphic_eq]
+enabled = false       # optional, defaults to true when the section is present
+band1 = 0.50          # 100 Hz   (0.0 = −12 dB, 0.5 = 0 dB, 1.0 = +12 dB)
+band2 = 0.50          # 220 Hz
+band3 = 0.50          # 470 Hz
+band4 = 0.50          # 1 kHz
+band5 = 0.50          # 2.2 kHz
+band6 = 0.50          # 4.7 kHz
+band7 = 0.50          # 10 kHz
+level = 0.50          # output make-up (0.0 = −15 dB, 0.5 = unity, 1.0 = +15 dB)
+
 [eq]
 enabled = true        # optional, defaults to true
 low  = 0.50           # 0.0 = −15 dB, 0.5 = 0 dB, 1.0 = +15 dB
@@ -238,6 +251,14 @@ rate     = 0.30       # 0.0 – 1.0  (LFO speed, 0.05–5 Hz, exponential)
 depth    = 0.70       # 0.0 – 1.0  (sweep width; break freq glides ~200 Hz–1.6 kHz)
 feedback = 0.40       # 0.0 – 1.0  (regeneration, capped at 90%; higher = resonant)
 mix      = 0.50       # 0.0 = dry, 0.5 = deepest phase, 1.0 = fully wet
+
+# Tremolo / Vibrato: one LFO, blended from amplitude tremolo to pitch vibrato.
+[tremolo]
+enabled = false       # optional, defaults to true when the section is present
+rate    = 0.35        # 0.0 – 1.0  (LFO speed, 0.5–14 Hz, exponential)
+depth   = 0.55        # 0.0 – 1.0  (modulation intensity)
+shape   = 0.00        # 0.0 = sine swell, 1.0 = soft-square on/off chop
+mode    = 0.00        # 0.0 = pure tremolo (amplitude), 1.0 = pure vibrato (pitch)
 
 [delay]
 enabled  = true       # optional, defaults to true

@@ -18,8 +18,8 @@ use std::sync::atomic::{AtomicBool, AtomicU8, AtomicUsize, Ordering::Relaxed};
 use amp::AmpBank;
 use cab::{CabBank, ExternalIrCab};
 use effects::{
-    Chorus, Compressor, Delay, Distortion, Flanger, Fuzz, MetalCore, NoiseGate, ParametricEq,
-    Phaser, Pitch, PreampEq, Reverb, TubeScreamer, Wah,
+    Chorus, Compressor, Delay, Distortion, Flanger, Fuzz, GraphicEq, MetalCore, NoiseGate,
+    ParametricEq, Phaser, Pitch, PreampEq, Reverb, Tremolo, TubeScreamer, Wah,
 };
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
@@ -180,6 +180,11 @@ const DEFAULT_REV_ROOM: f32 = 0.55;
 const DEFAULT_REV_DAMP: f32 = 0.40;
 const DEFAULT_REV_MIX: f32 = 0.25;
 
+// Graphic EQ (Boss GE-7): seven band faders + output level, all default flat.
+const DEFAULT_GEQ_ENABLED: bool = false;
+const DEFAULT_GEQ_BAND: f32 = 0.50; // 0.5 = 0 dB (flat) for every band
+const DEFAULT_GEQ_LEVEL: f32 = 0.50; // 0.5 = unity output
+
 const DEFAULT_EQ_ENABLED: bool = false;
 const DEFAULT_EQ_LOW: f32 = 0.50;
 const DEFAULT_EQ_MID: f32 = 0.50;
@@ -206,6 +211,13 @@ const DEFAULT_PH_RATE: f32 = 0.30;
 const DEFAULT_PH_DEPTH: f32 = 0.70;
 const DEFAULT_PH_FEEDBACK: f32 = 0.40;
 const DEFAULT_PH_MIX: f32 = 0.50;
+
+// Tremolo / Vibrato (post-cab modulation, after the phaser, before the delay)
+const DEFAULT_TREM_ENABLED: bool = false;
+const DEFAULT_TREM_RATE: f32 = 0.35;
+const DEFAULT_TREM_DEPTH: f32 = 0.55;
+const DEFAULT_TREM_SHAPE: f32 = 0.00; // sine
+const DEFAULT_TREM_MODE: f32 = 0.00; // tremolo (amplitude)
 
 const DEFAULT_AMP_GAIN: f32 = 0.75;
 const DEFAULT_AMP_BASS: f32 = 1.00;
@@ -310,6 +322,17 @@ pub struct Params {
     pub rev_damp: Arc<AtomicF32>,
     pub rev_mix: Arc<AtomicF32>,
 
+    // Graphic EQ (Boss GE-7, post-cab rack, before the parametric EQ)
+    pub geq_enabled: Arc<AtomicBool>,
+    pub geq_b1: Arc<AtomicF32>,
+    pub geq_b2: Arc<AtomicF32>,
+    pub geq_b3: Arc<AtomicF32>,
+    pub geq_b4: Arc<AtomicF32>,
+    pub geq_b5: Arc<AtomicF32>,
+    pub geq_b6: Arc<AtomicF32>,
+    pub geq_b7: Arc<AtomicF32>,
+    pub geq_level: Arc<AtomicF32>,
+
     // Parametric EQ
     pub eq_enabled: Arc<AtomicBool>,
     pub eq_low: Arc<AtomicF32>,
@@ -341,6 +364,13 @@ pub struct Params {
     pub ph_depth: Arc<AtomicF32>,
     pub ph_feedback: Arc<AtomicF32>,
     pub ph_mix: Arc<AtomicF32>,
+
+    // Tremolo / Vibrato (stereo rack, post-cab modulation, after the phaser)
+    pub trem_enabled: Arc<AtomicBool>,
+    pub trem_rate: Arc<AtomicF32>,
+    pub trem_depth: Arc<AtomicF32>,
+    pub trem_shape: Arc<AtomicF32>,
+    pub trem_mode: Arc<AtomicF32>,
 
     // Amp (shared by all models)
     pub amp_gain: Arc<AtomicF32>,
@@ -434,6 +464,16 @@ impl Params {
             rev_damp: p!(DEFAULT_REV_DAMP),
             rev_mix: p!(DEFAULT_REV_MIX),
 
+            geq_enabled: b!(DEFAULT_GEQ_ENABLED),
+            geq_b1: p!(DEFAULT_GEQ_BAND),
+            geq_b2: p!(DEFAULT_GEQ_BAND),
+            geq_b3: p!(DEFAULT_GEQ_BAND),
+            geq_b4: p!(DEFAULT_GEQ_BAND),
+            geq_b5: p!(DEFAULT_GEQ_BAND),
+            geq_b6: p!(DEFAULT_GEQ_BAND),
+            geq_b7: p!(DEFAULT_GEQ_BAND),
+            geq_level: p!(DEFAULT_GEQ_LEVEL),
+
             eq_enabled: b!(DEFAULT_EQ_ENABLED),
             eq_low: p!(DEFAULT_EQ_LOW),
             eq_mid: p!(DEFAULT_EQ_MID),
@@ -460,6 +500,12 @@ impl Params {
             ph_depth: p!(DEFAULT_PH_DEPTH),
             ph_feedback: p!(DEFAULT_PH_FEEDBACK),
             ph_mix: p!(DEFAULT_PH_MIX),
+
+            trem_enabled: b!(DEFAULT_TREM_ENABLED),
+            trem_rate: p!(DEFAULT_TREM_RATE),
+            trem_depth: p!(DEFAULT_TREM_DEPTH),
+            trem_shape: p!(DEFAULT_TREM_SHAPE),
+            trem_mode: p!(DEFAULT_TREM_MODE),
 
             amp_gain: p!(DEFAULT_AMP_GAIN),
             amp_bass: p!(DEFAULT_AMP_BASS),
@@ -538,6 +584,16 @@ impl Params {
         self.rev_damp.store(DEFAULT_REV_DAMP, Relaxed);
         self.rev_mix.store(DEFAULT_REV_MIX, Relaxed);
 
+        self.geq_enabled.store(DEFAULT_GEQ_ENABLED, Relaxed);
+        self.geq_b1.store(DEFAULT_GEQ_BAND, Relaxed);
+        self.geq_b2.store(DEFAULT_GEQ_BAND, Relaxed);
+        self.geq_b3.store(DEFAULT_GEQ_BAND, Relaxed);
+        self.geq_b4.store(DEFAULT_GEQ_BAND, Relaxed);
+        self.geq_b5.store(DEFAULT_GEQ_BAND, Relaxed);
+        self.geq_b6.store(DEFAULT_GEQ_BAND, Relaxed);
+        self.geq_b7.store(DEFAULT_GEQ_BAND, Relaxed);
+        self.geq_level.store(DEFAULT_GEQ_LEVEL, Relaxed);
+
         self.eq_enabled.store(DEFAULT_EQ_ENABLED, Relaxed);
         self.eq_low.store(DEFAULT_EQ_LOW, Relaxed);
         self.eq_mid.store(DEFAULT_EQ_MID, Relaxed);
@@ -564,6 +620,12 @@ impl Params {
         self.ph_depth.store(DEFAULT_PH_DEPTH, Relaxed);
         self.ph_feedback.store(DEFAULT_PH_FEEDBACK, Relaxed);
         self.ph_mix.store(DEFAULT_PH_MIX, Relaxed);
+
+        self.trem_enabled.store(DEFAULT_TREM_ENABLED, Relaxed);
+        self.trem_rate.store(DEFAULT_TREM_RATE, Relaxed);
+        self.trem_depth.store(DEFAULT_TREM_DEPTH, Relaxed);
+        self.trem_shape.store(DEFAULT_TREM_SHAPE, Relaxed);
+        self.trem_mode.store(DEFAULT_TREM_MODE, Relaxed);
 
         self.amp_gain.store(DEFAULT_AMP_GAIN, Relaxed);
         self.amp_bass.store(DEFAULT_AMP_BASS, Relaxed);
@@ -654,10 +716,12 @@ pub struct DspChain {
     peq: PreampEq,
     amp: AmpBank,
     cab: CabBank,
+    geq: GraphicEq,
     eq: ParametricEq,
     flanger: Flanger,
     chorus: Chorus,
     phaser: Phaser,
+    tremolo: Tremolo,
     delay: Delay,
     reverb: Reverb,
     params: Arc<Params>,
@@ -693,10 +757,12 @@ impl DspChain {
             peq: PreampEq::new(sr),
             amp: AmpBank::new(sr),
             cab: CabBank::new(sr),
+            geq: GraphicEq::new(sr),
             eq: ParametricEq::new(sr),
             flanger: Flanger::new(sr),
             chorus: Chorus::new(sr),
             phaser: Phaser::new(sr),
+            tremolo: Tremolo::new(sr),
             delay: Delay::new(sr),
             reverb: Reverb::new(sr),
             params,
@@ -875,12 +941,30 @@ impl DspChain {
         }
     }
 
-    /// Stereo rack (parametric EQ → flanger → chorus → phaser → ping-pong delay →
-    /// reverb). The flanger, chorus and phaser modulate the finished tone ahead of
+    /// Stereo rack (graphic EQ → parametric EQ → flanger → chorus → phaser →
+    /// tremolo/vibrato → ping-pong delay → reverb). The two EQs shape the finished,
+    /// mic'd tone (the graphic EQ's fixed band bank first, then the parametric
+    /// shelves) before the flanger, chorus, phaser and tremolo modulate it ahead of
     /// the time-based ambience. Runs after both the built-in and external amp paths.
     #[inline]
     fn rack(&mut self, l: f32, r: f32) -> (f32, f32) {
         let p = &self.params;
+        let (l, r) = stereo_stage!(
+            self,
+            p,
+            l,
+            r,
+            geq_enabled,
+            geq,
+            geq_b1,
+            geq_b2,
+            geq_b3,
+            geq_b4,
+            geq_b5,
+            geq_b6,
+            geq_b7,
+            geq_level
+        );
         let (l, r) = stereo_stage!(self, p, l, r, eq_enabled, eq, eq_low, eq_mid, eq_high);
         let (l, r) = stereo_stage!(
             self,
@@ -906,6 +990,18 @@ impl DspChain {
             ph_depth,
             ph_feedback,
             ph_mix
+        );
+        let (l, r) = stereo_stage!(
+            self,
+            p,
+            l,
+            r,
+            trem_enabled,
+            tremolo,
+            trem_rate,
+            trem_depth,
+            trem_shape,
+            trem_mode
         );
         let (l, r) = stereo_stage!(
             self,

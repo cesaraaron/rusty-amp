@@ -3,10 +3,10 @@ layout: page.njk
 permalink: pedals.html
 title: "Pedals & effects · rusty-amp"
 ogTitle: "rusty-amp · pedals & effects"
-description: "Every rusty-amp pedal explained: noise gate, whammy pitch shifter, auto-wah, compressor, fuzz, TS-808, DS-1, ML-2 Metal Core, pre-amp EQ, parametric EQ, flanger, chorus, phaser, delay, and stereo reverb — with full knob reference tables."
+description: "Every rusty-amp pedal explained: noise gate, whammy pitch shifter, auto-wah, compressor, fuzz, TS-808, DS-1, ML-2 Metal Core, pre-amp EQ, graphic EQ, parametric EQ, flanger, chorus, phaser, tremolo/vibrato, delay, and stereo reverb — with full knob reference tables."
 eyebrow: "Pedals & effects"
 heading: "Configuring the board"
-lead: "Fifteen effects you can add, remove, and bypass independently. Each knob runs 0–10; here's exactly what every one does."
+lead: "Seventeen effects you can add, remove, and bypass independently. Each knob runs 0–10; here's exactly what every one does."
 toc:
   - { href: "#board", label: "The board" }
   - { href: "#pedals", label: "All pedals" }
@@ -34,7 +34,7 @@ The **Guitar Rig** shows one compact tile per pedal that's on the board, followe
 
 <div class="note">
 <b>Chain order is fixed</b> and follows the signal flow shown on the header ribbon:
-Gate → Whammy → Wah → Comp → Fuzz → TS-808 → DS-1 → ML-2 → Pre-EQ → <b>Amp</b> → <b>Cab</b> → Parametric EQ → Flanger → Chorus → Phaser → Delay → Reverb.
+Gate → Whammy → Wah → Comp → Fuzz → TS-808 → DS-1 → ML-2 → Pre-EQ → <b>Amp</b> → <b>Cab</b> → Graphic EQ → Parametric EQ → Flanger → Chorus → Phaser → Tremolo/Vibrato → Delay → Reverb.
 Where a pedal sits in that order is part of its character — see <a href="how-it-works.html">How it works</a>.
 </div>
 
@@ -80,6 +80,10 @@ Pick a pedal to load it into the editor — exactly like tabbing to its tile in 
       <div class="tile__name"><span class="tile__dot"></span>Pre-amp EQ</div>
       <div class="tile__sub">Low · Mid · High</div>
     </button>
+    <button class="tile" style="--c:var(--sand)" role="tab" aria-selected="false" data-tab="graphic-eq">
+      <div class="tile__name"><span class="tile__dot"></span>Graphic EQ</div>
+      <div class="tile__sub">100 · 220 · 470 · 1k · 2.2k · 4.7k · 10k · Level</div>
+    </button>
     <button class="tile" style="--c:var(--teal)" role="tab" aria-selected="false" data-tab="peq">
       <div class="tile__name"><span class="tile__dot"></span>Parametric EQ</div>
       <div class="tile__sub">Low · Mid · High</div>
@@ -95,6 +99,10 @@ Pick a pedal to load it into the editor — exactly like tabbing to its tile in 
     <button class="tile" style="--c:var(--yellow)" role="tab" aria-selected="false" data-tab="phaser">
       <div class="tile__name"><span class="tile__dot"></span>Phaser</div>
       <div class="tile__sub">Rate · Depth · Feedback · Mix</div>
+    </button>
+    <button class="tile" style="--c:var(--rose)" role="tab" aria-selected="false" data-tab="tremolo">
+      <div class="tile__name"><span class="tile__dot"></span>Tremolo / Vibrato</div>
+      <div class="tile__sub">Rate · Depth · Shape · Mode</div>
     </button>
     <button class="tile" style="--c:var(--purple)" role="tab" aria-selected="false" data-tab="delay">
       <div class="tile__name"><span class="tile__dot"></span>Delay</div>
@@ -170,6 +178,18 @@ Pick a pedal to load it into the editor — exactly like tabbing to its tile in 
     <div class="kv"><span class="kv__k">High</span><span class="kv__v"><span class="kv__r">3 kHz</span> High shelf.</span></div>
   </div>
 
+  <div class="tab-panel" style="--c:var(--sand)" role="tabpanel" data-panel="graphic-eq">
+    <p class="muted">A Boss GE-7 style graphic equalizer — seven fixed-frequency faders plus an output level, run in stereo just after the cab (the classic “EQ in the effects loop” placement, before the Parametric EQ). Where the shelf EQs give you broad tilt, the fixed peak bank lets you draw a surgical curve: notch a boxy 470 Hz, scoop the mids, or lift 4.7 kHz presence. Each band fader maps 0–10 to −12 dB → 0 dB → +12 dB; centre (5.0) is flat. The Level fader is 0–10 → −15 dB → 0 dB → +15 dB to make up (or trim) the gain the boosts add.</p>
+    <div class="kv"><span class="kv__k">100</span><span class="kv__v"><span class="kv__r">100 Hz</span> Low-end body / thump.</span></div>
+    <div class="kv"><span class="kv__k">220</span><span class="kv__v"><span class="kv__r">220 Hz</span> Low mids — warmth vs mud.</span></div>
+    <div class="kv"><span class="kv__k">470</span><span class="kv__v"><span class="kv__r">470 Hz</span> Boxiness / honk.</span></div>
+    <div class="kv"><span class="kv__k">1k</span><span class="kv__v"><span class="kv__r">1 kHz</span> Midrange cut/push.</span></div>
+    <div class="kv"><span class="kv__k">2.2k</span><span class="kv__v"><span class="kv__r">2.2 kHz</span> Attack / bite.</span></div>
+    <div class="kv"><span class="kv__k">4.7k</span><span class="kv__v"><span class="kv__r">4.7 kHz</span> Presence.</span></div>
+    <div class="kv"><span class="kv__k">10k</span><span class="kv__v"><span class="kv__r">10 kHz</span> Air / sparkle.</span></div>
+    <div class="kv"><span class="kv__k">Level</span><span class="kv__v"><span class="kv__r">±15 dB</span> Output make-up gain.</span></div>
+  </div>
+
   <div class="tab-panel" style="--c:var(--teal)" role="tabpanel" data-panel="peq">
     <p class="muted">Post-cabinet — shapes the final stereo tone after distortion. All three bands map 0–10 to −15 dB → 0 dB → +15 dB; centre (5.0) is unity gain.</p>
     <div class="kv"><span class="kv__k">Low</span><span class="kv__v"><span class="kv__r">120 Hz</span> Low shelf.</span></div>
@@ -198,6 +218,14 @@ Pick a pedal to load it into the editor — exactly like tabbing to its tile in 
     <div class="kv"><span class="kv__k">Depth</span><span class="kv__v"><span class="kv__r">0–10</span> Sweep width — how far the all-pass break frequency glides (~200 Hz up to ~1.6 kHz). Higher = a wider, more dramatic sweep.</span></div>
     <div class="kv"><span class="kv__k">Feedback</span><span class="kv__v"><span class="kv__r">0–10</span> Regeneration (0–90%). Feeds the wet output back in, sharpening the notches into resonant, throaty peaks.</span></div>
     <div class="kv"><span class="kv__k">Mix</span><span class="kv__v"><span class="kv__r">0–10</span> Dry/wet blend. 0 = dry, 5 = deepest phase (equal dry/wet), 10 = fully wet (the notches fade as the dry sum vanishes).</span></div>
+  </div>
+
+  <div class="tab-panel" style="--c:var(--rose)" role="tabpanel" data-panel="tremolo">
+    <p class="muted">One LFO, two classic modulations, blended by the Mode knob. <b>Tremolo</b> modulates the amplitude — the volume swells and ducks (smooth Fender shimmer, or a choppy helicopter pulse when the Shape knob squares off the wave). <b>Vibrato</b> modulates the pitch — a short LFO-swept delay line warps the note up and down (Boss VB-2 wobble). Sits in the stereo rack after the phaser, before the delay — the last bit of movement on the finished tone, ahead of the ambience.</p>
+    <div class="kv"><span class="kv__k">Rate</span><span class="kv__v"><span class="kv__r">0–10</span> LFO speed, 0.5–14 Hz (exponential). Low = a slow sway; high = a fast throb / helicopter chop.</span></div>
+    <div class="kv"><span class="kv__k">Depth</span><span class="kv__v"><span class="kv__r">0–10</span> Modulation intensity — how far the amplitude ducks and/or the pitch swings.</span></div>
+    <div class="kv"><span class="kv__k">Shape</span><span class="kv__v"><span class="kv__r">0–10</span> LFO waveform: 0 = smooth sine swell, 10 = soft square on/off chop (the classic stutter tremolo). Affects the amplitude side.</span></div>
+    <div class="kv"><span class="kv__k">Mode</span><span class="kv__v"><span class="kv__r">0–10</span> Blends the two effects: 0 = pure tremolo (amplitude), 10 = pure vibrato (pitch), middle = both at once for a seasick wobble.</span></div>
   </div>
 
   <div class="tab-panel" style="--c:var(--purple)" role="tabpanel" data-panel="delay">
