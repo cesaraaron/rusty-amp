@@ -39,12 +39,14 @@ enum Step {
     },
 }
 
+/// Runs the device picker. Returns `Ok(None)` when the user quits (Ctrl-C) and
+/// `Ok(Some(selection))` once they confirm.
 pub fn run(
     terminal: &mut Terminal<CrosstermBackend<Stdout>>,
     devices: &DeviceInfo,
     params: &Params,
     levels: &Levels,
-) -> Result<Selection> {
+) -> Result<Option<Selection>> {
     let mut step = Step::InputDevice { cursor: 0 };
 
     loop {
@@ -118,7 +120,7 @@ pub fn run(
         };
 
         if key.code == KeyCode::Char('c') && key.modifiers.contains(KeyModifiers::CONTROL) {
-            return Err(anyhow::anyhow!("quit"));
+            return Ok(None);
         }
 
         match &mut step {
@@ -163,11 +165,11 @@ pub fn run(
                     KeyCode::Up => *cursor = cursor.saturating_sub(1),
                     KeyCode::Down => *cursor = (*cursor + 1).min(n.saturating_sub(1)),
                     KeyCode::Enter if n > 0 => {
-                        return Ok(Selection {
+                        return Ok(Some(Selection {
                             input_idx: *input_idx,
                             guitar_ch: *guitar_ch,
                             output_idx: *cursor,
-                        });
+                        }));
                     }
                     _ => {}
                 }

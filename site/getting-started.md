@@ -75,7 +75,7 @@ CLAP plugin hosting is on by default. For a minimal amp with no plugin dependenc
 
 The list is filtered: ALSA's `null` sink and duplicate entries are hidden. On **Linux with PipeWire**, choose the **PipeWire Sound Server** (or **Default ALSA Output**) entry rather than the raw interface — PipeWire keeps the hardware busy, so opening the raw device fails.
 
-Your selection is remembered in `~/.config/rusty-amp/audio.conf`, so later launches skip the picker and start straight into the rig. Delete that file, or launch with `RUSTY_AMP_DEVICE_PROMPT=1`, to choose again.
+Your selection is remembered in `~/.config/rusty-amp/audio.conf`, so later launches skip the picker and start straight into the rig. To change devices at any time, press <kbd>O</kbd> in the rig — it reopens the picker and restarts the audio engine with the new devices. Delete that file, or launch with `RUSTY_AMP_DEVICE_PROMPT=1`, to be prompted on the next launch.
 
 The processed signal is **true stereo**: the left channel goes to output 0, the right to output 1 (a mono output device receives the summed mix). On a stereo interface or headphones you hear the full multi-mic cab spread, ping-pong delay, and stereo reverb. Some devices only accept a large buffer; rusty-amp requests a small one for low latency and falls back automatically if the device refuses it.
 
@@ -105,6 +105,7 @@ The app launches immediately with default values. Press <kbd>P</kbd> at any time
 | <kbd>V</kbd> | Open the CLAP [plugin browser](plugins.html) |
 | <kbd>S</kbd> | Save the current state as a new user preset |
 | <kbd>R</kbd> | Start / stop [recording](tools.html#recording) — saves a WAV file to your home directory when stopped |
+| <kbd>O</kbd> | Change the audio input/output devices — reopens the device picker and restarts the engine |
 | <kbd>Q</kbd> / <kbd>Ctrl-C</kbd> | Quit |
 
 Focus starts on the **selector row** (amp + cabinet). <kbd>Tab</kbd> moves down through the amp, cabinet mics, each pedal on the board, and finally the `+ ADD` tile. See [the pedalboard](pedals.html#board) for add/remove details, and [Presets](presets.html) for the browser and save dialog.

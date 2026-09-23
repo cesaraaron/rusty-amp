@@ -1065,6 +1065,8 @@ fn render_help(f: &mut Frame, area: Rect, status: Option<&str>) {
     let mut row2 = vec![
         Span::styled("X", Style::default().fg(AMBER)),
         Span::styled(" IR A/B  ", Style::default().fg(DIM)),
+        Span::styled("O", Style::default().fg(AMBER)),
+        Span::styled(" devices  ", Style::default().fg(DIM)),
     ];
     // Live A/B against a loaded AU (`Z`) only exists on macOS with `au` enabled — keyed
     // on the feature (not the OS) so the footer renders identically on every platform
