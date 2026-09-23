@@ -58,6 +58,14 @@ pub fn run(
 
     // ── Device selection (TUI modals before audio starts) ─────────────────────
     let devices = crate::audio::list_devices()?;
+    // Same facts as the modals, on stderr: one paste shows exactly what the
+    // user could pick, even if they misread the fullscreen list.
+    for (i, d) in devices.inputs.iter().enumerate() {
+        eprintln!("Input {}: '{}' ({} ch)", i + 1, d.name, d.channels);
+    }
+    for (i, name) in devices.outputs.iter().enumerate() {
+        eprintln!("Output {}: '{}'", i + 1, name);
+    }
     let selection = setup::run(&mut terminal, &devices, &params, &levels);
 
     // Tear down on quit during setup
