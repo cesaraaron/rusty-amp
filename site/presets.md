@@ -37,9 +37,9 @@ Press <kbd>P</kbd> while playing to open the browser overlay. Move the cursor wi
 <div class="overlay">
   <div class="overlay__bar"><span class="dots"><i></i><i></i><i></i></span><span class="ttl">Presets</span></div>
   <div class="plist">
-    <div class="prow"><span class="prow__name">metallica</span><span class="prow__meta">Marshall JCM800 · Marshall Greenback</span></div>
-    <div class="prow is-sel"><span class="prow__name">pantera</span><span class="prow__meta">Randall Warhead · Mesa V30</span></div>
-    <div class="prow"><span class="prow__name">slipknot</span><span class="prow__meta">Mesa Dual Rectifier · Mesa V30</span></div>
+    <div class="prow"><span class="prow__name">Eagles — Hotel California (Solo)</span><span class="prow__meta">Marshall JCM800 · Marshall Greenback</span></div>
+    <div class="prow is-sel"><span class="prow__name">Pink Floyd — Comfortably Numb (Outro Solo)</span><span class="prow__meta">Marshall JCM800 · Marshall Greenback</span></div>
+    <div class="prow"><span class="prow__name">Led Zeppelin — Stairway to Heaven (Solo)</span><span class="prow__meta">Marshall JCM800 · Marshall Greenback</span></div>
     <div class="prow"><span class="prow__name">my lead tone</span><span class="prow__meta">Mesa Dual Rectifier · Mesa V30</span><span class="prow__tag">user</span></div>
   </div>
   <div class="overlay__foot">
@@ -96,21 +96,11 @@ The preset is written to `~/.config/rusty-amp/presets/<name>.toml` and appears i
 
 | File | Amp | Cabinet | Description |
 | ---- | --- | ------- | ----------- |
-| `metallica.toml` | Marshall JCM800 | Marshall Greenback | Hetfield's rhythm tone — TS clean boost, scooped mids, bone dry |
-| `pantera.toml` | Randall Warhead | Mesa V30 | Dimebag's rhythm tone — DS-1, deep mid-scoop, Furman PQ-3 EQ |
-| `pantera_floods.toml` | Randall Warhead | Mesa V30 | Floods solo — DS-1 light, open mids, delay + reverb |
-| `slipknot.toml` | Mesa Dual Rectifier | Mesa V30 | Mick Thomson / Jim Root — TS boost, modern EQ scoop, full saturation |
-| `death.toml` | Mesa Dual Rectifier | Mesa V30 | Chuck Schuldiner — TS boost, mids-up for note clarity |
-| `slayer.toml` | Marshall JCM800 | Marshall Greenback | Hanneman & King's thrash assault — cranked JCM800, extreme mid-scoop, zero mercy |
-| `metalcore_shred.toml` | Mesa Dual Rectifier | Mesa V30 | Modern metalcore shred — ML-2 tight boost, djent-adjacent EQ, slapback delay |
-| `solo_seeker.toml` | Mesa Dual Rectifier | Mesa V30 | Lead tone — sustain-focused, delay + reverb, on-axis mic for pick-attack clarity |
-| `clean_melodic.toml` | Marshall JCM800 | Marshall Greenback | Warm glassy clean — gentle compression, edge-of-breakup gain, delay + hall reverb |
-| `disturbed.toml` | Mesa Dual Rectifier | Mesa V30 | Dan Donegan's nu-metal chug — TS boost, scooped-but-punchy grind, bone-dry rhythm |
-| `deftones.toml` | Mesa Dual Rectifier | Mesa V30 | Stephen Carpenter's thick, warm wall — un-scooped mids, compressed, chorus + reverb wash |
-| `crowbar.toml` | Marshall JCM800 | Orange PPC412 (V30) | Kirk Windstein's NOLA sludge — TS tightening boost, forward low-mid wall, cavernous room |
-| `cosmic_lead.toml` | Marshall JCM800 | Mesa V30 | Floating synth-like lead — octave-up whammy shimmer, liquid phaser swirl, deep delay + reverb wash |
-| `alice_in_chains_would.toml` | Mesa Dual Rectifier | Mesa V30 | Moody, dark lead — subtle wah sweep and slow phaser movement |
-| `detuned_doom_wash.toml` | Marshall JCM800 | Orange PPC412 (V30) | Seasick stoner-doom — octave-down whammy sub, Big-Muff fuzz wall, slow deep phaser, cavernous reverb |
+| `eagles_hotel_california_solo.toml` | Marshall JCM800 | Marshall Greenback | Hotel California solo — TS boost, vocal mids, singing sustain, delay + hall |
+| `pink_floyd_comfortably_numb_solo_1.toml` | Marshall JCM800 | Marshall Greenback | Comfortably Numb first solo — light Big Muff, Dyna-Comp, Mistress shimmer, long Echorec |
+| `pink_floyd_comfortably_numb_solo_2.toml` | Marshall JCM800 | Marshall Greenback | Comfortably Numb outro — thick Big Muff, Leslie-like swirl, big hall |
+| `pink_floyd_time.toml` | Marshall JCM800 | Mesa V30 | Dark Side "Time" solo — biting fuzz, rotary shimmer, Echorec delay |
+| `led_zeppelin_stairway_solo.toml` | Marshall JCM800 | Marshall Greenback | Stairway solo — cranked-amp crunch, bright mids, Echoplex slap |
 
 ## Writing your own preset {#write}
 

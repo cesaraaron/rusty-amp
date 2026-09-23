@@ -1,0 +1,103 @@
+name        = "Pink Floyd — Comfortably Numb (Outro Solo)"
+description = "The famous outro: a thick Ram's-Head Big Muff with a Leslie-like swirl, long Echorec repeats and a big hall. Huge and vocal — lows kept tight so it never turns to mud."
+
+# ── Noise Gate ────────────────────────────────────────────────────────────────
+# Slow release so the long, held bends and their delay/reverb tails ring out.
+[noise_gate]
+enabled   = true
+threshold = 0.14
+release   = 0.50
+
+# ── Compressor ────────────────────────────────────────────────────────────────
+# Heavier squeeze than the first solo — the outro is about infinite sustain.
+[compressor]
+enabled = true
+sustain = 0.58
+attack  = 0.34
+level   = 0.52
+
+# ── Big Muff (Fuzz) ───────────────────────────────────────────────────────────
+# The Ram's-Head heart of the outro: thick and singing, but not maxed and with a
+# bright tone, so it stays a violin and not a mud slide.
+[fuzz]
+enabled = true
+fuzz  = 0.64
+tone  = 0.60
+level = 0.55
+
+# TS off — the Muff is the only dirt.
+[tube_screamer]
+enabled = false
+drive = 0.30
+tone  = 0.55
+level = 0.70
+
+[distortion]
+enabled = false
+drive = 0.40
+tone  = 0.50
+level = 0.65
+
+# ── Pre-amp EQ ────────────────────────────────────────────────────────────────
+# Push the vocal mids, cut the lows hard (this is where the old preset went
+# muddy), and keep the top open enough to cut through the wash.
+[preamp_eq]
+enabled = true
+low  = 0.40
+mid  = 0.62
+high = 0.54
+
+# ── Amp ───────────────────────────────────────────────────────────────────────
+# A little more gain than the first solo, still a Hiwatt-style platform. Bass
+# deliberately low: the Muff already brings low end, so the amp must not add more.
+[amp]
+model  = "marshall"
+gain   = 0.40
+bass   = 0.42
+mid    = 0.60
+treble = 0.60
+presence = 0.56
+master = 0.58
+
+# ── Cabinet ───────────────────────────────────────────────────────────────────
+# Greenbacks, near on-axis, light ribbon, a touch of room. No dark cab here — the
+# outro needs to sing, not smoulder.
+[cabinet]
+model     = "marshall"
+mic_pos   = 0.52
+mic_blend = 0.22
+mic_room  = 0.30
+
+# ── Parametric EQ ─────────────────────────────────────────────────────────────
+# Low end trimmed again at the end of the chain, mids forward, air on top.
+[eq]
+enabled = true
+low  = 0.40
+mid  = 0.58
+high = 0.55
+
+# ── Chorus ────────────────────────────────────────────────────────────────────
+# The Leslie/Electric Mistress swirl, proud enough to hear the motion — this is a
+# signature of the outro, not a subtle halo.
+[chorus]
+enabled = true
+rate  = 0.20
+depth = 0.50
+mix   = 0.30
+
+# ── Delay ─────────────────────────────────────────────────────────────────────
+# A long ~400 ms Echorec repeat blooming behind each phrase — the outro's sense
+# of space. Feedback/mix held below the point of turning to fog.
+[delay]
+enabled  = true
+time     = 0.80
+feedback = 0.36
+mix      = 0.26
+
+# ── Reverb ────────────────────────────────────────────────────────────────────
+# A big, fairly bright hall — the arena the outro floats in.
+[reverb]
+enabled = true
+room = 0.55
+damp = 0.48
+mix  = 0.20

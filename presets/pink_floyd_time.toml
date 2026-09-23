@@ -1,0 +1,103 @@
+name        = "Pink Floyd — Time"
+description = "The Dark Side solo: a biting, fuzzy lead with a rotary shimmer, tight lows and a snaking Echorec delay. More attitude than Comfortably Numb."
+
+# ── Noise Gate ────────────────────────────────────────────────────────────────
+# Moderate — the Time solo is articulate and choppy, so the gate closes a little
+# faster than on the ballads.
+[noise_gate]
+enabled   = true
+threshold = 0.14
+release   = 0.36
+
+# ── Compressor ────────────────────────────────────────────────────────────────
+# A light squeeze only. Time is played with attack and bite — heavy compression
+# would flatten the phrasing that makes the solo speak.
+[compressor]
+enabled = true
+sustain = 0.42
+attack  = 0.30
+level   = 0.52
+
+# ── Fuzz ──────────────────────────────────────────────────────────────────────
+# A Fuzz Face-ish bite rather than a Muff wall: gritty and vocal, with the tone up
+# so it snarls instead of smoothing over.
+[fuzz]
+enabled = true
+fuzz  = 0.58
+tone  = 0.66
+level = 0.54
+
+# TS off — the fuzz into the driven amp is the sound.
+[tube_screamer]
+enabled = false
+drive = 0.30
+tone  = 0.55
+level = 0.70
+
+[distortion]
+enabled = false
+drive = 0.40
+tone  = 0.50
+level = 0.65
+
+# ── Pre-amp EQ ────────────────────────────────────────────────────────────────
+# Mids pushed for the vocal snarl, lows trimmed so fast low-note runs stay clear.
+[preamp_eq]
+enabled = true
+low  = 0.42
+mid  = 0.62
+high = 0.58
+
+# ── Amp ───────────────────────────────────────────────────────────────────────
+# Driven Hiwatt-ish Marshall: more gain than the Numb solos for the song's
+# urgency, but still tight and open rather than saturated.
+[amp]
+model  = "marshall"
+gain   = 0.46
+bass   = 0.42
+mid    = 0.62
+treble = 0.64
+presence = 0.60
+master = 0.55
+
+# ── Cabinet ───────────────────────────────────────────────────────────────────
+# Mesa V30s near on-axis: more cut and aggression than Greenbacks, which suits
+# the darker, angrier second half of Dark Side.
+[cabinet]
+model     = "mesa"
+mic_pos   = 0.56
+mic_blend = 0.20
+mic_room  = 0.22
+
+# ── Parametric EQ ─────────────────────────────────────────────────────────────
+# A mid-forward finish with the lows kept in check and a little air up top.
+[eq]
+enabled = true
+low  = 0.42
+mid  = 0.56
+high = 0.58
+
+# ── Chorus ────────────────────────────────────────────────────────────────────
+# A rotary shimmer under the lead — subtle, so it reads as movement, not wobble.
+[chorus]
+enabled = true
+rate  = 0.22
+depth = 0.40
+mix   = 0.20
+
+# ── Delay ─────────────────────────────────────────────────────────────────────
+# Echorec-style ~310 ms repeats, present enough to fill the gaps between the
+# clipped phrases without washing them together.
+[delay]
+enabled  = true
+time     = 0.62
+feedback = 0.34
+mix      = 0.24
+
+# ── Reverb ────────────────────────────────────────────────────────────────────
+# A medium room, lightly damped — depth without blurring the attack.
+[reverb]
+enabled = true
+room = 0.48
+damp = 0.48
+mix  = 0.16
