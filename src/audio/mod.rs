@@ -34,6 +34,14 @@ const INSERT_QUEUE_CAP: usize = 8;
 /// their maximum block size.
 pub const MAX_BLOCK: usize = 4096;
 
+/// Frames per audio callback we request from the OS. 256 ≈ 5.3 ms at 48 kHz:
+/// tight enough that playing feels connected (stock DAWs run 64–256), loose
+/// enough that a release build never underruns on Apple Silicon. Without an
+/// explicit request CoreAudio may hand us 1024+ frames, which feels spongy and
+/// makes even a clean DI sound dull and distant. Always test audio on
+/// `cargo run --release` — debug builds can underrun at this size.
+const LIVE_BUFFER_FRAMES: u32 = 256;
+
 pub struct AudioEngine {
     _input_stream: Stream,
     _output_stream: Stream,
@@ -176,6 +184,17 @@ pub fn start(
     let in_channels = input_cfg.channels as usize;
     let out_channels = output_cfg.channels as usize;
 
+    // One factual line about the running stream — the first thing to ask for
+    // when a rig "sounds wrong" (wrong rate/channel/buffer explains most of it).
+    eprintln!(
+        "Audio: {} Hz, in ch {}/{} (guitar), out ch {}, buffer {} frames",
+        sr as u32,
+        guitar_ch + 1,
+        in_channels,
+        out_channels,
+        LIVE_BUFFER_FRAMES,
+    );
+
     build_engine(
         input_device,
         input_cfg,
@@ -213,7 +232,15 @@ fn negotiate_configs(
             output.default_output_config().unwrap()
         });
 
-    Ok((in_sup.into(), out_sup.into(), in_sr as f32, in_fmt))
+    let mut in_cfg: StreamConfig = in_sup.into();
+    let mut out_cfg: StreamConfig = out_sup.into();
+    // Live instrument, not playback: ask both directions for small callbacks.
+    // If the backend can't honour the size it errors here at startup rather
+    // than silently running a laggy stream.
+    in_cfg.buffer_size = cpal::BufferSize::Fixed(LIVE_BUFFER_FRAMES);
+    out_cfg.buffer_size = cpal::BufferSize::Fixed(LIVE_BUFFER_FRAMES);
+
+    Ok((in_cfg, out_cfg, in_sr as f32, in_fmt))
 }
 
 #[allow(clippy::too_many_arguments)]
