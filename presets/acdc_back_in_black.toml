@@ -1,0 +1,82 @@
+name        = "AC/DC — Back in Black"
+description = "Malcolm & Angus crunch: cranked Marshall-style rhythm, mids forward, Greenbacks, bone dry. Roll your guitar volume back for the clean-ish verses."
+
+# ── Noise Gate ────────────────────────────────────────────────────────────────
+# A cranked Marshall hisses, but AC/DC breathe — low threshold so open chords
+# ring and only dead-air noise gets gated.
+[noise_gate]
+enabled   = true
+threshold = 0.12   # light — preserves chord ring, kills idle hiss
+release   = 0.25   # medium — natural decay on big open chords
+
+# No compressor — AC/DC dynamics come from the right hand, not a pedal.
+[compressor]
+enabled = false
+sustain = 0.30
+attack  = 0.40
+level   = 0.50
+
+# No fuzz — the dirt is all power-amp grind.
+[fuzz]
+enabled = false
+fuzz  = 0.50
+tone  = 0.50
+level = 0.60
+
+# ── Tube Screamer ─────────────────────────────────────────────────────────────
+# Off. Angus plugs straight in; the amp does all the talking.
+[tube_screamer]
+enabled = false
+drive = 0.20
+tone  = 0.55
+level = 0.70
+
+# DS-1 off — no hard clipping anywhere in this rig.
+[distortion]
+enabled = false
+drive = 0.40
+tone  = 0.50
+level = 0.65
+
+# ── Amp ───────────────────────────────────────────────────────────────────────
+# Marshall voice standing in for a cranked JTM45/JMP: gain in the sweet spot
+# where chords stay defined but single notes snarl. Mids UP — the mid-forward
+# bark is the whole AC/DC sound; scooping here kills it.
+[amp]
+model  = "marshall"
+gain   = 0.68   # crunch, not saturation — chords must stay intelligible
+bass   = 0.55   # full but tight — no flub on the A and D strings
+mid    = 0.68   # forward mids — the Angus bark lives here
+treble = 0.62   # bite on the pick attack without ice-pick
+presence = 0.55 # open top end, still smooth when driven
+master = 0.70   # loud — power-amp push is part of the tone
+
+# ── Cabinet ───────────────────────────────────────────────────────────────────
+# Marshall 4×12 Greenbacks — exactly what AC/DC tracked with. Close-mic'd,
+# dry; room would soften the mallet-like attack.
+[cabinet]
+model     = "marshall"
+mic_pos   = 0.50   # neutral — balanced cap-edge capture
+mic_blend = 0.10   # mostly SM57 — attack and presence
+mic_room  = 0.05   # essentially dry
+
+# No post EQ — the amp's FMV stack with mids up is the entire voice.
+[eq]
+enabled = false
+low  = 0.50
+mid  = 0.50
+high = 0.50
+
+# Bone dry — no delay on AC/DC rhythm.
+[delay]
+enabled  = false
+time     = 0.25
+feedback = 0.20
+mix      = 0.00
+
+# Whisper of room so it doesn't sound DI'd, nothing more.
+[reverb]
+enabled = true
+room = 0.15
+damp = 0.70
+mix  = 0.05

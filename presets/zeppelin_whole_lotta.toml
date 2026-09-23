@@ -1,0 +1,78 @@
+name        = "Led Zeppelin — Whole Lotta Love"
+description = "Page's Plexi roar: boosted Marshall crunch, mids howling, Echoplex-style slap behind it. Dig in for the theremin-break riff."
+
+# ── Noise Gate ────────────────────────────────────────────────────────────────
+# Loose gate — Page's tone is alive with hiss and room; gate only the silence.
+[noise_gate]
+enabled   = true
+threshold = 0.14
+release   = 0.30
+
+[compressor]
+enabled = false
+sustain = 0.35
+attack  = 0.40
+level   = 0.50
+
+# ── Fuzz ──────────────────────────────────────────────────────────────────────
+# A breath of fuzz standing in for the Tone Bender on the solo — adds hair
+# and compression to single notes without turning chords to mush.
+[fuzz]
+enabled = true
+fuzz  = 0.35   # light — hair and sustain, not a wall
+tone  = 0.55
+level = 0.55
+
+# ── Tube Screamer ─────────────────────────────────────────────────────────────
+# Clean-ish boost slamming the Plexi front end, à la Echoplex preamp push.
+[tube_screamer]
+enabled = true
+drive = 0.25   # low — mostly level push
+tone  = 0.60
+level = 0.80   # hot — drives the preamp into Page saturation
+
+[distortion]
+enabled = false
+drive = 0.40
+tone  = 0.50
+level = 0.65
+
+# ── Amp ───────────────────────────────────────────────────────────────────────
+# Marshall standing in for a cranked Super Lead: gain high, mids howling,
+# treble biting. Presence up — the cut that makes the riff slice.
+[amp]
+model  = "marshall"
+gain   = 0.78
+bass   = 0.58
+mid    = 0.62   # howling mids — the violin-like solo voice
+treble = 0.70
+presence = 0.62
+master = 0.68
+
+# ── Cabinet ───────────────────────────────────────────────────────────────────
+# Marshall Greenbacks, slightly on-axis for the aggressive Page presence.
+[cabinet]
+model     = "marshall"
+mic_pos   = 0.58   # leaning on-axis — aggressive, present
+mic_blend = 0.10   # SM57 bite
+mic_room  = 0.12   # a touch of room — Olympic Studios air
+
+[eq]
+enabled = false
+low  = 0.50
+mid  = 0.50
+high = 0.50
+
+# ── Delay ─────────────────────────────────────────────────────────────────────
+# Echoplex-style slap: one short repeat tucked under the riff.
+[delay]
+enabled  = true
+time     = 0.28   # ~140 ms slap
+feedback = 0.22   # one repeat, then gone
+mix      = 0.16   # felt, not heard
+
+[reverb]
+enabled = true
+room = 0.30
+damp = 0.55
+mix  = 0.10
