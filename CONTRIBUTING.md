@@ -153,7 +153,7 @@ operationalizes this whole checklist end to end.
 
 Cabinet models live in `src/dsp/cab/`. Each model synthesizes its own IR (voiced EQ skeleton + comb reflections + modal resonances). Follow the existing Mesa/Marshall/Orange pattern.
 
-Register in the `CabinetModel` enum and cycle logic.
+Register in the `CabModel` enum (`src/dsp/mod.rs`), the `CabBank` in `src/dsp/cab/mod.rs`, the preset `"marshall"`/`"orange"`/`"wem"` match arms in `src/preset.rs`, and the cabinet-selector arrays in `src/ui/draw.rs`/`src/ui/input.rs`; add the new cab's `tests` module and re-bless the UI snapshot.
 
 ## Adding a bundled preset
 

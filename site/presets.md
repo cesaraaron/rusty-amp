@@ -38,7 +38,8 @@ Press <kbd>P</kbd> while playing to open the browser overlay. Move the cursor wi
   <div class="overlay__bar"><span class="dots"><i></i><i></i><i></i></span><span class="ttl">Presets</span></div>
   <div class="plist">
     <div class="prow"><span class="prow__name">Eagles — Hotel California (Solo)</span><span class="prow__meta">Marshall JCM800 · Marshall Greenback</span></div>
-    <div class="prow is-sel"><span class="prow__name">Pink Floyd — Comfortably Numb (Outro Solo)</span><span class="prow__meta">Marshall JCM800 · Marshall Greenback</span></div>
+    <div class="prow is-sel"><span class="prow__name">Pink Floyd — Comfortably Numb (Outro Solo)</span><span class="prow__meta">Hiwatt DR103 · WEM (Fane)</span></div>
+    <div class="prow"><span class="prow__name">Pink Floyd — Time (Intro / Verse / Chorus)</span><span class="prow__meta">Hiwatt DR103 · WEM (Fane)</span></div>
     <div class="prow"><span class="prow__name">Led Zeppelin — Stairway to Heaven (Solo)</span><span class="prow__meta">Marshall JCM800 · Marshall Greenback</span></div>
     <div class="prow"><span class="prow__name">my lead tone</span><span class="prow__meta">Mesa Dual Rectifier · Mesa V30</span><span class="prow__tag">user</span></div>
   </div>
@@ -97,9 +98,10 @@ The preset is written to `~/.config/rusty-amp/presets/<name>.toml` and appears i
 | File | Amp | Cabinet | Description |
 | ---- | --- | ------- | ----------- |
 | `eagles_hotel_california_solo.toml` | Marshall JCM800 | Marshall Greenback | Hotel California solo — TS boost, vocal mids, singing sustain, delay + hall |
-| `pink_floyd_comfortably_numb_solo_1.toml` | Marshall JCM800 | Marshall Greenback | Comfortably Numb first solo — light Big Muff, Dyna-Comp, Mistress shimmer, long Echorec |
-| `pink_floyd_comfortably_numb_solo_2.toml` | Marshall JCM800 | Marshall Greenback | Comfortably Numb outro — thick Big Muff, Leslie-like swirl, big hall |
-| `pink_floyd_time.toml` | Marshall JCM800 | Mesa V30 | Dark Side "Time" solo — biting fuzz, rotary shimmer, Echorec delay |
+| `pink_floyd_comfortably_numb_solo_1.toml` | Hiwatt DR103 | WEM (Fane) | Comfortably Numb first solo — light Big Muff, Dyna-Comp, Mistress shimmer, long Echorec |
+| `pink_floyd_comfortably_numb_solo_2.toml` | Hiwatt DR103 | WEM (Fane) | Comfortably Numb outro — thick Big Muff, Electric Mistress swirl, big hall |
+| `pink_floyd_time_chorus.toml` | Hiwatt DR103 | WEM (Fane) | Dark Side "Time" intro/verse/chorus — clean-ish Hiwatt, Fuzz Face fur, Uni-Vibe, dotted-eighth Echorec |
+| `pink_floyd_time_solo.toml` | Hiwatt DR103 | WEM (Fane) | Dark Side "Time" solo — Fuzz Face bite, Uni-Vibe swirl, Echorec delay |
 | `led_zeppelin_stairway_solo.toml` | Marshall JCM800 | Marshall Greenback | Stairway solo — cranked-amp crunch, bright mids, Echoplex slap |
 
 ## Writing your own preset {#write}
@@ -147,6 +149,7 @@ mix  = 0.90         # 0.0 – 1.0  (dry/wet; a real wah is fully wet)
 # or include it with enabled = false to store values but keep it bypassed.
 [fuzz]
 enabled = false     # optional, defaults to true when the section is present
+type  = 0.0         # 0.0 = Big Muff, 1.0 = Fuzz Face
 fuzz  = 0.70        # 0.0 – 1.0  (sustain/gain)
 tone  = 0.50
 level = 0.60
@@ -183,8 +186,17 @@ low  = 0.50           # 0.0 = −12 dB, 0.5 = flat, 1.0 = +12 dB
 mid  = 0.50
 high = 0.50
 
+# Uni-Vibe — a front-of-amp four-stage all-pass "vibe" (last pedal before the amp).
+# mode 0.0 = chorus (dry + phase), 1.0 = vibrato (phase only).
+[uni_vibe]
+enabled = false       # optional, defaults to true when the section is present
+rate  = 0.30
+depth = 0.60
+mix   = 0.50
+mode  = 0.00
+
 [amp]
-model  = "marshall"   # "marshall" (default), "mesa", "randall", or "vox"
+model  = "marshall"   # "marshall" (default), "mesa", "randall", "vox", or "hiwatt"
 gain   = 0.65
 bass   = 0.50
 mid    = 0.45
@@ -192,7 +204,7 @@ treble = 0.65
 master = 0.55
 
 [cabinet]
-model     = "mesa"    # "mesa" (default), "marshall", or "orange"
+model     = "mesa"    # "mesa" (default), "marshall", "orange", or "wem"
 mic_pos   = 0.5       # 0.0 = edge/dark, 0.5 = neutral, 1.0 = center/bright (default 0.5)
 mic_blend = 0.15      # 0.0 = SM57 dynamic, 1.0 = R121 ribbon (default 0.15)
 mic_room  = 0.15      # 0.0 = dry close mic, 1.0 = full room mic (default 0.15)

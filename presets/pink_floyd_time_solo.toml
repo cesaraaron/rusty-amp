@@ -1,5 +1,5 @@
-name        = "Pink Floyd — Time"
-description = "The Dark Side solo: a biting, fuzzy lead with a rotary shimmer, tight lows and a snaking Echorec delay. More attitude than Comfortably Numb."
+name        = "Pink Floyd — Time (Solo)"
+description = "The Dark Side solo through the real Gilmour rig: a Fuzz Face into a Hiwatt DR103 and a Fane-loaded WEM 4×12, with the Uni-Vibe swirl and a snaking Echorec delay. Biting and vocal, not a fuzz wall."
 
 # ── Noise Gate ────────────────────────────────────────────────────────────────
 # Moderate — the Time solo is articulate and choppy, so the gate closes a little
@@ -18,14 +18,15 @@ sustain = 0.42
 attack  = 0.30
 level   = 0.52
 
-# ── Fuzz ──────────────────────────────────────────────────────────────────────
-# A Fuzz Face-ish bite rather than a Muff wall: gritty and vocal, with the tone up
-# so it snarls instead of smoothing over.
+# ── Fuzz Face ─────────────────────────────────────────────────────────────────
+# The Time solo is a Fuzz Face, not a Muff: type 1 selects the softer, mid-rich
+# voicing. Gritty and vocal with the tone up so it snarls instead of smoothing over.
 [fuzz]
 enabled = true
-fuzz  = 0.58
-tone  = 0.66
-level = 0.54
+type    = 1.0   # 0 = Big Muff, 1 = Fuzz Face
+fuzz    = 0.55
+tone    = 0.62
+level   = 0.55
 
 # TS off — the fuzz into the driven amp is the sound.
 [tube_screamer]
@@ -48,26 +49,35 @@ low  = 0.42
 mid  = 0.62
 high = 0.58
 
+# ── Uni-Vibe ──────────────────────────────────────────────────────────────────
+# The signature DSOTM swirl, in front of the amp: moderate depth in chorus mode.
+[uni_vibe]
+enabled = true
+rate    = 0.28
+depth   = 0.50
+mix     = 0.45
+mode    = 0.0   # 0 = chorus, 1 = vibrato
+
 # ── Amp ───────────────────────────────────────────────────────────────────────
-# Driven Hiwatt-ish Marshall: more gain than the Numb solos for the song's
-# urgency, but still tight and open rather than saturated.
+# Hiwatt DR103, the real front end for the Dark Side tones: clean, tight and
+# bright, driven by the Fuzz Face rather than by its own gain.
 [amp]
-model  = "marshall"
+model  = "hiwatt"
 gain   = 0.46
 bass   = 0.42
-mid    = 0.62
-treble = 0.64
-presence = 0.60
+mid    = 0.60
+treble = 0.62
+presence = 0.58
 master = 0.55
 
 # ── Cabinet ───────────────────────────────────────────────────────────────────
-# Mesa V30s near on-axis: more cut and aggression than Greenbacks, which suits
-# the darker, angrier second half of Dark Side.
+# WEM 4×12 with Fane Crescendos — the bright, aggressive cab Gilmour used with
+# the Hiwatt, leaner and more open than a Greenback.
 [cabinet]
-model     = "mesa"
-mic_pos   = 0.56
-mic_blend = 0.20
-mic_room  = 0.22
+model     = "wem"
+mic_pos   = 0.54
+mic_blend = 0.22
+mic_room  = 0.24
 
 # ── Parametric EQ ─────────────────────────────────────────────────────────────
 # A mid-forward finish with the lows kept in check and a little air up top.
@@ -77,13 +87,19 @@ low  = 0.42
 mid  = 0.56
 high = 0.58
 
-# ── Chorus ────────────────────────────────────────────────────────────────────
-# A rotary shimmer under the lead — subtle, so it reads as movement, not wobble.
+# Chorus off — the Uni-Vibe carries the modulation, as on the record.
 [chorus]
-enabled = true
+enabled = false
 rate  = 0.22
 depth = 0.40
-mix   = 0.20
+mix   = 0.0
+
+[flanger]
+enabled  = false
+rate     = 0.20
+depth    = 0.30
+feedback = 0.20
+mix      = 0.0
 
 # ── Delay ─────────────────────────────────────────────────────────────────────
 # Echorec-style ~310 ms repeats, present enough to fill the gaps between the

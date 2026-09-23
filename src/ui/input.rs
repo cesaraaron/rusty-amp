@@ -246,6 +246,11 @@ mod tests {
         cycle_amp(&p, 1);
         assert_eq!(
             AmpModel::from_u8(p.amp_model.load(Relaxed)),
+            AmpModel::Hiwatt
+        );
+        cycle_amp(&p, 1);
+        assert_eq!(
+            AmpModel::from_u8(p.amp_model.load(Relaxed)),
             AmpModel::Marshall,
             "amp selector must cycle back to the start"
         );
@@ -256,7 +261,10 @@ mod tests {
         let p = Params::new();
         p.amp_model.store(AmpModel::Marshall as u8, Relaxed);
         cycle_amp(&p, -1);
-        assert_eq!(AmpModel::from_u8(p.amp_model.load(Relaxed)), AmpModel::Vox);
+        assert_eq!(
+            AmpModel::from_u8(p.amp_model.load(Relaxed)),
+            AmpModel::Hiwatt
+        );
     }
 
     #[test]
@@ -274,6 +282,8 @@ mod tests {
             CabModel::from_u8(p.cab_model.load(Relaxed)),
             CabModel::Orange
         );
+        cycle_cab(&p);
+        assert_eq!(CabModel::from_u8(p.cab_model.load(Relaxed)), CabModel::Wem);
         cycle_cab(&p);
         assert_eq!(CabModel::from_u8(p.cab_model.load(Relaxed)), CabModel::Mesa);
     }

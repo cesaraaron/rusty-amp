@@ -1,3 +1,4 @@
+pub mod hiwatt;
 pub mod marshall;
 pub mod mesa;
 pub mod randall;
@@ -6,6 +7,7 @@ pub mod vox;
 use crate::dsp::AmpModel;
 use crate::dsp::biquad::Biquad;
 
+pub use hiwatt::Hiwatt;
 pub use marshall::Marshall;
 pub use mesa::Mesa;
 pub use randall::Randall;
@@ -391,7 +393,7 @@ impl FrontEnd {
 /// restores low-mid body and a high shelf that tames the tone stack's treble-
 /// forward tilt, so notes stay even in level across the neck.
 ///
-/// All three models need this same body-up / tilt-down pair (the gain-stage
+/// Every model needs this same body-up / tilt-down pair (the gain-stage
 /// high-passes and peak-normalised tone stacks otherwise leave the upper register
 /// blasting out); only the corner frequencies and depths are voiced per model.
 pub(crate) struct VoiceBalance {
@@ -494,6 +496,7 @@ pub struct AmpBank {
     mesa: Mesa,
     randall: Randall,
     vox: Vox,
+    hiwatt: Hiwatt,
 }
 
 impl AmpBank {
@@ -503,6 +506,7 @@ impl AmpBank {
             mesa: Mesa::new(sr),
             randall: Randall::new(sr),
             vox: Vox::new(sr),
+            hiwatt: Hiwatt::new(sr),
         }
     }
 
@@ -532,6 +536,9 @@ impl AmpBank {
             AmpModel::Vox => self
                 .vox
                 .process(sample, gain, bass, mid, treble, presence, master),
+            AmpModel::Hiwatt => self
+                .hiwatt
+                .process(sample, gain, bass, mid, treble, presence, master),
         }
     }
 }
@@ -544,7 +551,7 @@ mod tests {
     const SR: f32 = 48_000.0;
 
     /// One amp instance per model, addressed through the `Amplifier` trait so the
-    /// sound-quality checks below run identically against all three.
+    /// sound-quality checks below run identically against all of them.
     fn each_amp() -> Vec<(&'static str, Box<dyn Amplifier>)> {
         vec![
             (
@@ -554,6 +561,7 @@ mod tests {
             ("Mesa", Box::new(Mesa::new(SR))),
             ("Randall", Box::new(Randall::new(SR))),
             ("Vox", Box::new(Vox::new(SR))),
+            ("Hiwatt", Box::new(Hiwatt::new(SR))),
         ]
     }
 
@@ -746,8 +754,8 @@ mod tests {
         }
     }
 
-    /// At equal settings the three models must sit within a sane loudness window of
-    /// each other, so flipping models on stage doesn't jump the volume. The output
+    /// At equal settings the models must sit within a sane loudness window of each
+    /// other, so flipping models on stage doesn't jump the volume. The output
     /// trims in each amp exist precisely to enforce this.
     #[test]
     fn amps_are_loudness_matched() {
@@ -1111,10 +1119,10 @@ mod tests {
 
     // — Integration: the features reach the player's controls ——————————————————
 
-    /// One instance per tube amp (Marshall + Mesa + Vox), the models that carry the
-    /// triode/transformer/bright-cap chain. The Randall is solid-state and is
-    /// deliberately left out of these — it has no output transformer or triode stage
-    /// to model.
+    /// One instance per tube amp (Marshall + Mesa + Vox + Hiwatt), the models that
+    /// carry the triode/transformer/bright-cap chain. The Randall is solid-state and
+    /// is deliberately left out of these — it has no output transformer or triode
+    /// stage to model.
     fn tube_amps() -> Vec<(&'static str, Box<dyn Amplifier>)> {
         vec![
             (
@@ -1123,6 +1131,7 @@ mod tests {
             ),
             ("Mesa", Box::new(Mesa::new(SR))),
             ("Vox", Box::new(Vox::new(SR))),
+            ("Hiwatt", Box::new(Hiwatt::new(SR))),
         ]
     }
 

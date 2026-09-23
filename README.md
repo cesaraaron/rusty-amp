@@ -27,9 +27,9 @@ On top of that sit complex effects which add width and depth to sound. All of it
 
 ## Highlights
 
-- 🔊 **4 amplifiers** — Marshall JCM800, Mesa Dual Rectifier, Randall Warhead, and Vox AC30, switchable while you play
-- 📦 **3 cabinets + your own IRs** — Mesa, Marshall, and Orange 4×12s, each captured with three blendable mics; load your own favourite external `wav` IR
-- 🎛️ **A full pedalboard** — noise gate, whammy pitch shifter, auto-wah, compressor, fuzz, Tube Screamer, DS-1, ML-2 Metal Core, graphic EQ, parametric EQ, flanger, chorus, phaser, tremolo/vibrato, ping-pong delay, and stereo reverb; add, remove, and bypass on the fly
+- 🔊 **5 amplifiers** — Marshall JCM800, Mesa Dual Rectifier, Randall Warhead, Vox AC30, and Hiwatt DR103, switchable while you play
+- 📦 **4 cabinets + your own IRs** — Mesa, Marshall, Orange, and WEM/Fane 4×12s, each captured with three blendable mics; load your own favourite external `wav` IR
+- 🎛️ **A full pedalboard** — noise gate, whammy pitch shifter, auto-wah, compressor, fuzz (Big Muff / Fuzz Face), Tube Screamer, DS-1, ML-2 Metal Core, graphic EQ, parametric EQ, Uni-Vibe, flanger, chorus, phaser, tremolo/vibrato, ping-pong delay, and stereo reverb; add, remove, and bypass on the fly
 - 🎧 **True studio-grade stereo** — wide, three-dimensional sound from the cab, delay, and reverb
 - 💾 **Ready-made presets** — instant tones for the Hotel California, Comfortably Numb, "Time", and Stairway to Heaven solos
 - 🔌 **CLAP plugin host** — drop a third-party CLAP effect into the chain and tweak its parameters from the TUI

@@ -30,6 +30,7 @@ pub mod preamp_eq;
 pub mod reverb;
 pub mod tremolo;
 pub mod tube_screamer;
+pub mod uni_vibe;
 pub mod wah;
 
 pub use chorus::Chorus;
@@ -48,6 +49,7 @@ pub use preamp_eq::PreampEq;
 pub use reverb::Reverb;
 pub use tremolo::Tremolo;
 pub use tube_screamer::TubeScreamer;
+pub use uni_vibe::UniVibe;
 pub use wah::Wah;
 
 /// A knob is "dirty" — worth rebuilding filter coefficients for — only once it has

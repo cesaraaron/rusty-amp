@@ -3,6 +3,7 @@ pub mod ir;
 pub mod marshall;
 pub mod mesa;
 pub mod orange;
+pub mod wem;
 
 use crate::dsp::biquad::Biquad;
 use crate::dsp::conv::FftConvolver;
@@ -11,6 +12,7 @@ pub use external::{ExternalIrCab, LoadedIr, MAX_IR_LEN, load_ir};
 pub use marshall::MarshallCab;
 pub use mesa::MesaCab;
 pub use orange::OrangeCab;
+pub use wem::WemCab;
 
 pub trait Cabinet {
     /// Convolve a mono amp sample with the cab IR, returning a stereo (L, R) pair.
@@ -721,6 +723,7 @@ pub struct CabBank {
     mesa: MesaCab,
     marshall: MarshallCab,
     orange: OrangeCab,
+    wem: WemCab,
 }
 
 impl CabBank {
@@ -729,6 +732,7 @@ impl CabBank {
             mesa: MesaCab::new(sr),
             marshall: MarshallCab::new(sr),
             orange: OrangeCab::new(sr),
+            wem: WemCab::new(sr),
         }
     }
 
@@ -745,6 +749,7 @@ impl CabBank {
             super::CabModel::Mesa => self.mesa.process(sample, mic_pos, blend, room),
             super::CabModel::Marshall => self.marshall.process(sample, mic_pos, blend, room),
             super::CabModel::Orange => self.orange.process(sample, mic_pos, blend, room),
+            super::CabModel::Wem => self.wem.process(sample, mic_pos, blend, room),
         }
     }
 }

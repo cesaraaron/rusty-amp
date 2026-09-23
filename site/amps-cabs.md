@@ -3,10 +3,10 @@ layout: page.njk
 permalink: amps-cabs.html
 title: "Amps, cabinets & IRs · rusty-amp"
 ogTitle: "rusty-amp · amps, cabinets & IRs"
-description: "The four rusty-amp amp models and cabinets, the cabinet-mic controls, and how to load your own external .wav impulse responses."
+description: "The five rusty-amp amp models and cabinets, the cabinet-mic controls, and how to load your own external .wav impulse responses."
 eyebrow: "Amps, cabinets & IRs"
 heading: "The amp head & cabinet"
-lead: "Four switchable amps, three multi-mic'd 4×12 cabinets, and a loader for your own impulse responses."
+lead: "Five switchable amps, four multi-mic'd 4×12 cabinets, and a loader for your own impulse responses."
 toc:
   - { href: "#amp", label: "Amplifiers" }
   - { href: "#external-amp", label: "External amp plugins" }
@@ -20,7 +20,7 @@ next: { href: "presets.html", label: "Presets" }
 
 ## Amplifiers {#amp}
 
-Four amp models, switchable live with <kbd>A</kbd> (or <kbd>↑</kbd>/<kbd>↓</kbd> on the selector row) — the cabinet state is preserved when you switch. Pick one to see its voicing and per-knob behaviour.
+Five amp models, switchable live with <kbd>A</kbd> (or <kbd>↑</kbd>/<kbd>↓</kbd> on the selector row) — the cabinet state is preserved when you switch. Pick one to see its voicing and per-knob behaviour.
 
 <div class="selector" style="--c:var(--rust)" data-tabs>
   <div class="tiles" role="tablist" aria-label="Amplifier models">
@@ -43,6 +43,11 @@ Four amp models, switchable live with <kbd>A</kbd> (or <kbd>↑</kbd>/<kbd>↓</
       <div class="tile__name">Vox AC30</div>
       <div class="tile__sub">Chimey · touch-sensitive · Class A</div>
       <div class="tile__amp"><i style="--r:-45deg"></i><i style="--r:-15deg"></i><i style="--r:15deg"></i><i style="--r:40deg"></i><i style="--r:65deg"></i><i style="--r:88deg"></i></div>
+    </button>
+    <button class="tile" role="tab" aria-selected="false" data-tab="hiwatt">
+      <div class="tile__name">Hiwatt DR103</div>
+      <div class="tile__sub">Clean · hi-fi · high-headroom</div>
+      <div class="tile__amp"><i style="--r:-55deg"></i><i style="--r:-25deg"></i><i style="--r:5deg"></i><i style="--r:35deg"></i><i style="--r:60deg"></i><i style="--r:85deg"></i></div>
     </button>
   </div>
 
@@ -105,15 +110,30 @@ Four amp models, switchable live with <kbd>A</kbd> (or <kbd>↑</kbd>/<kbd>↓</
     <div class="kv"><span class="kv__k">Presence</span><span class="kv__v">High shelf at 4.5 kHz (±6 dB).</span></div>
     <div class="kv"><span class="kv__k">Master</span><span class="kv__v">Post-amp output level.</span></div>
   </div>
+
+  <div class="tab-panel" role="tabpanel" data-panel="hiwatt">
+    <div class="specs">
+      <div class="spec"><div class="spec__k">Gain range</div><div class="spec__v">1×–34× into dual 12AX7</div></div>
+      <div class="spec"><div class="spec__k">Tone stack</div><div class="spec__v">Passive FMV (Hiwatt values — flatter mid, bright top)</div></div>
+      <div class="spec"><div class="spec__k">Rectifier &amp; power</div><div class="spec__v">Stiff solid-state sag (4 ms / 90 ms) + strong Partridge-style output transformer + dynamic speaker-load bloom</div></div>
+      <div class="spec"><div class="spec__k">Gain stages</div><div class="spec__v">2 × 12AX7 atan soft-clip</div></div>
+    </div>
+    <div class="kv"><span class="kv__k">Gain</span><span class="kv__v">Preamp gain 1×–34× into dual 12AX7 — the amp stays clean far up the knob and is driven by the pedals in front of it.</span></div>
+    <div class="kv"><span class="kv__k">Bass</span><span class="kv__v">Passive FMV tone stack (Hiwatt values — a flatter, less-scooped mid than the Marshall).</span></div>
+    <div class="kv"><span class="kv__k">Mid</span><span class="kv__v">Sets the depth of the stack's scoop, shallower than the JCM800's so the mids stay present.</span></div>
+    <div class="kv"><span class="kv__k">Treble</span><span class="kv__v">Interacts with mid/bass; the DR103 keeps a clear, open top.</span></div>
+    <div class="kv"><span class="kv__k">Presence</span><span class="kv__v">Dynamic NFB shelf at 4 kHz (+2 dB fixed offset, ±6 dB) — the stiffer loop holds its authority longer than the JCM800's.</span></div>
+    <div class="kv"><span class="kv__k">Master</span><span class="kv__v">Post-amp output level.</span></div>
+  </div>
 </div>
 
-The tube amps (Marshall, Mesa, Vox) drive a **passive FMV tone stack** — a single RC network where the three controls interact and the mids inherently scoop, exactly like a real amp — followed by a **power-amp ↔ speaker interaction** model: the speaker's impedance resonance blooms the low end dynamically as the supply sags under hard playing. The Vox has no global negative-feedback loop, so it sags more readily and blooms harder than the Marshall/Mesa. The Randall keeps an active (independent-band) stack and a small static speaker resonance, true to its stiff solid-state design.
+The tube amps (Marshall, Mesa, Vox, Hiwatt) drive a **passive FMV tone stack** — a single RC network where the three controls interact and the mids inherently scoop, exactly like a real amp — followed by a **power-amp ↔ speaker interaction** model: the speaker's impedance resonance blooms the low end dynamically as the supply sags under hard playing. The Vox has no global negative-feedback loop, so it sags more readily and blooms harder than the Marshall/Mesa; the Hiwatt's stiff solid-state-rectified supply and big Partridge-style transformer sag the least, so it stays tight and clean. The Randall keeps an active (independent-band) stack and a small static speaker resonance, true to its stiff solid-state design.
 
 The tube models also carry three deeper pieces of power- and preamp physics: **supply-ripple ghost notes** (rectified-mains ripple — 100 Hz UK, 120 Hz US — rides on the sagging rail and puts faint sidebands around every note when the amp works hard), **grid-blocking distortion** (a truly slammed input chokes the first stage near-instantly and recovers over the ~30 ms grid-leak RC — the classic crackle-then-recover, untouched by ordinary playing), and **dynamic presence** (the presence shelf lives in the power-amp feedback loop, so its range shrinks and drifts toward the open-loop lift as the amp is driven). See [How it works](how-it-works.html#amp) for the physics.
 
 ## External amp plugins <span class="muted">(macOS · <kbd>U</kbd> · <kbd>Z</kbd>)</span> {#external-amp}
 
-Beyond the three built-in amps, on macOS you can load a third-party **Audio Unit amp sim** — for example a Marshall plugin — and use it *in place of* the built-in amp. Press <kbd>U</kbd> to browse the Audio Units installed on your system and load one.
+Beyond the five built-in amps, on macOS you can load a third-party **Audio Unit amp sim** — for example a Marshall plugin — and use it *in place of* the built-in amp. Press <kbd>U</kbd> to browse the Audio Units installed on your system and load one.
 
 A loaded AU is an **amp-position override**: your pedal chain feeds into it. By default the AU is treated as a full **amp + cab** — it brings its own cabinet, so the built-in cab and any loaded IR are bypassed (the cabinet panel reads `PLUGIN CAB` and the mic knobs dim). The header shows <code>AU: …</code> in place of the amp model, the tone-stack knobs and the AMP selector dim, and <kbd>Z</kbd> A/Bs the AU against the built-in amp live — no reload.
 
@@ -164,7 +184,7 @@ Three controls model a multi-mic'd 4×12 — the close mic's position, a blend f
 
 ## Cabinets {#cabs}
 
-Three multi-mic'd 4×12s, switchable live with <kbd>C</kbd>. Pick one to see its character and voiced frequency bands.
+Four multi-mic'd 4×12s, switchable live with <kbd>C</kbd>. Pick one to see its character and voiced frequency bands.
 
 <div class="selector" style="--c:var(--teal)" data-tabs>
   <div class="tiles" role="tablist" aria-label="Cabinet models">
@@ -181,6 +201,11 @@ Three multi-mic'd 4×12s, switchable live with <kbd>C</kbd>. Pick one to see its
     <button class="tile" role="tab" aria-selected="false" data-tab="cab-orange">
       <div class="tile__name">Orange PPC412 (V30)</div>
       <div class="tile__sub">Thick · chunky · closed-back birch</div>
+      <div class="tile__cab"></div>
+    </button>
+    <button class="tile" role="tab" aria-selected="false" data-tab="cab-wem">
+      <div class="tile__name">WEM 4×12 (Fane)</div>
+      <div class="tile__sub">Bright · aggressive · open top</div>
       <div class="tile__cab"></div>
     </button>
   </div>
@@ -211,6 +236,15 @@ Three multi-mic'd 4×12s, switchable live with <kbd>C</kbd>. Pick one to see its
       <span class="freq"><b>+3.5 dB</b> @ 2.9 kHz · presence held to 5 kHz</span>
     </div>
   </div>
+  <div class="tab-panel" role="tabpanel" data-panel="cab-wem">
+    <p class="muted" style="margin:2px 0 4px">Bright and aggressive with an open top — the Fane-loaded cab behind the Hiwatt/Gilmour tones.</p>
+    <div class="freqs">
+      <span class="freq"><b>+5 dB</b> @ 112 Hz · tight depth hump</span>
+      <span class="freq"><b>+4.2 dB</b> @ 500 Hz · leaner body plateau</span>
+      <span class="freq"><b>+5 dB</b> @ 3 kHz · Fane upper-mid bark</span>
+      <span class="freq"><b>+4.5 dB</b> @ 5 kHz · open, extended top</span>
+    </div>
+  </div>
 </div>
 
 Each cabinet is rendered by **impulse-response convolution** rather than a plain EQ. The built-in IRs are synthesized in-code (nothing to ship or download): the model's voiced EQ provides the magnitude skeleton — including the low resonant hump near 120 Hz and the broad 120–600 Hz body plateau that give a real close-mic'd 4×12 its depth — then early reflections, a dense 6–21 ms reflection tail, speaker modal resonances with a short, controlled cone "thump" ring, and two seeded scatter clusters (fine 0.5–2.3 kHz reflection ripple plus jagged cone-breakup texture) add the time-domain structure real captures show. Each IR runs ~93 ms (~4500 taps at 48 kHz). The close-mic textures are shared between left and right — real close captures are effectively mono, and heavy decorrelation reads as phasey rather than wide — with only the scatter seeds differing per side, plus a genuinely decorrelated stereo room-mic pair for width over a solid centre.
@@ -221,7 +255,7 @@ Cycle cabinets with <kbd>C</kbd> at any time. The **Mic** knob applies a ±6 dB 
 
 ## External cabinet IRs <span class="muted">(<kbd>I</kbd> · <kbd>X</kbd>)</span> {#irs}
 
-Beyond the three built-in cabs, rusty-amp can load your own **impulse-response `.wav` file** as the cabinet. A loaded IR replaces the multi-mic blend with a single captured response (the mono drive still passes through the same nonlinear speaker model — excursion-driven motor droop, cone breakup, thermal power compression and Doppler FM "growl" — so it stays alive and dynamic). Because the file is already a finished, miked capture, the **Mic / Blend / Room** knobs are inert while an external IR is active.
+Beyond the four built-in cabs, rusty-amp can load your own **impulse-response `.wav` file** as the cabinet. A loaded IR replaces the multi-mic blend with a single captured response (the mono drive still passes through the same nonlinear speaker model — excursion-driven motor droop, cone breakup, thermal power compression and Doppler FM "growl" — so it stays alive and dynamic). Because the file is already a finished, miked capture, the **Mic / Blend / Room** knobs are inert while an external IR is active.
 
 <div class="note">
 <b>One IR is a complete cabinet.</b> A speaker + cab + mic is a linear time-invariant system, and a single impulse response fully captures its linear response — exactly what a <code>.wav</code> IR is, and what every IR loader (Two Notes, Helix, NAM cab blocks, OwnHammer / God's Cab) uses: <b>one IR = one cab, one mic, one position</b>. rusty-amp adds the speaker's <em>nonlinear</em> behaviour back on top, so a loaded IR isn't static playback. A <em>multi-mic blend</em> is just a sum of IRs — pre-mix it into one file in your DAW, or load one mic at a time and A/B with <kbd>X</kbd>.

@@ -96,11 +96,11 @@ description: "rusty-amp recreates classic tube and solid-state guitar amps, a fu
   <section>
     <h2>Highlights</h2>
     <div class="grid grid--3">
-      <div class="card"><div class="ico">🔊</div><h3>4 amplifiers</h3><p>Marshall JCM800, Mesa Dual Rectifier, Randall Warhead, and Vox AC30 — switchable while you play.</p></div>
-      <div class="card"><div class="ico">📦</div><h3>3 cabinets + your IRs</h3><p>Mesa, Marshall, and Orange 4×12s, each captured with three blendable mics. Load your own <code>.wav</code> IR and A/B it live.</p></div>
-      <div class="card"><div class="ico">🎛️</div><h3>Full pedalboard</h3><p>Gate, compressor, fuzz, Tube Screamer, DS-1, EQ, ping-pong delay, and stereo reverb. Add, remove, and bypass on the fly.</p></div>
+      <div class="card"><div class="ico">🔊</div><h3>5 amplifiers</h3><p>Marshall JCM800, Mesa Dual Rectifier, Randall Warhead, Vox AC30, and Hiwatt DR103 — switchable while you play.</p></div>
+      <div class="card"><div class="ico">📦</div><h3>4 cabinets + your IRs</h3><p>Mesa, Marshall, Orange, and WEM/Fane 4×12s, each captured with three blendable mics. Load your own <code>.wav</code> IR and A/B it live.</p></div>
+      <div class="card"><div class="ico">🎛️</div><h3>Full pedalboard</h3><p>Gate, compressor, fuzz, Tube Screamer, DS-1, EQ, Uni-Vibe, ping-pong delay, and stereo reverb. Add, remove, and bypass on the fly.</p></div>
       <div class="card"><div class="ico">🎧</div><h3>Studio-grade stereo</h3><p>Wide, three-dimensional sound from the cab, delay, and reverb — a real L/R image, not a faked widener.</p></div>
-      <div class="card"><div class="ico">💾</div><h3>Ready-made presets</h3><p>Instant tones inspired by Metallica, Pantera, Slayer, Death, Slipknot, and more.</p></div>
+      <div class="card"><div class="ico">💾</div><h3>Ready-made presets</h3><p>Instant tones inspired by Pink Floyd, Led Zeppelin, and the Eagles — in the box and ready to play.</p></div>
       <div class="card"><div class="ico">🔌</div><h3>CLAP plugin host</h3><p>Drop a third-party CLAP effect into the chain and tweak its parameters without leaving the TUI.</p></div>
       <div class="card"><div class="ico">🎚️</div><h3>AU amp host <span class="muted">(macOS)</span></h3><p>Load an Audio Unit amp sim — e.g. a Marshall plugin — as an amp-position override that replaces the built-in amp &amp; cab, and A/B it live.</p></div>
       <div class="card"><div class="ico">🎵</div><h3>Built-in tuner</h3><p>Press <kbd>T</kbd> for a chromatic tuner with a ±cents needle and a live note spectrum.</p></div>
@@ -176,20 +176,22 @@ description: "rusty-amp recreates classic tube and solid-state guitar amps, a fu
     <h2>Amps &amp; cabinets</h2>
     <div class="grid grid--2">
       <div class="panel panel--accent" style="--accent:var(--rust)">
-        <span class="panel__label">4 amp models</span>
+        <span class="panel__label">5 amp models</span>
         <ul class="clean">
           <li><b>Marshall JCM800</b> — punchy, dynamic, touch-sensitive · dual 12AX7, passive FMV tone stack, tube sag.</li>
           <li><b>Mesa Dual Rectifier</b> — compressed, aggressive, modern · triple gain stage, silicon sag.</li>
           <li><b>Randall Warhead</b> — tight, crushing, solid-state · FET→BJT→rail-clip, active tone stack.</li>
           <li><b>Vox AC30</b> — chimey, touch-sensitive, Class A · dual 12AX7, passive FMV tone stack, no-NFB sag.</li>
+          <li><b>Hiwatt DR103</b> — clean, hi-fi, high-headroom · dual 12AX7, flatter FMV tone stack, stiff solid-state sag.</li>
         </ul>
       </div>
       <div class="panel panel--accent" style="--accent:var(--teal)">
-        <span class="panel__label">3 cabinets + IR loader</span>
+        <span class="panel__label">4 cabinets + IR loader</span>
         <ul class="clean">
           <li><b>Mesa 4×12 (V30)</b> — scooped, aggressive, forward-projecting.</li>
           <li><b>Marshall 4×12 (Greenback)</b> — warm, mid-forward, smooth top.</li>
           <li><b>Orange PPC412 (V30)</b> — thick, chunky, closed-back birch.</li>
+          <li><b>WEM 4×12 (Fane Crescendo)</b> — bright, aggressive, open top.</li>
           <li>Load any <code>.wav</code> impulse response and A/B against the built-ins with <kbd>X</kbd>.</li>
         </ul>
       </div>

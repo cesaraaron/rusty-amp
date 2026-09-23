@@ -3,10 +3,10 @@ layout: page.njk
 permalink: pedals.html
 title: "Pedals & effects · rusty-amp"
 ogTitle: "rusty-amp · pedals & effects"
-description: "Every rusty-amp pedal explained: noise gate, whammy pitch shifter, auto-wah, compressor, fuzz, TS-808, DS-1, ML-2 Metal Core, pre-amp EQ, graphic EQ, parametric EQ, flanger, chorus, phaser, tremolo/vibrato, delay, and stereo reverb — with full knob reference tables."
+description: "Every rusty-amp pedal explained: noise gate, whammy pitch shifter, auto-wah, compressor, fuzz (Big Muff / Fuzz Face), TS-808, DS-1, ML-2 Metal Core, pre-amp EQ, Uni-Vibe, graphic EQ, parametric EQ, flanger, chorus, phaser, tremolo/vibrato, delay, and stereo reverb — with full knob reference tables."
 eyebrow: "Pedals & effects"
 heading: "Configuring the board"
-lead: "Seventeen effects you can add, remove, and bypass independently. Each knob runs 0–10; here's exactly what every one does."
+lead: "Eighteen effects you can add, remove, and bypass independently. Each knob runs 0–10; here's exactly what every one does."
 toc:
   - { href: "#board", label: "The board" }
   - { href: "#pedals", label: "All pedals" }
@@ -34,7 +34,7 @@ The **Guitar Rig** shows one compact tile per pedal that's on the board, followe
 
 <div class="note">
 <b>Chain order is fixed</b> and follows the signal flow shown on the header ribbon:
-Gate → Whammy → Wah → Comp → Fuzz → TS-808 → DS-1 → ML-2 → Pre-EQ → <b>Amp</b> → <b>Cab</b> → Graphic EQ → Parametric EQ → Flanger → Chorus → Phaser → Tremolo/Vibrato → Delay → Reverb.
+Gate → Whammy → Wah → Comp → Fuzz → TS-808 → DS-1 → ML-2 → Pre-EQ → Uni-Vibe → <b>Amp</b> → <b>Cab</b> → Graphic EQ → Parametric EQ → Flanger → Chorus → Phaser → Tremolo/Vibrato → Delay → Reverb.
 Where a pedal sits in that order is part of its character — see <a href="how-it-works.html">How it works</a>.
 </div>
 
@@ -62,7 +62,7 @@ Pick a pedal to load it into the editor — exactly like tabbing to its tile in 
     </button>
     <button class="tile" style="--c:var(--magenta)" role="tab" aria-selected="false" data-tab="fuzz">
       <div class="tile__name"><span class="tile__dot"></span>Fuzz</div>
-      <div class="tile__sub">Fuzz · Tone · Level</div>
+      <div class="tile__sub">Type · Fuzz · Tone · Level</div>
     </button>
     <button class="tile" style="--c:var(--green)" role="tab" aria-selected="false" data-tab="ts">
       <div class="tile__name"><span class="tile__dot"></span>TS-808</div>
@@ -79,6 +79,10 @@ Pick a pedal to load it into the editor — exactly like tabbing to its tile in 
     <button class="tile" style="--c:var(--lime)" role="tab" aria-selected="false" data-tab="preeq">
       <div class="tile__name"><span class="tile__dot"></span>Pre-amp EQ</div>
       <div class="tile__sub">Low · Mid · High</div>
+    </button>
+    <button class="tile" style="--c:var(--vibe)" role="tab" aria-selected="false" data-tab="uni-vibe">
+      <div class="tile__name"><span class="tile__dot"></span>Uni-Vibe</div>
+      <div class="tile__sub">Rate · Depth · Mix · Mode</div>
     </button>
     <button class="tile" style="--c:var(--sand)" role="tab" aria-selected="false" data-tab="graphic-eq">
       <div class="tile__name"><span class="tile__dot"></span>Graphic EQ</div>
@@ -143,9 +147,10 @@ Pick a pedal to load it into the editor — exactly like tabbing to its tile in 
   </div>
 
   <div class="tab-panel" style="--c:var(--magenta)" role="tabpanel" data-panel="fuzz">
-    <p class="muted">Big-Muff-style fuzz that runs first in the drive chain so it sees the rawest pickup signal. Two cascaded clipping stages give the long, singing sustain and near-square saturation of a vintage fuzz — much heavier than the TS or DS-1. The voice is mid-scooped at 700 Hz for the classic “wall of sound” timbre.</p>
-    <div class="kv"><span class="kv__k">Fuzz</span><span class="kv__v"><span class="kv__r">0–10</span> Sustain/gain into the two cascaded soft-clip stages. High values drive the waveform toward a gated square wave.</span></div>
-    <div class="kv"><span class="kv__k">Tone</span><span class="kv__v"><span class="kv__r">0–10</span> Low-pass after the scoop. 0 = dark/woolly (~400 Hz), 10 = bright/buzzy (~6 kHz).</span></div>
+    <p class="muted">Two fuzz voicings in one pedal, run first in the drive chain so it sees the rawest pickup signal. <b>Big Muff</b> (Type 0) cascades two clipping stages for the long, singing sustain and near-square saturation of a vintage fuzz, with a 700 Hz mid scoop for the classic “wall of sound”. <b>Fuzz Face</b> (Type 1) runs a lower gain into a softer germanium-style clip and keeps its mids, so it stays vocal and cleans up as the fuzz knob comes down.</p>
+    <div class="kv"><span class="kv__k">Type</span><span class="kv__v"><span class="kv__r">0–10</span> Voicing: 0 = Big Muff (scooped, heavier), 10 = Fuzz Face (mid-rich, softer).</span></div>
+    <div class="kv"><span class="kv__k">Fuzz</span><span class="kv__v"><span class="kv__r">0–10</span> Sustain/gain into the cascaded soft-clip stages. High values drive the waveform toward a gated square wave.</span></div>
+    <div class="kv"><span class="kv__k">Tone</span><span class="kv__v"><span class="kv__r">0–10</span> Low-pass after the clipping. 0 = dark/woolly (~400 Hz), 10 = bright/buzzy (~6 kHz).</span></div>
     <div class="kv"><span class="kv__k">Level</span><span class="kv__v"><span class="kv__r">0–10</span> Output volume of the pedal into the next stage.</span></div>
   </div>
 
@@ -176,6 +181,14 @@ Pick a pedal to load it into the editor — exactly like tabbing to its tile in 
     <div class="kv"><span class="kv__k">Low</span><span class="kv__v"><span class="kv__r">100 Hz</span> Low shelf.</span></div>
     <div class="kv"><span class="kv__k">Mid</span><span class="kv__v"><span class="kv__r">650 Hz</span> Peak (Q 1.0).</span></div>
     <div class="kv"><span class="kv__k">High</span><span class="kv__v"><span class="kv__r">3 kHz</span> High shelf.</span></div>
+  </div>
+
+  <div class="tab-panel" style="--c:var(--vibe)" role="tabpanel" data-panel="uni-vibe">
+    <p class="muted">A four-stage, LFO-swept all-pass “vibe” — the warm ancestor of the phaser, with a photocell-shaped sweep that dwells at the bottom of its travel. It runs <b>last before the amp</b> (guitar → fuzz → vibe → amp), exactly where Gilmour ran it, so it interacts with the fuzz and drives the amp directly. In <b>chorus</b> mode the dry signal is summed back in for the classic swirl; in <b>vibrato</b> mode the phase signal runs alone and the moving group delay gives a pitch shimmer.</p>
+    <div class="kv"><span class="kv__k">Rate</span><span class="kv__v"><span class="kv__r">0–10</span> LFO speed, 0.1–8 Hz (exponential).</span></div>
+    <div class="kv"><span class="kv__k">Depth</span><span class="kv__v"><span class="kv__r">0–10</span> Sweep width; how far the staggered all-pass break frequencies glide.</span></div>
+    <div class="kv"><span class="kv__k">Mix</span><span class="kv__v"><span class="kv__r">0–10</span> Chorus dry/wet blend (0 = dry, 10 = fully wet).</span></div>
+    <div class="kv"><span class="kv__k">Mode</span><span class="kv__v"><span class="kv__r">0–10</span> 0 = chorus (dry + phase), 10 = vibrato (phase only).</span></div>
   </div>
 
   <div class="tab-panel" style="--c:var(--sand)" role="tabpanel" data-panel="graphic-eq">

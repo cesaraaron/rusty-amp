@@ -35,6 +35,7 @@ pub struct Preset {
     pub distortion: Option<DsSection>,
     pub metal_core: Option<MlSection>,
     pub preamp_eq: Option<PeqSection>,
+    pub uni_vibe: Option<UniVibeSection>,
     pub amp: AmpSection,
     pub cabinet: Option<CabSection>,
     pub graphic_eq: Option<GraphicEqSection>,
@@ -87,12 +88,30 @@ pub struct PeqSection {
     pub high: f32,
 }
 
+/// Uni-Vibe — a front-of-amp four-stage all-pass "vibe". `mode` blends chorus
+/// (0, dry + phase) to vibrato (1, phase only).
+#[derive(Debug, Deserialize, Serialize)]
+pub struct UniVibeSection {
+    pub enabled: Option<bool>,
+    pub rate: f32,
+    pub depth: f32,
+    pub mix: f32,
+    pub mode: f32,
+}
+
 #[derive(Debug, Deserialize, Serialize)]
 pub struct FuzzSection {
     pub enabled: Option<bool>,
     pub fuzz: f32,
     pub tone: f32,
     pub level: f32,
+    /// 0 = Big Muff, 1 = Fuzz Face. Defaults to 0 so existing presets keep the Muff.
+    #[serde(default = "fuzz_type_default")]
+    pub r#type: f32,
+}
+
+fn fuzz_type_default() -> f32 {
+    0.0
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -122,7 +141,7 @@ pub struct MlSection {
 
 #[derive(Debug, Deserialize, Serialize)]
 pub struct AmpSection {
-    /// "marshall" | "mesa" | "randall" | "vox"
+    /// "marshall" | "mesa" | "randall" | "vox" | "hiwatt"
     pub model: Option<String>,
     pub gain: f32,
     pub bass: f32,
@@ -139,7 +158,7 @@ fn presence_default() -> f32 {
 
 #[derive(Debug, Deserialize, Serialize)]
 pub struct CabSection {
-    /// "mesa" (default) | "marshall"
+    /// "mesa" (default) | "marshall" | "orange" | "wem"
     pub model: Option<String>,
     /// 0.0 = edge (off-axis, dark) … 1.0 = center (on-axis, bright). Default 0.5.
     #[serde(default = "mic_pos_default")]
@@ -266,12 +285,14 @@ impl Preset {
             AmpModel::Mesa => "mesa",
             AmpModel::Randall => "randall",
             AmpModel::Vox => "vox",
+            AmpModel::Hiwatt => "hiwatt",
         };
         let cab_model = CabModel::from_u8(params.cab_model.load(Relaxed));
         let cab_model_str = match cab_model {
             CabModel::Mesa => "mesa",
             CabModel::Marshall => "marshall",
             CabModel::Orange => "orange",
+            CabModel::Wem => "wem",
         };
         Self {
             name,
@@ -307,6 +328,7 @@ impl Preset {
                 fuzz: params.fz_fuzz.load(Relaxed),
                 tone: params.fz_tone.load(Relaxed),
                 level: params.fz_level.load(Relaxed),
+                r#type: params.fz_type.load(Relaxed),
             }),
             tube_screamer: TsSection {
                 enabled: Some(params.ts_enabled.load(Relaxed)),
@@ -332,6 +354,13 @@ impl Preset {
                 low: params.peq_low.load(Relaxed),
                 mid: params.peq_mid.load(Relaxed),
                 high: params.peq_high.load(Relaxed),
+            }),
+            uni_vibe: Some(UniVibeSection {
+                enabled: Some(params.uv_enabled.load(Relaxed)),
+                rate: params.uv_rate.load(Relaxed),
+                depth: params.uv_depth.load(Relaxed),
+                mix: params.uv_mix.load(Relaxed),
+                mode: params.uv_mode.load(Relaxed),
             }),
             amp: AmpSection {
                 model: Some(amp_model_str.to_string()),
@@ -478,6 +507,7 @@ impl Preset {
             params.fz_fuzz.store(fz.fuzz.clamp(0.0, 1.0), Relaxed);
             params.fz_tone.store(fz.tone.clamp(0.0, 1.0), Relaxed);
             params.fz_level.store(fz.level.clamp(0.0, 1.0), Relaxed);
+            params.fz_type.store(fz.r#type.clamp(0.0, 1.0), Relaxed);
         } else {
             params.fz_enabled.store(false, Relaxed);
         }
@@ -518,11 +548,22 @@ impl Preset {
             params.peq_enabled.store(false, Relaxed);
         }
 
+        if let Some(uv) = &self.uni_vibe {
+            params.uv_enabled.store(uv.enabled.unwrap_or(true), Relaxed);
+            params.uv_rate.store(uv.rate.clamp(0.0, 1.0), Relaxed);
+            params.uv_depth.store(uv.depth.clamp(0.0, 1.0), Relaxed);
+            params.uv_mix.store(uv.mix.clamp(0.0, 1.0), Relaxed);
+            params.uv_mode.store(uv.mode.clamp(0.0, 1.0), Relaxed);
+        } else {
+            params.uv_enabled.store(false, Relaxed);
+        }
+
         let amp = &self.amp;
         let model = match amp.model.as_deref() {
             Some("mesa") => AmpModel::Mesa,
             Some("randall") => AmpModel::Randall,
             Some("vox") => AmpModel::Vox,
+            Some("hiwatt") => AmpModel::Hiwatt,
             _ => AmpModel::Marshall,
         };
         params.amp_model.store(model as u8, Relaxed);
@@ -539,6 +580,7 @@ impl Preset {
             let cab_model = match cab.model.as_deref() {
                 Some("marshall") => CabModel::Marshall,
                 Some("orange") => CabModel::Orange,
+                Some("wem") => CabModel::Wem,
                 _ => CabModel::Mesa,
             };
             params.cab_model.store(cab_model as u8, Relaxed);

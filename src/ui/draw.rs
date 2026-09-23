@@ -159,6 +159,7 @@ fn render_header(
     let ds_on = params.ds_enabled.load(Relaxed);
     let ml_on = params.ml_enabled.load(Relaxed);
     let peq_on = params.peq_enabled.load(Relaxed);
+    let uv_on = params.uv_enabled.load(Relaxed);
     let geq_on = params.geq_enabled.load(Relaxed);
     let eq_on = params.eq_enabled.load(Relaxed);
     let fl_on = params.fl_enabled.load(Relaxed);
@@ -183,6 +184,7 @@ fn render_header(
         ("DS-1", ds_on),
         ("ML-2", ml_on),
         ("PRE-EQ", peq_on),
+        ("VIBE", uv_on),
     ];
     let post_pedals = [
         ("G-EQ", geq_on),
@@ -356,6 +358,7 @@ fn render_amp_selector(f: &mut Frame, area: Rect, params: &Params, focused: bool
         AmpModel::Mesa,
         AmpModel::Randall,
         AmpModel::Vox,
+        AmpModel::Hiwatt,
     ] {
         let selected = m == amp_model;
         let style = if amp_ext_active {
@@ -406,7 +409,12 @@ fn render_amp_selector(f: &mut Frame, area: Rect, params: &Params, focused: bool
         "  CAB  ",
         Style::default().fg(label_fg).add_modifier(Modifier::BOLD),
     )];
-    for m in [CabModel::Mesa, CabModel::Marshall, CabModel::Orange] {
+    for m in [
+        CabModel::Mesa,
+        CabModel::Marshall,
+        CabModel::Orange,
+        CabModel::Wem,
+    ] {
         let selected = m == cab_model;
         let style = if cab_inactive {
             Style::default().fg(OFF)
@@ -1441,6 +1449,7 @@ mod tests {
             AmpModel::Mesa,
             AmpModel::Randall,
             AmpModel::Vox,
+            AmpModel::Hiwatt,
         ] {
             let params = Params::new();
             params
@@ -1514,7 +1523,12 @@ mod tests {
     /// Every built-in cabinet must be reachable and shown in the selector.
     #[test]
     fn every_cab_model_renders_its_name() {
-        for model in [CabModel::Mesa, CabModel::Marshall, CabModel::Orange] {
+        for model in [
+            CabModel::Mesa,
+            CabModel::Marshall,
+            CabModel::Orange,
+            CabModel::Wem,
+        ] {
             let params = Params::new();
             params
                 .cab_model

@@ -67,6 +67,20 @@ impl Components {
         c2: 22e-9,
         c3: 22e-9,
     };
+
+    /// Hiwatt DR103 stack — a Fender-derived FMV network with a **larger mid-pot
+    /// load (r3)** and a wide slope resistor, giving a flatter, less-scooped
+    /// midrange and a clear, bright top: the DR103's hi-fi, un-scooped voice, in
+    /// contrast to the Marshall's pronounced mid dip.
+    pub const HIWATT: Components = Components {
+        r1: 220e3,
+        r2: 1e6,
+        r3: 33e3,
+        r4: 100e3,
+        c1: 250e-12,
+        c2: 22e-9,
+        c3: 22e-9,
+    };
 }
 
 pub struct ToneStack {

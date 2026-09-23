@@ -19,7 +19,7 @@ use amp::AmpBank;
 use cab::{CabBank, ExternalIrCab};
 use effects::{
     Chorus, Compressor, Delay, Distortion, Flanger, Fuzz, GraphicEq, MetalCore, NoiseGate,
-    ParametricEq, Phaser, Pitch, PreampEq, Reverb, Tremolo, TubeScreamer, Wah,
+    ParametricEq, Phaser, Pitch, PreampEq, Reverb, Tremolo, TubeScreamer, UniVibe, Wah,
 };
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
@@ -29,6 +29,7 @@ pub enum AmpModel {
     Mesa = 1,
     Randall = 2,
     Vox = 3,
+    Hiwatt = 4,
 }
 
 impl AmpModel {
@@ -37,6 +38,7 @@ impl AmpModel {
             1 => Self::Mesa,
             2 => Self::Randall,
             3 => Self::Vox,
+            4 => Self::Hiwatt,
             _ => Self::Marshall,
         }
     }
@@ -47,6 +49,7 @@ impl AmpModel {
             Self::Mesa => "Mesa Dual Rectifier",
             Self::Randall => "Randall Warhead",
             Self::Vox => "Vox AC30",
+            Self::Hiwatt => "Hiwatt DR103",
         }
     }
 
@@ -56,6 +59,7 @@ impl AmpModel {
             Self::Mesa => "DUAL RECT",
             Self::Randall => "RANDALL",
             Self::Vox => "AC30",
+            Self::Hiwatt => "DR103",
         }
     }
 
@@ -64,16 +68,18 @@ impl AmpModel {
             Self::Marshall => Self::Mesa,
             Self::Mesa => Self::Randall,
             Self::Randall => Self::Vox,
-            Self::Vox => Self::Marshall,
+            Self::Vox => Self::Hiwatt,
+            Self::Hiwatt => Self::Marshall,
         }
     }
 
     pub fn prev(self) -> Self {
         match self {
-            Self::Marshall => Self::Vox,
+            Self::Marshall => Self::Hiwatt,
             Self::Mesa => Self::Marshall,
             Self::Randall => Self::Mesa,
             Self::Vox => Self::Randall,
+            Self::Hiwatt => Self::Vox,
         }
     }
 }
@@ -84,6 +90,7 @@ pub enum CabModel {
     Mesa = 0,
     Marshall = 1,
     Orange = 2,
+    Wem = 3,
 }
 
 impl CabModel {
@@ -91,6 +98,7 @@ impl CabModel {
         match v {
             1 => Self::Marshall,
             2 => Self::Orange,
+            3 => Self::Wem,
             _ => Self::Mesa,
         }
     }
@@ -101,6 +109,7 @@ impl CabModel {
             Self::Mesa => "Mesa 4×12 (V30)",
             Self::Marshall => "Marshall 4×12 (GB)",
             Self::Orange => "Orange PPC412 (V30)",
+            Self::Wem => "WEM 4×12 (Fane)",
         }
     }
 
@@ -109,6 +118,7 @@ impl CabModel {
             Self::Mesa => "MESA V30",
             Self::Marshall => "MARSH GB",
             Self::Orange => "ORANGE",
+            Self::Wem => "WEM FANE",
         }
     }
 
@@ -116,7 +126,8 @@ impl CabModel {
         match self {
             Self::Mesa => Self::Marshall,
             Self::Marshall => Self::Orange,
-            Self::Orange => Self::Mesa,
+            Self::Orange => Self::Wem,
+            Self::Wem => Self::Mesa,
         }
     }
 }
@@ -160,10 +171,20 @@ const DEFAULT_PEQ_LOW: f32 = 0.50;
 const DEFAULT_PEQ_MID: f32 = 0.50;
 const DEFAULT_PEQ_HIGH: f32 = 0.50;
 
+// Uni-Vibe (front-of-amp modulation). Off by default; chorus mode at a medium
+// depth and mix when added.
+const DEFAULT_UV_ENABLED: bool = false;
+const DEFAULT_UV_RATE: f32 = 0.30;
+const DEFAULT_UV_DEPTH: f32 = 0.60;
+const DEFAULT_UV_MIX: f32 = 0.50;
+const DEFAULT_UV_MODE: f32 = 0.00;
+
 const DEFAULT_FZ_ENABLED: bool = false;
 const DEFAULT_FZ_FUZZ: f32 = 0.70;
 const DEFAULT_FZ_TONE: f32 = 0.50;
 const DEFAULT_FZ_LEVEL: f32 = 0.60;
+// 0 = Big Muff (the shipped default), 1 = Fuzz Face.
+const DEFAULT_FZ_TYPE: f32 = 0.0;
 
 const DEFAULT_TS_ENABLED: bool = true;
 const DEFAULT_TS_DRIVE: f32 = 0.45;
@@ -297,11 +318,19 @@ pub struct Params {
     pub peq_mid: Arc<AtomicF32>,
     pub peq_high: Arc<AtomicF32>,
 
+    // Uni-Vibe (mono, last pedal before the amp — guitar → fuzz → vibe → amp).
+    pub uv_enabled: Arc<AtomicBool>,
+    pub uv_rate: Arc<AtomicF32>,
+    pub uv_depth: Arc<AtomicF32>,
+    pub uv_mix: Arc<AtomicF32>,
+    pub uv_mode: Arc<AtomicF32>,
+
     // Fuzz (Big Muff style)
     pub fz_enabled: Arc<AtomicBool>,
     pub fz_fuzz: Arc<AtomicF32>,
     pub fz_tone: Arc<AtomicF32>,
     pub fz_level: Arc<AtomicF32>,
+    pub fz_type: Arc<AtomicF32>,
 
     // TS-808
     pub ts_enabled: Arc<AtomicBool>,
@@ -444,10 +473,17 @@ impl Params {
             peq_mid: p!(DEFAULT_PEQ_MID),
             peq_high: p!(DEFAULT_PEQ_HIGH),
 
+            uv_enabled: b!(DEFAULT_UV_ENABLED),
+            uv_rate: p!(DEFAULT_UV_RATE),
+            uv_depth: p!(DEFAULT_UV_DEPTH),
+            uv_mix: p!(DEFAULT_UV_MIX),
+            uv_mode: p!(DEFAULT_UV_MODE),
+
             fz_enabled: b!(DEFAULT_FZ_ENABLED),
             fz_fuzz: p!(DEFAULT_FZ_FUZZ),
             fz_tone: p!(DEFAULT_FZ_TONE),
             fz_level: p!(DEFAULT_FZ_LEVEL),
+            fz_type: p!(DEFAULT_FZ_TYPE),
 
             ts_enabled: b!(DEFAULT_TS_ENABLED),
             ts_drive: p!(DEFAULT_TS_DRIVE),
@@ -564,10 +600,17 @@ impl Params {
         self.peq_mid.store(DEFAULT_PEQ_MID, Relaxed);
         self.peq_high.store(DEFAULT_PEQ_HIGH, Relaxed);
 
+        self.uv_enabled.store(DEFAULT_UV_ENABLED, Relaxed);
+        self.uv_rate.store(DEFAULT_UV_RATE, Relaxed);
+        self.uv_depth.store(DEFAULT_UV_DEPTH, Relaxed);
+        self.uv_mix.store(DEFAULT_UV_MIX, Relaxed);
+        self.uv_mode.store(DEFAULT_UV_MODE, Relaxed);
+
         self.fz_enabled.store(DEFAULT_FZ_ENABLED, Relaxed);
         self.fz_fuzz.store(DEFAULT_FZ_FUZZ, Relaxed);
         self.fz_tone.store(DEFAULT_FZ_TONE, Relaxed);
         self.fz_level.store(DEFAULT_FZ_LEVEL, Relaxed);
+        self.fz_type.store(DEFAULT_FZ_TYPE, Relaxed);
 
         self.ts_enabled.store(DEFAULT_TS_ENABLED, Relaxed);
         self.ts_drive.store(DEFAULT_TS_DRIVE, Relaxed);
@@ -720,6 +763,7 @@ pub struct DspChain {
     ds: Distortion,
     ml: MetalCore,
     peq: PreampEq,
+    uv: UniVibe,
     amp: AmpBank,
     cab: CabBank,
     geq: GraphicEq,
@@ -761,6 +805,7 @@ impl DspChain {
             ds: Distortion::new(sr),
             ml: MetalCore::new(sr),
             peq: PreampEq::new(sr),
+            uv: UniVibe::new(sr),
             amp: AmpBank::new(sr),
             cab: CabBank::new(sr),
             geq: GraphicEq::new(sr),
@@ -845,7 +890,8 @@ impl DspChain {
         self.rack(l, r)
     }
 
-    /// Mono pre-amp path: gate → pitch → wah → compressor → fuzz → TS → DS → ML-2 → pre-amp EQ.
+    /// Mono pre-amp path: gate → pitch → wah → compressor → fuzz → TS → DS → ML-2
+    /// → pre-amp EQ → Uni-Vibe.
     ///
     /// The pitch shifter sits right after the gate so it transposes a clean, tracked
     /// note and the *shifted* signal is what everything downstream — wah, compressor,
@@ -854,8 +900,10 @@ impl DspChain {
     /// (a compressor ahead of it would flatten the very envelope it sweeps on). Fuzz
     /// comes before the screamers so it sees the rawest signal; the ML-2 Metal Core is
     /// the most aggressive drive, last in the dirt chain, and the pre-amp EQ comes after
-    /// it so it shapes exactly what the amp's gain stage clips. This is the mono signal
-    /// fed to either the built-in amp or a hosted external amp.
+    /// it so it shapes exactly what the amp's gain stage clips. The Uni-Vibe is last,
+    /// right before the amp, mirroring the real front-of-amp placement (guitar → fuzz →
+    /// vibe → amp) so it interacts with the fuzz and drives the amp directly. This is
+    /// the mono signal fed to either the built-in amp or a hosted external amp.
     #[inline]
     fn pre_amp(&mut self, sample: f32) -> f32 {
         let p = &self.params;
@@ -892,13 +940,18 @@ impl DspChain {
             cmp_attack,
             cmp_level
         );
-        let x = mono_stage!(self, p, x, fz_enabled, fz, fz_fuzz, fz_tone, fz_level);
+        let x = mono_stage!(
+            self, p, x, fz_enabled, fz, fz_fuzz, fz_tone, fz_level, fz_type
+        );
         let x = mono_stage!(self, p, x, ts_enabled, ts, ts_drive, ts_tone, ts_level);
         let x = mono_stage!(self, p, x, ds_enabled, ds, ds_drive, ds_tone, ds_level);
         let x = mono_stage!(
             self, p, x, ml_enabled, ml, ml_dist, ml_low, ml_high, ml_level
         );
-        mono_stage!(self, p, x, peq_enabled, peq, peq_low, peq_mid, peq_high)
+        let x = mono_stage!(self, p, x, peq_enabled, peq, peq_low, peq_mid, peq_high);
+        mono_stage!(
+            self, p, x, uv_enabled, uv, uv_rate, uv_depth, uv_mix, uv_mode
+        )
     }
 
     /// Built-in amp then cabinet: mono in, stereo out.

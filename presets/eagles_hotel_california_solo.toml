@@ -51,6 +51,14 @@ low  = 0.44
 mid  = 0.62
 high = 0.52
 
+# Uni-Vibe off — not part of this tone; stored so it is explicitly bypassed.
+[uni_vibe]
+enabled = false
+rate    = 0.24
+depth   = 0.40
+mix     = 0.0
+mode    = 0.0
+
 # ── Amp ───────────────────────────────────────────────────────────────────────
 # Marshall JCM800 standing in for the Fender/Tweed stack they actually used: at
 # this gain it keeps the soft, vocal breakup a Fender has when it's working hard.

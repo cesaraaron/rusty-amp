@@ -79,8 +79,8 @@ Every block below is processed per sample. Bracketed stages are `[bypassable]` �
 
   <div class="flow__stage" style="--c:var(--magenta)">
     <div class="flow__card">
-      <div class="flow__head"><span class="flow__name">Fuzz</span><span class="flow__tag">Big Muff style</span><span class="flow__badge flow__badge--bypass">Bypassable</span></div>
-      <div class="flow__sig">DC block → 70 Hz HP → <span class="os">[4× OS: two cascaded asymmetric soft-clip stages]</span> → DC block → 700 Hz mid scoop → variable tone LP.</div>
+      <div class="flow__head"><span class="flow__name">Fuzz</span><span class="flow__tag">Big Muff / Fuzz Face</span><span class="flow__badge flow__badge--bypass">Bypassable</span></div>
+      <div class="flow__sig">DC block → 70 Hz HP → <span class="os">[4× OS: two cascaded asymmetric soft-clip stages]</span> → DC block → 700 Hz mid scoop (Big Muff) or no scoop with a softer germanium-style clip (Fuzz Face) → variable tone LP.</div>
     </div>
   </div>
 
@@ -112,6 +112,13 @@ Every block below is processed per sample. Bracketed stages are `[bypassable]` �
     </div>
   </div>
 
+  <div class="flow__stage" style="--c:var(--magenta)">
+    <div class="flow__card">
+      <div class="flow__head"><span class="flow__name">Uni-Vibe</span><span class="flow__tag">Front of amp</span><span class="flow__badge flow__badge--bypass">Bypassable</span></div>
+      <div class="flow__sig">Four LFO-swept, staggered first-order all-passes with a photocell-shaped (dwelling) sweep → chorus (dry + phase) or vibrato (phase only, pitch shimmer) blend — mono, last before the amp, so it interacts with the fuzz like the real pedal.</div>
+    </div>
+  </div>
+
   <div class="flow__stage" style="--c:var(--rust)">
     <div class="flow__card">
       <div class="flow__head"><span class="flow__name">Amp</span><span class="flow__badge flow__badge--live">Switchable live</span></div>
@@ -120,6 +127,7 @@ Every block below is processed per sample. Bracketed stages are `[bypassable]` �
       <div class="flow__sub"><b>Mesa DR</b> — triple gain stage (atan → atan → exponential) + grid-blocking → passive FMV tone stack → silicon sag with 120 Hz supply ripple → speaker-load bloom → dynamic NFB presence</div>
       <div class="flow__sub"><b>Randall</b> — FET → BJT → rail-clip → active tone stack → stiff solid-state power section → static speaker load</div>
       <div class="flow__sub"><b>Vox AC30</b> — dual 12AX7 atan soft-clip → passive FMV tone stack (brighter, less scoop) → no-NFB Class A sag → speaker-load bloom</div>
+      <div class="flow__sub"><b>Hiwatt DR103</b> — dual 12AX7 atan soft-clip → passive FMV tone stack (flatter mid, bright top) → stiff solid-state sag with a strong Partridge-style output transformer → speaker-load bloom</div>
     </div>
   </div>
 
@@ -206,7 +214,7 @@ For the per-knob behaviour of each pedal, see [Pedals & effects](pedals.html).
 
 ## The amp stages {#amp}
 
-All four amps share an **8× oversampled** nonlinear core with a linear-phase polyphase-FIR anti-alias filter, plus a dynamic grid-bias "bloom" that makes the gain respond to how hard you play. Beyond that, each model diverges:
+All five amps share an **8× oversampled** nonlinear core with a linear-phase polyphase-FIR anti-alias filter, plus a dynamic grid-bias "bloom" that makes the gain respond to how hard you play. Beyond that, each model diverges:
 
 | Model | Character | Tone stack | Rectifier / power | Gain stages |
 | ----- | --------- | ---------- | ----------------- | ----------- |
@@ -214,10 +222,11 @@ All four amps share an **8× oversampled** nonlinear core with a linear-phase po
 | **Mesa Dual Rectifier** | Compressed, aggressive, modern | Passive FMV (Fender values) | Silicon sag (0.5 ms / 80 ms) + 120 Hz supply ripple + dynamic speaker-load bloom | 3-stage: atan → atan → exponential |
 | **Randall Warhead** | Tight, crushing, solid-state | Active, independent bands + fixed +3 dB presence | No sag — stiff solid-state rails + static speaker resonance | FET (x/√(1+x²)) → BJT (tanh) → rail-clip |
 | **Vox AC30** | Chimey, touch-sensitive, Class A | Passive FMV (Vox values — lighter scoop, brighter) | Class A sag (3.8 ms / 260 ms, no NFB) + dynamic speaker-load bloom | 2 × 12AX7 atan soft-clip |
+| **Hiwatt DR103** | Clean, hi-fi, high-headroom | Passive FMV (Hiwatt values — flatter mid, bright top) | Stiff solid-state sag (4 ms / 90 ms) + strong Partridge-style output transformer + dynamic speaker-load bloom | 2 × 12AX7 atan soft-clip |
 
-The **passive FMV tone stack** is a single RC network where bass, mid, and treble interact and the mids inherently scoop — exactly like a real amp — followed by a **power-amp ↔ speaker interaction** model: the speaker's impedance resonance blooms the low end dynamically as the supply sags under hard playing. The Vox has no global negative-feedback loop, so it sags more readily and blooms harder than the Marshall/Mesa. The Randall keeps an active, independent-band stack and a small static speaker resonance, true to its stiff solid-state design. See [Amps & cabinets](amps-cabs.html#amp) for the per-knob breakdown.
+The **passive FMV tone stack** is a single RC network where bass, mid, and treble interact and the mids inherently scoop — exactly like a real amp — followed by a **power-amp ↔ speaker interaction** model: the speaker's impedance resonance blooms the low end dynamically as the supply sags under hard playing. The Vox has no global negative-feedback loop, so it sags more readily and blooms harder than the Marshall/Mesa; the Hiwatt's stiff solid-state-rectified supply sags the least and stays tight and clean. The Randall keeps an active, independent-band stack and a small static speaker resonance, true to its stiff solid-state design. See [Amps & cabinets](amps-cabs.html#amp) for the per-knob breakdown.
 
-Three further pieces of tube-amp physics live in the two tube models:
+Three further pieces of tube-amp physics live in the tube models:
 
 - **Ghost notes (supply ripple).** A real B+ rail is rectified mains, so a ripple at twice the mains frequency (100 Hz for the UK-built JCM800, 120 Hz for the US-built Recto) rides on the supply and grows as hard playing loads it down. That ripple amplitude-modulates the power stage, putting faint sidebands ±100/120 Hz around every note — the subliminal "big amp working hard" texture. At idle it all but vanishes.
 - **Grid-blocking distortion.** Beyond the gentle cathode-bias give, a *truly slammed* input (a boost into a cranked front end, a violent transient) drives grid current that charges the coupling cap near-instantly, choking the stage — the note's attack spits, then the charge bleeds off over the grid-leak RC (~30 ms) and the gain recovers into the note. Ordinary playing never touches it.
