@@ -185,13 +185,23 @@ pub fn start(
     let out_channels = output_cfg.channels as usize;
 
     // One factual line about the running stream — the first thing to ask for
-    // when a rig "sounds wrong" (wrong rate/channel/buffer explains most of it).
+    // when a rig "sounds wrong" (wrong device/rate/channel/buffer explains most of it).
+    let input_name = input_device
+        .description()
+        .map(|desc| desc.name().to_owned())
+        .unwrap_or_else(|_| format!("input-{input_idx}"));
+    let output_name = output_device
+        .description()
+        .map(|desc| desc.name().to_owned())
+        .unwrap_or_else(|_| format!("output-{output_idx}"));
     eprintln!(
-        "Audio: {} Hz, in ch {}/{} (guitar), out ch {}, buffer {} frames",
-        sr as u32,
+        "Audio: in '{}' ch {}/{} -> out '{}' ch {}, {} Hz, buffer {} frames",
+        input_name,
         guitar_ch + 1,
         in_channels,
+        output_name,
         out_channels,
+        sr as u32,
         LIVE_BUFFER_FRAMES,
     );
 
