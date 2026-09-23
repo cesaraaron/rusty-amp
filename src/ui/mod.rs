@@ -61,10 +61,14 @@ pub fn run(
     // Same facts as the modals, on stderr: one paste shows exactly what the
     // user could pick, even if they misread the fullscreen list.
     for (i, d) in devices.inputs.iter().enumerate() {
-        eprintln!("Input {}: '{}' ({} ch)", i + 1, d.name, d.channels);
+        let line = format!("Input {}: '{}' ({} ch)", i + 1, d.name, d.channels);
+        eprintln!("{line}");
+        crate::audio::log_line(&line);
     }
     for (i, name) in devices.outputs.iter().enumerate() {
-        eprintln!("Output {}: '{}'", i + 1, name);
+        let line = format!("Output {}: '{name}'", i + 1);
+        eprintln!("{line}");
+        crate::audio::log_line(&line);
     }
     let selection = setup::run(&mut terminal, &devices, &params, &levels);
 

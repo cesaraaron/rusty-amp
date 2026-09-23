@@ -33,7 +33,6 @@ const INSERT_QUEUE_CAP: usize = 8;
 /// buffers are pre-sized to this, and plugin inserts are activated with it as
 /// their maximum block size.
 pub const MAX_BLOCK: usize = 4096;
-
 /// Frames per audio callback we request from the OS. 256 ≈ 5.3 ms at 48 kHz:
 /// tight enough that playing feels connected (stock DAWs run 64–256), loose
 /// enough that a release build never underruns on Apple Silicon. Without an
@@ -41,6 +40,33 @@ pub const MAX_BLOCK: usize = 4096;
 /// makes even a clean DI sound dull and distant. Always test audio on
 /// `cargo run --release` — debug builds can underrun at this size.
 const LIVE_BUFFER_FRAMES: u32 = 256;
+
+/// Appends one timestamped line to `~/.config/rusty-amp/audio.log`.
+///
+/// Diagnostics must go here, not stderr: the TUI runs in the terminal's
+/// alternate screen, so anything printed while it is active scrolls into a
+/// hidden buffer that is discarded on quit and the user never sees it.
+/// Logging is best-effort — it must never fail audio startup.
+pub fn log_line(msg: &str) {
+    let path = dirs::home_dir().map(|h| h.join(".config/rusty-amp/audio.log"));
+    if let Some(path) = path {
+        if let Some(parent) = path.parent() {
+            let _ = std::fs::create_dir_all(parent);
+        }
+        let secs = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_secs())
+            .unwrap_or(0);
+        if let Ok(mut f) = std::fs::OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(&path)
+        {
+            use std::io::Write as _;
+            let _ = writeln!(f, "[{secs}] {msg}");
+        }
+    }
+}
 
 pub struct AudioEngine {
     _input_stream: Stream,
@@ -184,8 +210,6 @@ pub fn start(
     let in_channels = input_cfg.channels as usize;
     let out_channels = output_cfg.channels as usize;
 
-    // One factual line about the running stream — the first thing to ask for
-    // when a rig "sounds wrong" (wrong device/rate/channel/buffer explains most of it).
     let input_name = input_device
         .description()
         .map(|desc| desc.name().to_owned())
@@ -194,16 +218,15 @@ pub fn start(
         .description()
         .map(|desc| desc.name().to_owned())
         .unwrap_or_else(|_| format!("output-{output_idx}"));
-    eprintln!(
-        "Audio: in '{}' ch {}/{} -> out '{}' ch {}, {} Hz, buffer {} frames",
-        input_name,
-        guitar_ch + 1,
-        in_channels,
-        output_name,
-        out_channels,
-        sr as u32,
-        LIVE_BUFFER_FRAMES,
+    let shown_ch = guitar_ch + 1;
+    let shown_sr = sr as u32;
+    let msg = format!(
+        "Audio: in '{input_name}' ch {shown_ch}/{in_channels} -> out '{output_name}' ch {out_channels}, {shown_sr} Hz, buffer {LIVE_BUFFER_FRAMES} frames",
     );
+    // Both: stderr for pre-TUI failures, log file for everything after
+    // (stderr is invisible once the alternate screen is up).
+    eprintln!("{msg}");
+    log_line(&msg);
 
     build_engine(
         input_device,
