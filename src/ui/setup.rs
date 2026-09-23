@@ -41,11 +41,16 @@ enum Step {
 
 /// Runs the device picker. Returns `Ok(None)` when the user quits (Ctrl-C) and
 /// `Ok(Some(selection))` once they confirm.
+///
+/// `notice` is an optional message shown above the list — used to explain why the
+/// picker reopened (e.g. the last device could not be opened), so a failed start
+/// never leaves the user stranded with no explanation.
 pub fn run(
     terminal: &mut Terminal<CrosstermBackend<Stdout>>,
     devices: &DeviceInfo,
     params: &Params,
     levels: &Levels,
+    notice: Option<&str>,
 ) -> Result<Option<Selection>> {
     let mut step = Step::InputDevice { cursor: 0 };
 
@@ -77,6 +82,7 @@ pub fn run(
                             .collect::<Vec<_>>(),
                         *cursor,
                         "↑/↓ navigate  Enter select  Ctrl-C quit",
+                        notice,
                     );
                 }
                 Step::InputChannel { input_idx, cursor } => {
@@ -93,6 +99,7 @@ pub fn run(
                             .collect::<Vec<_>>(),
                         *cursor,
                         "↑/↓ navigate  Enter select  Ctrl-C quit",
+                        notice,
                     );
                 }
                 Step::OutputDevice { cursor, .. } => {
@@ -107,6 +114,7 @@ pub fn run(
                         &items,
                         *cursor,
                         "↑/↓ navigate  Enter select  Ctrl-C quit",
+                        notice,
                     );
                 }
             }
@@ -184,6 +192,7 @@ fn render_list_modal(
     items: &[(&str, String)],
     cursor: usize,
     footer_text: &str,
+    notice: Option<&str>,
 ) {
     let area = centered_rect(62, f.area());
     f.render_widget(Clear, area);
@@ -201,12 +210,35 @@ fn render_list_modal(
     let inner = block.inner(area);
     f.render_widget(block, area);
 
+    // With a notice, reserve a two-line warning band above the list (wrapped, so
+    // a long backend error still reads); otherwise the list takes the full body.
+    let constraints: Vec<Constraint> = if notice.is_some() {
+        vec![
+            Constraint::Length(2),
+            Constraint::Min(1),
+            Constraint::Length(1),
+        ]
+    } else {
+        vec![Constraint::Min(1), Constraint::Length(1)]
+    };
     let rows = Layout::default()
         .direction(Direction::Vertical)
-        .constraints([Constraint::Min(1), Constraint::Length(1)])
+        .constraints(constraints)
         .split(inner);
 
-    let visible = rows[0].height as usize;
+    let (list_area, footer_area) = if notice.is_some() {
+        if let Some(text) = notice {
+            let warn = Paragraph::new(text)
+                .style(Style::default().fg(ratatui::style::Color::Rgb(235, 110, 90)))
+                .wrap(ratatui::widgets::Wrap { trim: true });
+            f.render_widget(warn, rows[0]);
+        }
+        (rows[1], rows[2])
+    } else {
+        (rows[0], rows[1])
+    };
+
+    let visible = list_area.height as usize;
     let offset = if cursor >= visible {
         cursor - visible + 1
     } else {
@@ -246,7 +278,7 @@ fn render_list_modal(
         })
         .collect();
 
-    f.render_widget(Paragraph::new(lines), rows[0]);
+    f.render_widget(Paragraph::new(lines), list_area);
 
     // Parse footer_text into alternating key/description spans
     let footer_spans: Vec<Span> = footer_text
@@ -275,7 +307,7 @@ fn render_list_modal(
 
     f.render_widget(
         Paragraph::new(Line::from(footer_spans)).alignment(Alignment::Center),
-        rows[1],
+        footer_area,
     );
 }
 

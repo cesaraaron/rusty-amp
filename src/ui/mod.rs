@@ -44,12 +44,14 @@ fn sync_board(params: &Params) -> Vec<bool> {
 
 /// Lists devices, logs them, and returns the user's choice — either the saved
 /// selection (unless `force_prompt`) or a fresh pick from the modal. Returns
-/// `Ok(None)` if the user quits from the picker.
+/// `Ok(None)` if the user quits from the picker. `notice` is shown atop the modal
+/// when it reopens after a failed audio start.
 fn select_devices(
     terminal: &mut ratatui::Terminal<ratatui::backend::CrosstermBackend<std::io::Stdout>>,
     params: &Params,
     levels: &Levels,
     force_prompt: bool,
+    notice: Option<&str>,
 ) -> Result<Option<setup::Selection>> {
     let devices = crate::audio::list_devices()?;
     // Same facts as the modals, on stderr: one paste shows exactly what the user
@@ -93,7 +95,7 @@ fn select_devices(
         }));
     }
 
-    let Some(selection) = setup::run(terminal, &devices, params, levels)? else {
+    let Some(selection) = setup::run(terminal, &devices, params, levels, notice)? else {
         return Ok(None);
     };
     crate::audio::save_selection(
@@ -144,8 +146,17 @@ pub fn run(
     // The `O` key drops the engine and loops back here so the picker runs again —
     // that is how input/output/channel can be changed at runtime on any platform.
     let mut force_prompt = false;
+    // Surfaced atop the picker when audio fails to start, so the user learns why it
+    // reopened and can choose a working device instead of being dropped out.
+    let mut start_error: Option<String> = None;
     'session: loop {
-        let selection = match select_devices(&mut terminal, &params, &levels, force_prompt)? {
+        let selection = match select_devices(
+            &mut terminal,
+            &params,
+            &levels,
+            force_prompt,
+            start_error.as_deref(),
+        )? {
             Some(selection) => selection,
             // User quit from the picker.
             None => {
@@ -156,6 +167,8 @@ pub fn run(
         };
         // Any later re-entry must show the picker rather than reuse the saved set.
         force_prompt = true;
+        // The picker has now consumed last iteration's error.
+        start_error = None;
 
         // ── Start audio engine ────────────────────────────────────────────────────
         #[cfg_attr(not(feature = "clap"), allow(unused_mut, unused_variables))]
@@ -171,17 +184,20 @@ pub fn run(
         ) {
             Ok(engine) => engine,
             Err(err) => {
-                // The TUI owns the terminal from here on, so restore it before
-                // surfacing the failure — otherwise the error is hidden behind the
-                // alternate screen and the user is left with a broken terminal.
-                let _ = disable_raw_mode();
-                let _ = execute!(terminal.backend_mut(), LeaveAlternateScreen);
-                return Err(anyhow::anyhow!(
-                    "failed to start audio (input #{}, channel {}, output #{}): {err}",
+                // A saved (or freshly picked) device that won't open must not lock
+                // the user out. Log it, reopen the picker with the reason, and let
+                // them pick another device or quit. `start` owns no engine on
+                // failure, so looping back is safe.
+                let msg = format!(
+                    "Could not start audio (input #{}, channel {}, output #{}): {err} — pick another device.",
                     selection.input_idx + 1,
                     selection.guitar_ch + 1,
                     selection.output_idx + 1,
-                ));
+                );
+                crate::audio::log_line(&msg);
+                eprintln!("{msg}");
+                start_error = Some(msg);
+                continue 'session;
             }
         };
 
