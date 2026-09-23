@@ -70,21 +70,53 @@ pub fn run(
         eprintln!("{line}");
         crate::audio::log_line(&line);
     }
-    let selection = setup::run(&mut terminal, &devices, &params, &levels);
 
-    // Tear down on quit during setup
-    let selection = match selection {
-        Ok(s) => s,
-        Err(_) => {
-            disable_raw_mode()?;
-            execute!(terminal.backend_mut(), LeaveAlternateScreen)?;
-            return Ok(());
+    // Reuse the last good selection unless the user explicitly asks to be
+    // prompted (`RUSTY_AMP_DEVICE_PROMPT=1`). This saves re-picking the
+    // input/channel/output every launch; delete `~/.config/rusty-amp/audio.conf`
+    // to be prompted again.
+    let saved = if std::env::var_os("RUSTY_AMP_DEVICE_PROMPT").is_some() {
+        None
+    } else {
+        crate::audio::load_selection(&devices)
+    };
+
+    let selection = match saved {
+        Some((input_idx, guitar_ch, output_idx)) => {
+            let input = &devices.inputs[input_idx];
+            let output = &devices.outputs[output_idx];
+            let line = format!(
+                "Audio: reusing saved devices — in '{}' ({} ch) ch {} -> out '{}'",
+                input.name,
+                input.channels,
+                guitar_ch + 1,
+                output,
+            );
+            eprintln!("{line}");
+            crate::audio::log_line(&line);
+            setup::Selection {
+                input_idx,
+                guitar_ch,
+                output_idx,
+            }
         }
+        None => match setup::run(&mut terminal, &devices, &params, &levels) {
+            Ok(s) => {
+                crate::audio::save_selection(&devices, s.input_idx, s.guitar_ch, s.output_idx);
+                s
+            }
+            // Tear down on quit during setup
+            Err(_) => {
+                disable_raw_mode()?;
+                execute!(terminal.backend_mut(), LeaveAlternateScreen)?;
+                return Ok(());
+            }
+        },
     };
 
     // ── Start audio engine ────────────────────────────────────────────────────
     #[cfg_attr(not(feature = "clap"), allow(unused_mut, unused_variables))]
-    let mut engine = crate::audio::start(
+    let mut engine = match crate::audio::start(
         selection.input_idx,
         selection.guitar_ch,
         selection.output_idx,
@@ -93,7 +125,22 @@ pub fn run(
         Arc::clone(&recording),
         Arc::clone(&tuner),
         Arc::clone(&metronome),
-    )?;
+    ) {
+        Ok(engine) => engine,
+        Err(err) => {
+            // The TUI owns the terminal from here on, so restore it before
+            // surfacing the failure — otherwise the error is hidden behind the
+            // alternate screen and the user is left with a broken terminal.
+            let _ = disable_raw_mode();
+            let _ = execute!(terminal.backend_mut(), LeaveAlternateScreen);
+            return Err(anyhow::anyhow!(
+                "failed to start audio (input #{}, channel {}, output #{}): {err}",
+                selection.input_idx + 1,
+                selection.guitar_ch + 1,
+                selection.output_idx + 1,
+            ));
+        }
+    };
 
     // ── Plugin browser (CLAP insert) ──────────────────────────────────────────
     #[cfg(feature = "clap")]

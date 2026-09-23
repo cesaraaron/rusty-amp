@@ -69,11 +69,15 @@ CLAP plugin hosting is on by default. For a minimal amp with no plugin dependenc
 
 <ol class="steps">
 <li><b>Select input device</b> — your audio interface appears in the list.</li>
-<li><b>Select guitar input channel</b> — a Focusrite 2i2 has 2; guitar is usually channel 2 if plugged into Input 2.</li>
+<li><b>Select guitar input channel</b> — a Focusrite 2i2 has 2; guitar is usually channel 2 if plugged into Input 2. On a Scarlett Solo 4th Gen, Input 1 is the instrument input and is channel 1.</li>
 <li><b>Select output device</b> — pick your speakers or headphones.</li>
 </ol>
 
-The processed signal is **true stereo**: the left channel goes to output 0, the right to output 1 (a mono output device receives the summed mix). On a stereo interface or headphones you hear the full multi-mic cab spread, ping-pong delay, and stereo reverb.
+The list is filtered: ALSA's `null` sink and duplicate entries are hidden. On **Linux with PipeWire**, choose the **PipeWire Sound Server** (or **Default ALSA Output**) entry rather than the raw interface — PipeWire keeps the hardware busy, so opening the raw device fails.
+
+Your selection is remembered in `~/.config/rusty-amp/audio.conf`, so later launches skip the picker and start straight into the rig. Delete that file, or launch with `RUSTY_AMP_DEVICE_PROMPT=1`, to choose again.
+
+The processed signal is **true stereo**: the left channel goes to output 0, the right to output 1 (a mono output device receives the summed mix). On a stereo interface or headphones you hear the full multi-mic cab spread, ping-pong delay, and stereo reverb. Some devices only accept a large buffer; rusty-amp requests a small one for low latency and falls back automatically if the device refuses it.
 
 <div class="note note--info">
 The app launches immediately with default values. Press <kbd>P</kbd> at any time to open the preset browser,

@@ -150,36 +150,144 @@ pub struct DeviceInfo {
     pub outputs: Vec<String>,
 }
 
+/// True for the ALSA `null` sink/source, which cpal lists as
+/// "Discard all samples (playback) or generate zero samples (capture)".
+fn is_null_device(name: &str) -> bool {
+    name.contains("Discard all samples") || name.eq_ignore_ascii_case("null")
+}
+
+/// Enumerates input devices, dropping the `null` pseudo-device and collapsing
+/// entries that share a `(name, channels)` pair. The raw ALSA surface exposes
+/// every PCM (`sysdefault`, `front`, `surround*`, …) under the same human name;
+/// showing them all is noise, and after filtering the indices stay stable
+/// between this list and [`start`].
+fn collect_inputs(host: &cpal::Host) -> Result<Vec<(Device, InputInfo)>> {
+    let mut seen = std::collections::HashSet::new();
+    let mut out = Vec::new();
+    for (i, d) in host.input_devices()?.enumerate() {
+        let name = d
+            .description()
+            .map(|desc| desc.name().to_owned())
+            .unwrap_or_else(|_| format!("device-{i}"));
+        if is_null_device(&name) {
+            continue;
+        }
+        let channels = d
+            .default_input_config()
+            .map(|c| c.channels() as usize)
+            .unwrap_or(1);
+        if seen.insert((name.clone(), channels)) {
+            out.push((d, InputInfo { name, channels }));
+        }
+    }
+    Ok(out)
+}
+
+/// Output counterpart to [`collect_inputs`]: drops `null` and de-duplicates by
+/// device name.
+fn collect_outputs(host: &cpal::Host) -> Result<Vec<(Device, String)>> {
+    let mut seen = std::collections::HashSet::new();
+    let mut out = Vec::new();
+    for (i, d) in host.output_devices()?.enumerate() {
+        let name = d
+            .description()
+            .map(|desc| desc.name().to_owned())
+            .unwrap_or_else(|_| format!("device-{i}"));
+        if is_null_device(&name) {
+            continue;
+        }
+        if seen.insert(name.clone()) {
+            out.push((d, name));
+        }
+    }
+    Ok(out)
+}
+
 pub fn list_devices() -> Result<DeviceInfo> {
     let host = cpal::default_host();
-
-    let inputs = host
-        .input_devices()?
-        .enumerate()
-        .map(|(i, d)| {
-            let name = d
-                .description()
-                .map(|desc| desc.name().to_owned())
-                .unwrap_or_else(|_| format!("device-{i}"));
-            let channels = d
-                .default_input_config()
-                .map(|c| c.channels() as usize)
-                .unwrap_or(1);
-            InputInfo { name, channels }
-        })
+    let inputs = collect_inputs(&host)?
+        .into_iter()
+        .map(|(_, info)| info)
         .collect();
-
-    let outputs = host
-        .output_devices()?
-        .enumerate()
-        .map(|(i, d)| {
-            d.description()
-                .map(|desc| desc.name().to_owned())
-                .unwrap_or_else(|_| format!("device-{i}"))
-        })
+    let outputs = collect_outputs(&host)?
+        .into_iter()
+        .map(|(_, name)| name)
         .collect();
-
     Ok(DeviceInfo { inputs, outputs })
+}
+
+/// Where the last good device selection is remembered.
+fn selection_path() -> Option<std::path::PathBuf> {
+    dirs::home_dir().map(|h| h.join(".config/rusty-amp/audio.conf"))
+}
+
+/// Persist the chosen devices by *name* rather than index, so the selection
+/// survives a USB interface re-enumerating at a different position. Best-effort:
+/// a failed write must never block startup.
+pub fn save_selection(devices: &DeviceInfo, input_idx: usize, guitar_ch: usize, output_idx: usize) {
+    let Some(path) = selection_path() else { return };
+    let Some(input) = devices.inputs.get(input_idx) else {
+        return;
+    };
+    let Some(output) = devices.outputs.get(output_idx) else {
+        return;
+    };
+    let body = format!(
+        "# rusty-amp device selection — delete this file (or launch with \
+         RUSTY_AMP_DEVICE_PROMPT=1) to be prompted again\n\
+         input_name = {}\n\
+         input_channels = {}\n\
+         guitar_channel = {}\n\
+         output_name = {}\n",
+        input.name, input.channels, guitar_ch, output,
+    );
+    if let Some(parent) = path.parent() {
+        let _ = std::fs::create_dir_all(parent);
+    }
+    let _ = std::fs::write(path, body);
+}
+
+/// Resolve a saved selection against the current device list. Returns `None`
+/// when nothing is saved, the file is malformed, the devices are gone, or the
+/// saved channel no longer exists — the caller then shows the interactive
+/// picker instead.
+pub fn load_selection(devices: &DeviceInfo) -> Option<(usize, usize, usize)> {
+    let text = std::fs::read_to_string(selection_path()?).ok()?;
+
+    let mut input_name: Option<String> = None;
+    let mut input_channels: Option<usize> = None;
+    let mut guitar_channel: Option<usize> = None;
+    let mut output_name: Option<String> = None;
+    for line in text.lines() {
+        let line = line.trim();
+        if line.is_empty() || line.starts_with('#') {
+            continue;
+        }
+        let Some((key, value)) = line.split_once('=') else {
+            continue;
+        };
+        let value = value.trim();
+        match key.trim() {
+            "input_name" => input_name = Some(value.to_owned()),
+            "input_channels" => input_channels = value.parse::<usize>().ok(),
+            "guitar_channel" => guitar_channel = value.parse::<usize>().ok(),
+            "output_name" => output_name = Some(value.to_owned()),
+            _ => {}
+        }
+    }
+
+    let input_idx = devices.inputs.iter().position(|d| {
+        Some(d.name.as_str()) == input_name.as_deref() && Some(d.channels) == input_channels
+    })?;
+    let output_idx = devices
+        .outputs
+        .iter()
+        .position(|n| Some(n.as_str()) == output_name.as_deref())?;
+    let guitar_channel = guitar_channel?;
+    if guitar_channel >= devices.inputs[input_idx].channels {
+        return None;
+    }
+    Some((input_idx, guitar_channel, output_idx))
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -195,14 +303,16 @@ pub fn start(
 ) -> Result<AudioEngine> {
     let host = cpal::default_host();
 
-    let input_device: Device = host
-        .input_devices()?
+    let input_device = collect_inputs(&host)?
+        .into_iter()
         .nth(input_idx)
+        .map(|(d, _)| d)
         .ok_or_else(|| anyhow!("Input device index {input_idx} not found"))?;
 
-    let output_device: Device = host
-        .output_devices()?
+    let output_device = collect_outputs(&host)?
+        .into_iter()
         .nth(output_idx)
+        .map(|(d, _)| d)
         .ok_or_else(|| anyhow!("Output device index {output_idx} not found"))?;
 
     let (input_cfg, output_cfg, sr, _in_fmt) = negotiate_configs(&input_device, &output_device)?;
@@ -221,28 +331,56 @@ pub fn start(
     let shown_ch = guitar_ch + 1;
     let shown_sr = sr as u32;
     let msg = format!(
-        "Audio: in '{input_name}' ch {shown_ch}/{in_channels} -> out '{output_name}' ch {out_channels}, {shown_sr} Hz, buffer {LIVE_BUFFER_FRAMES} frames",
+        "Audio: in '{input_name}' ch {shown_ch}/{in_channels} -> out '{output_name}' ch {out_channels}, {shown_sr} Hz, requesting buffer {LIVE_BUFFER_FRAMES} frames",
     );
     // Both: stderr for pre-TUI failures, log file for everything after
     // (stderr is invisible once the alternate screen is up).
     eprintln!("{msg}");
     log_line(&msg);
 
-    build_engine(
-        input_device,
-        input_cfg,
+    // Ask both directions for a small callback first; a device that rejects the
+    // fixed size (common with PipeWire's ALSA plugin) gets a second chance with
+    // the backend default rather than failing startup outright.
+    let fixed = cpal::BufferSize::Fixed(LIVE_BUFFER_FRAMES);
+    match build_engine(
+        &input_device,
+        with_buffer(&input_cfg, fixed),
         in_channels,
         guitar_ch,
-        output_device,
-        output_cfg,
+        &output_device,
+        with_buffer(&output_cfg, fixed),
         out_channels,
         sr,
-        params,
-        levels,
-        recording,
-        tuner,
-        metronome,
-    )
+        Arc::clone(&params),
+        Arc::clone(&levels),
+        Arc::clone(&recording),
+        Arc::clone(&tuner),
+        Arc::clone(&metronome),
+    ) {
+        Ok(engine) => Ok(engine),
+        Err(err) => {
+            let msg = format!(
+                "Audio: {LIVE_BUFFER_FRAMES}-frame buffer rejected ({err}); retrying with backend default buffer",
+            );
+            eprintln!("{msg}");
+            log_line(&msg);
+            build_engine(
+                &input_device,
+                with_buffer(&input_cfg, cpal::BufferSize::Default),
+                in_channels,
+                guitar_ch,
+                &output_device,
+                with_buffer(&output_cfg, cpal::BufferSize::Default),
+                out_channels,
+                sr,
+                params,
+                levels,
+                recording,
+                tuner,
+                metronome,
+            )
+        }
+    }
 }
 
 fn negotiate_configs(
@@ -253,36 +391,57 @@ fn negotiate_configs(
     let in_sr = in_sup.sample_rate();
     let in_fmt = in_sup.sample_format();
 
-    let out_sup = output
+    // ALSA advertises a config range per channel count and the first match is
+    // often mono, which would silently collapse the rig's stereo image. Prefer
+    // the device's default channel count (usually stereo) at the input's rate,
+    // then the widest config that supports it.
+    let preferred_channels = output.default_output_config().map(|c| c.channels()).ok();
+    let out_sup = match output
         .supported_output_configs()?
-        .find(|r| r.min_sample_rate() <= in_sr && r.max_sample_rate() >= in_sr)
-        .map(|r| r.with_sample_rate(in_sr))
-        .unwrap_or_else(|| {
-            eprintln!(
-                "Warning: output does not support {} Hz; falling back to its default.",
-                in_sr
+        .filter(|r| r.min_sample_rate() <= in_sr && r.max_sample_rate() >= in_sr)
+        .max_by_key(|r| (Some(r.channels()) == preferred_channels, r.channels()))
+    {
+        Some(range) => range.with_sample_rate(in_sr),
+        None => {
+            let default = output.default_output_config().map_err(|e| {
+                anyhow!(
+                    "output has no supported config for {in_sr} Hz and its default config is unavailable: {e}"
+                )
+            })?;
+            let fallback_sr = default.sample_rate();
+            let msg = format!(
+                "Audio: output does not support {in_sr} Hz; falling back to its default {fallback_sr} Hz"
             );
-            output.default_output_config().unwrap()
-        });
+            eprintln!("{msg}");
+            log_line(&msg);
+            default
+        }
+    };
 
-    let mut in_cfg: StreamConfig = in_sup.into();
-    let mut out_cfg: StreamConfig = out_sup.into();
-    // Live instrument, not playback: ask both directions for small callbacks.
-    // If the backend can't honour the size it errors here at startup rather
-    // than silently running a laggy stream.
-    in_cfg.buffer_size = cpal::BufferSize::Fixed(LIVE_BUFFER_FRAMES);
-    out_cfg.buffer_size = cpal::BufferSize::Fixed(LIVE_BUFFER_FRAMES);
+    // Buffer size is chosen by the caller: `start` first requests the small
+    // [`LIVE_BUFFER_FRAMES`] size and falls back to the backend default if the
+    // device rejects it.
+    let in_cfg: StreamConfig = in_sup.into();
+    let out_cfg: StreamConfig = out_sup.into();
 
     Ok((in_cfg, out_cfg, in_sr as f32, in_fmt))
 }
 
+/// Returns a copy of `cfg` with its requested buffer size replaced.
+fn with_buffer(cfg: &StreamConfig, buffer_size: cpal::BufferSize) -> StreamConfig {
+    StreamConfig {
+        buffer_size,
+        ..*cfg
+    }
+}
+
 #[allow(clippy::too_many_arguments)]
 fn build_engine(
-    input_device: Device,
+    input_device: &Device,
     input_cfg: StreamConfig,
     in_channels: usize,
     guitar_ch: usize,
-    output_device: Device,
+    output_device: &Device,
     output_cfg: StreamConfig,
     out_channels: usize,
     sr: f32,
