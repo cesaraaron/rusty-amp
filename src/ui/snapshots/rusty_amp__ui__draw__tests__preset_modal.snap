@@ -45,7 +45,7 @@ expression: text
 ║│┃                               ║                                                                                                    ║                               ┃│║
 ║│┃                               ║                                                                                                    ║                               ┃│║
 ║│┃                               ║                                                                                                    ║                               ┃│║
-║│┃                               ║                     ↑/↓ navigate  Enter apply  S save  D delete  Esc / P close                     ║                               ┃│║
+║│┃                               ║           ↑/↓ navigate  Enter apply  S save  E export  I import  D delete  Esc / P close           ║                               ┃│║
 ║│┃                               ║                                            ● user preset                                           ║                               ┃│║
 ║│┃                               ╚════════════════════════════════════════════════════════════════════════════════════════════════════╝                               ┃│║
 ║│┃                                                                                                                                                                    ┃│║

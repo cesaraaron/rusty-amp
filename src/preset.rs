@@ -278,6 +278,53 @@ impl Preset {
         std::fs::remove_file(path).with_context(|| format!("deleting {}", path.display()))
     }
 
+    /// Copy this preset to an arbitrary `dest` path (typed in the UI).
+    /// A `~` prefix resolves against the home directory. Overwrites an existing
+    /// file: the user picks the destination each time, so re-exporting must work.
+    /// System presets (which have no on-disk `path` when running from an
+    /// installed binary) are serialized instead of copied.
+    pub fn export_to(&self, dest: &Path) -> Result<PathBuf> {
+        let dest = expand_tilde(dest);
+        if let Some(parent) = dest.parent()
+            && !parent.as_os_str().is_empty()
+        {
+            std::fs::create_dir_all(parent)
+                .with_context(|| format!("creating {}", parent.display()))?;
+        }
+        if let Some(src) = self.path.as_ref()
+            && src.is_file()
+        {
+            std::fs::copy(src, &dest)
+                .with_context(|| format!("exporting {} to {}", src.display(), dest.display()))?;
+            return Ok(dest);
+        }
+        let toml_str = toml::to_string_pretty(self).with_context(|| "serializing preset")?;
+        std::fs::write(&dest, toml_str)
+            .with_context(|| format!("exporting to {}", dest.display()))?;
+        Ok(dest)
+    }
+
+    /// Validate `src` as a preset and copy it into the user presets directory.
+    /// Fails when a preset file with the resulting name already exists — the
+    /// caller surfaces the error so nothing is silently overwritten.
+    pub fn import_from(src: &Path) -> Result<PathBuf> {
+        let src = expand_tilde(src);
+        let preset = Self::load(&src, PresetSource::User)?;
+        let dir = user_preset_dir()?;
+        let filename = sanitize_filename(&preset.name);
+        let dest = dir.join(format!("{filename}.toml"));
+        if dest.exists() {
+            return Err(anyhow::anyhow!(
+                "already have a preset at {} — rename or delete it first",
+                dest.display()
+            ));
+        }
+        let toml_str = toml::to_string_pretty(&preset).with_context(|| "serializing preset")?;
+        std::fs::write(&dest, toml_str)
+            .with_context(|| format!("importing to {}", dest.display()))?;
+        Ok(dest)
+    }
+
     pub fn from_params(name: String, description: Option<String>, params: &Params) -> Self {
         let amp_model = AmpModel::from_u8(params.amp_model.load(Relaxed));
         let amp_model_str = match amp_model {
@@ -437,16 +484,9 @@ impl Preset {
     }
 
     pub fn save_to_user_dir(&self) -> Result<PathBuf> {
-        let home = dirs::home_dir().ok_or_else(|| anyhow::anyhow!("cannot find home dir"))?;
-        let dir = home.join(".config").join("rusty-amp").join("presets");
-        std::fs::create_dir_all(&dir)?;
+        let dir = user_preset_dir()?;
 
-        let filename = self
-            .name
-            .to_lowercase()
-            .chars()
-            .map(|c| if c.is_alphanumeric() { c } else { '_' })
-            .collect::<String>();
+        let filename = sanitize_filename(&self.name);
         let path = dir.join(format!("{filename}.toml"));
 
         let toml_str = toml::to_string_pretty(self).with_context(|| "serializing preset")?;
@@ -686,6 +726,37 @@ impl Preset {
 
 // ── Discovery ─────────────────────────────────────────────────────────────────
 
+/// The user presets directory, created on demand.
+fn user_preset_dir() -> Result<PathBuf> {
+    let home = dirs::home_dir().ok_or_else(|| anyhow::anyhow!("cannot find home dir"))?;
+    let dir = home.join(".config").join("rusty-amp").join("presets");
+    std::fs::create_dir_all(&dir)?;
+    Ok(dir)
+}
+
+/// Map a preset display name to a filesystem-safe `snake_case` file stem.
+fn sanitize_filename(name: &str) -> String {
+    name.to_lowercase()
+        .chars()
+        .map(|c| if c.is_alphanumeric() { c } else { '_' })
+        .collect()
+}
+
+/// Resolve a leading `~` against the home directory so typed paths behave like
+/// a shell. Non-tilde paths pass through unchanged.
+fn expand_tilde(path: &Path) -> PathBuf {
+    let s = path.to_string_lossy();
+    if let Some(home) = dirs::home_dir() {
+        if s == "~" {
+            return home;
+        }
+        if let Some(rest) = s.strip_prefix("~/") {
+            return home.join(rest);
+        }
+    }
+    path.to_path_buf()
+}
+
 pub fn find_preset_files() -> Vec<(PathBuf, PresetSource)> {
     let system_dir = PathBuf::from("presets");
     let mut result: Vec<(PathBuf, PresetSource)> = Vec::new();
@@ -771,5 +842,96 @@ mod tests {
             }
         }
         assert!(count > 0, "no bundled presets found to validate");
+    }
+
+    /// Scratch dir for export tests: unique per process so parallel tests never
+    /// collide. Callers remove what they create.
+    fn scratch_dir(tag: &str) -> PathBuf {
+        std::env::temp_dir().join(format!(
+            "rusty-amp-preset-test-{}-{}",
+            tag,
+            std::process::id()
+        ))
+    }
+
+    #[test]
+    fn export_copies_preset_bytes_to_dest() {
+        let bundled: Vec<PathBuf> = std::fs::read_dir("presets")
+            .expect("presets/ dir")
+            .map(|e| e.unwrap().path())
+            .filter(|p| p.extension().is_some_and(|ext| ext == "toml"))
+            .collect();
+        assert!(!bundled.is_empty());
+        let preset = Preset::load(&bundled[0], PresetSource::System).unwrap();
+
+        let dir = scratch_dir("export");
+        let dest = dir.join("nested").join("shared.toml");
+        let out = preset.export_to(&dest).unwrap();
+        assert_eq!(out, dest);
+        let want = std::fs::read(&bundled[0]).unwrap();
+        assert_eq!(std::fs::read(&dest).unwrap(), want);
+        std::fs::remove_dir_all(&dir).unwrap();
+    }
+
+    #[test]
+    fn export_overwrites_an_existing_dest() {
+        let bundled: Vec<PathBuf> = std::fs::read_dir("presets")
+            .expect("presets/ dir")
+            .map(|e| e.unwrap().path())
+            .filter(|p| p.extension().is_some_and(|ext| ext == "toml"))
+            .collect();
+        let preset = Preset::load(&bundled[0], PresetSource::System).unwrap();
+
+        let dir = scratch_dir("export-overwrite");
+        std::fs::create_dir_all(&dir).unwrap();
+        let dest = dir.join("tone.toml");
+        std::fs::write(&dest, "stale").unwrap();
+        preset.export_to(&dest).unwrap();
+        assert_ne!(std::fs::read_to_string(&dest).unwrap(), "stale");
+        std::fs::remove_dir_all(&dir).unwrap();
+    }
+
+    #[test]
+    fn export_serializes_a_pathless_preset() {
+        // System presets from an installed binary have no on-disk path; export
+        // must still produce a parseable file.
+        let mut preset = Preset::load(
+            &std::fs::read_dir("presets")
+                .expect("presets/ dir")
+                .map(|e| e.unwrap().path())
+                .find(|p| p.extension().is_some_and(|ext| ext == "toml"))
+                .unwrap(),
+            PresetSource::System,
+        )
+        .unwrap();
+        preset.path = None;
+
+        let dir = scratch_dir("export-pathless");
+        let dest = dir.join("embedded.toml");
+        preset.export_to(&dest).unwrap();
+        let round_tripped = Preset::load(&dest, PresetSource::User).unwrap();
+        assert_eq!(round_tripped.name, preset.name);
+        std::fs::remove_dir_all(&dir).unwrap();
+    }
+
+    #[test]
+    fn import_rejects_invalid_toml() {
+        let dir = scratch_dir("import-invalid");
+        std::fs::create_dir_all(&dir).unwrap();
+        let bad = dir.join("bad.toml");
+        std::fs::write(&bad, "this is [not valid").unwrap();
+        assert!(Preset::import_from(&bad).is_err());
+        std::fs::remove_dir_all(&dir).unwrap();
+    }
+
+    #[test]
+    fn sanitize_and_tilde_helpers() {
+        assert_eq!(sanitize_filename("My Lead Tone!"), "my_lead_tone_");
+        let home = dirs::home_dir().unwrap();
+        assert_eq!(expand_tilde(Path::new("~/x.toml")), home.join("x.toml"));
+        assert_eq!(
+            expand_tilde(Path::new("/abs/x.toml")),
+            PathBuf::from("/abs/x.toml")
+        );
     }
 }

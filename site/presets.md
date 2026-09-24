@@ -11,6 +11,7 @@ toc:
   - { href: "#where", label: "Where they live" }
   - { href: "#browser", label: "Preset browser" }
   - { href: "#save", label: "Save dialog" }
+  - { href: "#import-export", label: "Import & export" }
   - { href: "#bundled", label: "Bundled presets" }
   - { href: "#write", label: "Writing your own" }
 prev: { href: "amps-cabs.html", label: "Amps, cabinets &amp; IRs" }
@@ -28,7 +29,7 @@ rusty-amp searches these directories, in order:
 
 Press <kbd>P</kbd> while playing to open the preset browser. Press <kbd>S</kbd> (from anywhere) to save the current state as a new user preset. The browser updates instantly — no restart required.
 
-Bundled presets are marked as system presets and cannot be deleted from within the app. User presets show a `[user]` tag and can be deleted with <kbd>D</kbd>.
+Bundled presets are marked as system presets and cannot be deleted from within the app. User presets show a `[user]` tag and can be deleted with <kbd>D</kbd>. Any selected preset (bundled or user) can be exported with <kbd>E</kbd>; press <kbd>I</kbd> to import a `.toml` file — see [Import &amp; export](#import-export).
 
 ## Preset browser <span class="muted">(<kbd>P</kbd>)</span> {#browser}
 
@@ -47,6 +48,8 @@ Press <kbd>P</kbd> while playing to open the browser overlay. Move the cursor wi
     <span><kbd>↑</kbd>/<kbd>↓</kbd> navigate</span>
     <span><kbd>Enter</kbd> apply</span>
     <span><kbd>S</kbd> save</span>
+    <span><kbd>E</kbd> export</span>
+    <span><kbd>I</kbd> import</span>
     <span><kbd>D</kbd> delete</span>
     <span><kbd>Esc</kbd> close</span>
   </div>
@@ -56,6 +59,8 @@ Press <kbd>P</kbd> while playing to open the browser overlay. Move the cursor wi
   <div><kbd>↑</kbd> / <kbd>↓</kbd> Navigate the preset list</div>
   <div><kbd>Enter</kbd> Apply the selected preset (audio uninterrupted)</div>
   <div><kbd>S</kbd> Open the save dialog for the current state</div>
+  <div><kbd>E</kbd> Export the selected preset to a file you choose</div>
+  <div><kbd>I</kbd> Import a <code>.toml</code> preset file into your user presets</div>
   <div><kbd>D</kbd> Delete the selected preset (user presets only)</div>
   <div><kbd>Esc</kbd> / <kbd>P</kbd> Close without changing anything</div>
 </div>
@@ -92,6 +97,18 @@ Press <kbd>S</kbd> from anywhere to capture the current rig as a new preset. <kb
 </div>
 
 The preset is written to `~/.config/rusty-amp/presets/<name>.toml` and appears in the browser immediately — no restart required.
+
+## Import &amp; export {#import-export}
+
+Share tones as plain `.toml` files — the same format described in [Writing your own](#write).
+
+- **Export** — select any preset in the browser (bundled or user) and press <kbd>E</kbd>. Type a destination path and press <kbd>Enter</kbd>; the path is prefilled with `./<preset-name>.toml`. A leading `~` resolves against your home directory, and missing parent folders are created. Exporting overwrites the destination if it already exists.
+- **Import** — press <kbd>I</kbd> in the browser, type the path to a `.toml` file, and press <kbd>Enter</kbd>. The file is validated and copied into `~/.config/rusty-amp/presets/`, and the cursor lands on it. If a preset with the resulting file name already exists, the import fails with an error instead of overwriting — rename or delete the existing file first.
+
+<div class="keymap">
+  <div><kbd>Enter</kbd> Confirm the path</div>
+  <div><kbd>Esc</kbd> Cancel without importing or exporting</div>
+</div>
 
 ## Bundled presets {#bundled}
 

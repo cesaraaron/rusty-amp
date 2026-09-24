@@ -13,6 +13,7 @@ mod setup;
 mod styles;
 mod tuner;
 
+use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -35,7 +36,7 @@ use input::{
     prev_section, remove_pedal, toggle_pedal,
 };
 use practice::PracticeUi;
-use presets::{render_preset_modal, render_save_dialog};
+use presets::{PathDialogKind, render_path_dialog, render_preset_modal, render_save_dialog};
 
 /// Board membership derived from the live enabled flags (one entry per pedal).
 fn sync_board(params: &Params) -> Vec<bool> {
@@ -141,6 +142,10 @@ pub fn run(
     let mut save_desc = String::new();
     let mut save_field = 0usize; // 0 = name, 1 = description
     let mut save_error: Option<String> = None;
+    // Typed-path dialog for preset import/export (opened from the browser).
+    let mut path_open: Option<PathDialogKind> = None;
+    let mut path_input = String::new();
+    let mut path_error: Option<String> = None;
     let mut tick: u64 = 0;
     let mut save_msg: Option<(String, std::time::Instant)> = None;
     let mut tuner_open = false;
@@ -310,6 +315,9 @@ pub fn run(
                         save_error.as_deref(),
                     );
                 }
+                if let Some(kind) = path_open {
+                    render_path_dialog(f, kind, &path_input, path_error.as_deref());
+                }
                 #[cfg(feature = "clap")]
                 if browser.open {
                     browser.render(f);
@@ -452,6 +460,65 @@ pub fn run(
                         }
                         _ => {}
                     }
+                } else if path_open.is_some() {
+                    match key.code {
+                        KeyCode::Esc => {
+                            path_open = None;
+                            path_error = None;
+                        }
+                        KeyCode::Enter => {
+                            let input = path_input.trim();
+                            if input.is_empty() {
+                                path_error = Some("Enter a file path".to_string());
+                            } else if path_open == Some(PathDialogKind::Export) {
+                                let p = &presets[preset_cursor - 1];
+                                match p.export_to(&PathBuf::from(input)) {
+                                    Ok(dest) => {
+                                        path_open = None;
+                                        path_error = None;
+                                        save_msg = Some((
+                                            format!("Exported: {}", dest.display()),
+                                            std::time::Instant::now(),
+                                        ));
+                                    }
+                                    Err(e) => {
+                                        path_error = Some(format!("Export failed: {e:#}"));
+                                    }
+                                }
+                            } else {
+                                match crate::preset::Preset::import_from(&PathBuf::from(input)) {
+                                    Ok(dest) => {
+                                        presets = crate::preset::load_all();
+                                        // Land the cursor on the imported preset.
+                                        if let Some(pos) = presets
+                                            .iter()
+                                            .position(|p| p.path.as_ref() == Some(&dest))
+                                        {
+                                            preset_cursor = pos + 1;
+                                        }
+                                        path_open = None;
+                                        path_error = None;
+                                        save_msg = Some((
+                                            format!("Imported: {}", dest.display()),
+                                            std::time::Instant::now(),
+                                        ));
+                                    }
+                                    Err(e) => {
+                                        path_error = Some(format!("Import failed: {e:#}"));
+                                    }
+                                }
+                            }
+                        }
+                        KeyCode::Backspace => {
+                            path_input.pop();
+                            path_error = None;
+                        }
+                        KeyCode::Char(c) => {
+                            path_input.push(c);
+                            path_error = None;
+                        }
+                        _ => {}
+                    }
                 } else if preset_open {
                     let total = presets.len() + 1;
                     match key.code {
@@ -493,6 +560,23 @@ pub fn run(
                                 presets = crate::preset::load_all();
                                 preset_cursor = preset_cursor.saturating_sub(1);
                             }
+                        }
+                        KeyCode::Char('e') | KeyCode::Char('E') if preset_cursor > 0 => {
+                            let p = &presets[preset_cursor - 1];
+                            let stem: String = p
+                                .name
+                                .to_lowercase()
+                                .chars()
+                                .map(|c| if c.is_alphanumeric() { c } else { '_' })
+                                .collect();
+                            path_input = format!("./{stem}.toml");
+                            path_error = None;
+                            path_open = Some(PathDialogKind::Export);
+                        }
+                        KeyCode::Char('i') | KeyCode::Char('I') => {
+                            path_input.clear();
+                            path_error = None;
+                            path_open = Some(PathDialogKind::Import);
                         }
                         KeyCode::Esc | KeyCode::Char('p') | KeyCode::Char('P') => {
                             preset_open = false;

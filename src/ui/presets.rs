@@ -115,6 +115,10 @@ pub(super) fn render_preset_modal(f: &mut Frame, presets: &[Preset], cursor: usi
         Span::styled(" apply  ", Style::default().fg(DIM)),
         Span::styled("S", Style::default().fg(AMBER)),
         Span::styled(" save  ", Style::default().fg(DIM)),
+        Span::styled("E", Style::default().fg(AMBER)),
+        Span::styled(" export  ", Style::default().fg(DIM)),
+        Span::styled("I", Style::default().fg(AMBER)),
+        Span::styled(" import  ", Style::default().fg(DIM)),
     ];
     if on_user_preset {
         footer_spans.push(Span::styled(
@@ -271,6 +275,98 @@ pub(super) fn render_save_dialog(
         ]))
         .alignment(Alignment::Center),
         rows[6],
+    );
+}
+
+/// Which direction a [`render_path_dialog`] is working in.
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub(super) enum PathDialogKind {
+    Import,
+    Export,
+}
+
+/// Single-field typed-path dialog for preset import (source file) and export
+/// (destination file). `~` resolves against the home directory.
+pub(super) fn render_path_dialog(
+    f: &mut Frame,
+    kind: PathDialogKind,
+    input: &str,
+    error: Option<&str>,
+) {
+    let (title, label) = match kind {
+        PathDialogKind::Import => (" I M P O R T   P R E S E T ", "File to import (.toml):"),
+        PathDialogKind::Export => (" E X P O R T   P R E S E T ", "Export to:"),
+    };
+    let area = centered_rect(60, f.area());
+    f.render_widget(Clear, area);
+
+    let block = Block::default()
+        .borders(Borders::ALL)
+        .border_type(BorderType::Double)
+        .border_style(Style::default().fg(ACCENT))
+        .title(Span::styled(
+            title,
+            Style::default().fg(AMBER).add_modifier(Modifier::BOLD),
+        ))
+        .style(Style::default().bg(ratatui::style::Color::Black));
+
+    let inner = block.inner(area);
+    f.render_widget(block, area);
+
+    let rows = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints([
+            Constraint::Length(1), // label
+            Constraint::Length(2), // input + underline
+            Constraint::Min(1),    // error/spacer
+            Constraint::Length(1), // footer
+        ])
+        .split(inner);
+
+    f.render_widget(
+        Paragraph::new(Span::styled(
+            label,
+            Style::default().fg(ACCENT).add_modifier(Modifier::BOLD),
+        )),
+        rows[0],
+    );
+
+    f.render_widget(
+        Paragraph::new(Span::styled(
+            format!("{input}█"),
+            Style::default()
+                .fg(ratatui::style::Color::White)
+                .add_modifier(Modifier::BOLD),
+        ))
+        .block(
+            Block::default()
+                .borders(Borders::BOTTOM)
+                .border_style(Style::default().fg(ACCENT)),
+        ),
+        rows[1],
+    );
+
+    if let Some(err) = error {
+        f.render_widget(
+            Paragraph::new(Span::styled(
+                err,
+                Style::default()
+                    .fg(ratatui::style::Color::Red)
+                    .add_modifier(Modifier::BOLD),
+            )),
+            rows[2],
+        );
+    }
+
+    f.render_widget(
+        Paragraph::new(Line::from(vec![
+            Span::styled("Enter", Style::default().fg(AMBER)),
+            Span::styled(" confirm  ", Style::default().fg(DIM)),
+            Span::styled("Esc", Style::default().fg(AMBER)),
+            Span::styled(" cancel", Style::default().fg(DIM)),
+        ]))
+        .alignment(Alignment::Center),
+        rows[3],
     );
 }
 
