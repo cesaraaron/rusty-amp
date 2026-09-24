@@ -38,14 +38,16 @@ pub(super) fn draw(
     let area = f.area();
 
     // No outer frame: the only bordered boxes on screen are the four panels
-    // (ribbon, amp, timeline, rig). Layout runs directly on the full area.
+    // (chain, amp, timeline, rig). Layout runs directly on the full area.
     let inner = area;
 
     // Build the vertical layout from the visible panels. Rows are tracked by index
     // so a hidden panel simply contributes no constraint and no render call.
+    // Row 0 is a blank top margin so the header never touches the terminal edge.
     let show_timeline = panels.timeline && timeline.is_some();
     let mut cons: Vec<Constraint> = vec![
-        Constraint::Length(2), // signal-flow ribbon + mini input/output bars
+        Constraint::Length(1), // top margin (left blank)
+        Constraint::Length(3), // chain box + mini input/output bars
     ];
     if panels.amp {
         // One merged amp box: selector row + knobs/mics + grille + borders.
@@ -57,9 +59,9 @@ pub(super) fn draw(
         cons.push(Constraint::Min(10));
     }
     if panels.rig {
-        // Fixed height: rig border (2) + tile grid + the 5-row detail editor
-        // (title + knobs, no ON/OFF foot row). Leftover space stays in the
-        // timeline / empty.
+        // Fixed height: rig border (2) + tile grid + the 6-row detail editor
+        // (livery box + title LED + knobs, no ON/OFF foot row). Leftover space
+        // stays in the timeline / empty.
         cons.push(Constraint::Length(rig_outer_height(
             area.width.saturating_sub(2),
             board,
@@ -73,6 +75,7 @@ pub(super) fn draw(
         .split(inner);
 
     let mut i = 0usize;
+    i += 1; // top margin row: intentionally left blank
     render_header(
         f,
         rows[i],
@@ -124,9 +127,10 @@ fn render_header(
     cursor: ChainStage,
 ) {
     let block = Block::default()
-        .borders(Borders::BOTTOM)
-        .border_type(BorderType::Double)
+        .borders(Borders::ALL)
+        .border_type(BorderType::Plain)
         .border_style(border_style(focused))
+        .title(Line::from(Span::styled("[ ] move", Style::default().fg(DIM))).right_aligned())
         .style(Style::default().bg(Color::Black));
     let inner = block.inner(area);
     f.render_widget(block, area);
@@ -194,18 +198,27 @@ fn render_header(
     }
     push_stage(&mut chain, "OUTPUT".to_owned(), Style::default().fg(CHROME));
 
-    // Half / half: live order on the left, single-line input/output mini-bars
-    // on the right. The chain clips at the half-width boundary on long boards.
+    // Half / half-ish: live order on the left (70%), single-line input/output
+    // mini-bars on the right (30%). The chain clips at its boundary on long
+    // boards; the bars stay vertically centered on the box's content row.
     let halves = Layout::default()
         .direction(Direction::Horizontal)
-        .constraints([Constraint::Ratio(1, 2), Constraint::Ratio(1, 2)])
+        .constraints([Constraint::Ratio(7, 10), Constraint::Ratio(3, 10)])
         .split(inner);
     f.render_widget(Paragraph::new(Line::from(chain)), halves[0]);
 
+    let meter_rows = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints([
+            Constraint::Min(0),
+            Constraint::Length(1),
+            Constraint::Min(0),
+        ])
+        .split(halves[1]);
     let bars = Layout::default()
         .direction(Direction::Horizontal)
         .constraints([Constraint::Ratio(1, 2), Constraint::Ratio(1, 2)])
-        .split(halves[1]);
+        .split(meter_rows[1]);
     render_vu_row(f, bars[0], "IN ", levels.input.load(Relaxed));
     render_vu_row(f, bars[1], "OUT ", levels.output.load(Relaxed));
 }
