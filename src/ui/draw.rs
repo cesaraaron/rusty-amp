@@ -65,7 +65,7 @@ pub(super) fn draw(
     if panels.rig {
         cons.push(Constraint::Min(0)); // guitar rig
     }
-    cons.push(Constraint::Length(3)); // help
+    cons.push(Constraint::Length(1)); // help (K for keybindings)
 
     let rows = Layout::default()
         .direction(Direction::Vertical)
@@ -1156,9 +1156,9 @@ fn build_fader(value: f32, rows: usize) -> Vec<String> {
         .collect()
 }
 
-/// Two-row key hint footer. One row overflows once every hint — including the
-/// optional plugin ones — is enabled, so editing/navigation keys sit on the first row
-/// and section/plugin/transport keys on the second.
+/// Single-row footer. The full key list lives in the `K` cheat-sheet modal, so
+/// this only advertises it (plus quit); transient status messages take over the
+/// row while they are shown.
 fn render_help(f: &mut Frame, area: Rect, status: Option<&str>) {
     if let Some(msg) = status {
         let help = Paragraph::new(Line::from(vec![Span::styled(
@@ -1171,76 +1171,111 @@ fn render_help(f: &mut Frame, area: Rect, status: Option<&str>) {
         return;
     }
 
-    let row1 = Line::from(vec![
-        Span::styled(" Tab ", Style::default().fg(AMBER)),
-        Span::styled("section  ", Style::default().fg(DIM)),
-        Span::styled("←/→", Style::default().fg(AMBER)),
-        Span::styled(" knob  ", Style::default().fg(DIM)),
-        Span::styled("↑/↓  +/-", Style::default().fg(AMBER)),
-        Span::styled(" adjust  ", Style::default().fg(DIM)),
-        Span::styled("Space", Style::default().fg(AMBER)),
-        Span::styled(" toggle  ", Style::default().fg(DIM)),
-        Span::styled("D", Style::default().fg(AMBER)),
-        Span::styled(" remove  ", Style::default().fg(DIM)),
-        Span::styled("A", Style::default().fg(AMBER)),
-        Span::styled(" amp  ", Style::default().fg(DIM)),
-        Span::styled("C", Style::default().fg(AMBER)),
-        Span::styled(" cab  ", Style::default().fg(DIM)),
-        Span::styled("I", Style::default().fg(AMBER)),
-        Span::styled(" IR", Style::default().fg(DIM)),
-    ]);
-
-    let mut row2 = vec![
-        Span::styled("X", Style::default().fg(AMBER)),
-        Span::styled(" IR A/B  ", Style::default().fg(DIM)),
-        Span::styled("O", Style::default().fg(AMBER)),
-        Span::styled(" devices  ", Style::default().fg(DIM)),
-    ];
-    // Live A/B against a loaded AU (`Z`) only exists on macOS with `au` enabled — keyed
-    // on the feature (not the OS) so the footer renders identically on every platform
-    // and the golden snapshots stay portable.
-    #[cfg(feature = "au")]
-    {
-        row2.push(Span::styled("Z", Style::default().fg(AMBER)));
-        row2.push(Span::styled(" amp A/B  ", Style::default().fg(DIM)));
-    }
-    row2.push(Span::styled("P", Style::default().fg(AMBER)));
-    row2.push(Span::styled(" presets  ", Style::default().fg(DIM)));
-    row2.push(Span::styled("T", Style::default().fg(AMBER)));
-    row2.push(Span::styled(" tuner  ", Style::default().fg(DIM)));
-    row2.push(Span::styled("M", Style::default().fg(AMBER)));
-    row2.push(Span::styled(" metro  ", Style::default().fg(DIM)));
-    #[cfg(feature = "clap")]
-    {
-        row2.push(Span::styled("V", Style::default().fg(AMBER)));
-        row2.push(Span::styled(" plugins  ", Style::default().fg(DIM)));
-    }
-    #[cfg(feature = "au")]
-    {
-        row2.push(Span::styled("U", Style::default().fg(AMBER)));
-        row2.push(Span::styled(" amp plugin  ", Style::default().fg(DIM)));
-    }
-    row2.push(Span::styled("R", Style::default().fg(AMBER)));
-    row2.push(Span::styled(" record  ", Style::default().fg(DIM)));
-    row2.push(Span::styled("Q", Style::default().fg(AMBER)));
-    row2.push(Span::styled(" quit", Style::default().fg(DIM)));
-
-    // Third row: practice and panel visibility.
-    let row3 = Line::from(vec![
-        Span::styled("B", Style::default().fg(AMBER)),
-        Span::styled(" backing  ", Style::default().fg(DIM)),
-        Span::styled("1", Style::default().fg(AMBER)),
-        Span::styled(" board  ", Style::default().fg(DIM)),
-        Span::styled("2", Style::default().fg(AMBER)),
-        Span::styled(" amp  ", Style::default().fg(DIM)),
-        Span::styled("3", Style::default().fg(AMBER)),
-        Span::styled(" timeline", Style::default().fg(DIM)),
-    ]);
-
-    let help = Paragraph::new(vec![row1, Line::from(row2), row3])
-        .alignment(Alignment::Center)
-        .style(Style::default().bg(Color::Black));
+    let help = Paragraph::new(Line::from(vec![
+        Span::styled("K", Style::default().fg(AMBER)),
+        Span::styled(" keybindings  ", Style::default().fg(DIM)),
+        Span::styled("Q", Style::default().fg(AMBER)),
+        Span::styled(" quit", Style::default().fg(DIM)),
+    ]))
+    .alignment(Alignment::Center)
+    .style(Style::default().bg(Color::Black));
     f.render_widget(help, area);
+}
+
+/// Full keybinding cheat-sheet, opened with `K`. Sections mirror the footer
+/// rows the modal replaces, plus the context keys for the preset browser,
+/// the practice timeline, and the metronome.
+pub(super) fn render_help_modal(f: &mut Frame) {
+    // Modal-local description gray: brighter than the shared `DIM` (which is
+    // near-invisible on black at this size) but still a step below `CHROME`
+    // so the key → description hierarchy survives.
+    const HELP_DESC: Color = Color::Rgb(0xA6, 0xA6, 0xA6);
+    let key = |k: &'static str| Span::styled(k, Style::default().fg(AMBER));
+    let desc = |d: &'static str| Span::styled(d, Style::default().fg(HELP_DESC));
+    let head = |h: &'static str| {
+        Line::from(vec![Span::styled(
+            h,
+            Style::default().fg(ACCENT).add_modifier(Modifier::BOLD),
+        )])
+    };
+    let row = |k: &'static str, d: &'static str| Line::from(vec![key(k), desc(d)]);
+
+    let mut lines: Vec<Line> = vec![
+        head("Play & edit"),
+        row("  Tab / Shift-Tab", "  move between sections"),
+        row("  ←/→  ↑/↓  +/−", "  knob / adjust value"),
+        row("  Space", "  toggle pedal (or transport on the timeline)"),
+        row("  D", "  remove pedal from the board"),
+        row("  A / C", "  next amp / cabinet"),
+        row("  I / X", "  IR browser / IR bypass"),
+        row("  O", "  change audio devices"),
+    ];
+    #[cfg(feature = "au")]
+    lines.push(row("  Z / U", "  amp-plugin bypass / browser"));
+    lines.extend([
+        head("Tools"),
+        row("  P", "  preset browser"),
+        row("  S", "  save current rig as preset"),
+        row("  T", "  chromatic tuner"),
+        row("  M", "  practice metronome (+/− tempo, Space on/off)"),
+    ]);
+    #[cfg(feature = "clap")]
+    lines.push(row("  V", "  plugin browser"));
+    lines.extend([
+        row(
+            "  R",
+            "  start / stop recording (take lands on the timeline)",
+        ),
+        row("  Q / Ctrl-C", "  quit"),
+        head("Practice & panels"),
+        row("  B", "  practice-track browser (MP3 / WAV / FLAC)"),
+        row("  1 / 2 / 3", "  show / hide board, amp, timeline"),
+        head("Preset browser"),
+        row("  ↑/↓  Enter", "  navigate / apply (audio uninterrupted)"),
+        row("  S / E / I", "  save / export / import"),
+        row("  D", "  delete (user presets only)"),
+        head("Timeline (focused)"),
+        row("  Space", "  play / pause, or mute the selected track"),
+        row("  ↑/↓  ←/→", "  select line / seek ±5 s"),
+        row("  [ / ]  L", "  loop in-point / out-point, toggle loop"),
+        row("  Del", "  delete selected track"),
+    ]);
+
+    let width = (f.area().width * 55 / 100).max(40);
+    let height = ((lines.len() as u16 + 6).min(f.area().height)).max(8);
+    let area = Rect {
+        x: f.area().x + (f.area().width - width) / 2,
+        y: f.area().y + (f.area().height - height) / 2,
+        width,
+        height,
+    };
+    f.render_widget(Clear, area);
+
+    let block = Block::default()
+        .borders(Borders::ALL)
+        .border_type(BorderType::Double)
+        .border_style(Style::default().fg(ACCENT))
+        .title(Span::styled(
+            " K E Y B I N D I N G S ",
+            Style::default().fg(AMBER).add_modifier(Modifier::BOLD),
+        ))
+        .style(Style::default().bg(Color::Black));
+    let inner = block.inner(area);
+    f.render_widget(block, area);
+
+    let rows = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints([Constraint::Min(1), Constraint::Length(1)])
+        .split(inner);
+    f.render_widget(Paragraph::new(lines), rows[0]);
+    f.render_widget(
+        Paragraph::new(Line::from(vec![
+            Span::styled("Esc / K", Style::default().fg(AMBER)),
+            Span::styled(" close", Style::default().fg(HELP_DESC)),
+        ]))
+        .alignment(Alignment::Center),
+        rows[1],
+    );
 }
 
 /// Modal listing the pedals not currently on the board. `available` holds their
@@ -1809,6 +1844,18 @@ mod tests {
             crate::ui::presets::render_preset_modal(f, &presets, 2);
         });
         insta::assert_snapshot!("preset_modal", text);
+    }
+
+    /// The keybinding cheat-sheet over the default board.
+    #[cfg(feature = "clap")]
+    #[test]
+    fn snapshot_help_modal() {
+        let params = Params::new();
+        let board = default_board(&params);
+        let text = render_with(&params, &board, None, |f| {
+            render_help_modal(f);
+        });
+        insta::assert_snapshot!("help_modal", text);
     }
 
     /// The save-preset dialog with both fields filled, focus on the name field.

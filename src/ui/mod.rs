@@ -30,7 +30,7 @@ use crate::preset::Preset;
 use crate::recording::{RecordingState, save_wav};
 
 use config::{ADD_TILE, PEDALS, PRACTICE_TILE, Panels, pedal_of};
-use draw::{draw, render_add_pedal_modal};
+use draw::{draw, render_add_pedal_modal, render_help_modal};
 use input::{
     add_pedal, cycle_amp, cycle_cab, ensure_focus_visible, nav_knob, next_section, nudge,
     prev_section, remove_pedal, toggle_pedal,
@@ -150,6 +150,8 @@ pub fn run(
     let mut save_msg: Option<(String, std::time::Instant)> = None;
     let mut tuner_open = false;
     let mut metronome_open = false;
+    // Keybinding cheat-sheet modal, toggled with K.
+    let mut help_open = false;
     // Which top-level panels are shown (session-only; toggled with 1/2/3).
     let mut panels = Panels::all_visible();
     // Backing playhead captured when a recording starts, for take alignment.
@@ -348,6 +350,9 @@ pub fn run(
                 if metronome_open {
                     metronome::render_metronome(f, &metronome, blink);
                 }
+                if help_open {
+                    render_help_modal(f);
+                }
             })?;
 
             if event::poll(Duration::from_millis(30))?
@@ -375,7 +380,14 @@ pub fn run(
                     continue;
                 }
 
-                if tuner_open {
+                if help_open {
+                    match key.code {
+                        KeyCode::Esc | KeyCode::Char('k') | KeyCode::Char('K') => {
+                            help_open = false;
+                        }
+                        _ => {}
+                    }
+                } else if tuner_open {
                     match key.code {
                         KeyCode::Esc
                         | KeyCode::Char('t')
@@ -650,6 +662,9 @@ pub fn run(
                             focus = ensure_focus_visible(focus, &board, &panels);
                         }
                         KeyCode::Char('q') => break,
+                        KeyCode::Char('k') | KeyCode::Char('K') => {
+                            help_open = true;
+                        }
                         KeyCode::Char('c') if key.modifiers.contains(KeyModifiers::CONTROL) => {
                             break;
                         }

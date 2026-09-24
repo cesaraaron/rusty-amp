@@ -110,7 +110,10 @@ The app launches immediately with default values. Press <kbd>P</kbd> at any time
 | <kbd>2</kbd> | Show / hide the **amp &amp; cabinet** panel |
 | <kbd>3</kbd> | Show / hide the **practice timeline** |
 | <kbd>O</kbd> | Change the audio input/output devices — reopens the device picker and restarts the engine |
+| <kbd>K</kbd> | Open the keybinding cheat-sheet (press <kbd>K</kbd> / <kbd>Esc</kbd> to close) |
 | <kbd>Q</kbd> / <kbd>Ctrl-C</kbd> | Quit |
+
+The footer only shows `K keybindings  Q quit` — the full list above lives in the <kbd>K</kbd> modal, including the preset-browser, timeline, and metronome keys.
 
 Focus starts on the **selector row** (amp + cabinet). <kbd>Tab</kbd> moves down through the amp, cabinet mics, each pedal on the board, the `+ ADD` tile, and the [practice timeline](tools.html#practice). See [the pedalboard](pedals.html#board) for add/remove details, and [Presets](presets.html) for the browser and save dialog.
 
