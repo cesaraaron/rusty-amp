@@ -2,29 +2,29 @@
 source: src/ui/draw.rs
 expression: text
 ---
-  GATE ──▶ TS-808 ──▶ AMP+CAB ──▶ REVERB ──▶ OUTPUT                                                                                                                       
+  GATE ──▶ TS-808 ──▶ AMP+CAB ──▶ REVERB ──▶ OUTPUT                                  IN ▐░░░░░░░░░░░░░░░░░░░░░░░░░░░░▌          OUT ▐░░░░░░░░░░░░░░░░░░░░░░░░░░▌          
 ══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════
-  INPUT  ▐░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░▌          
- OUTPUT  ▐░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░▌          
-         -60        -48        -36        -24        -12       -6     0 dB    0W  -120.0 dB                                                                               
 ┏┤ MESA DUAL RECTIFIER ├━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┤ 🎙 MESA V30 ├┓
 ┃  AMP  [ JCM800 ]  ◀ DUAL RECT ▶  [ RANDALL ]  [ AC30 ]  [ DR103 ]  ↑/↓  A            CAB  ◀ MESA V30 ▶  [ MARSH GB ]  [ ORANGE ]  [ WEM FANE ]  C to toggle            ┃
 ┃          ···                    ···                    ···                    ··◇                    ◇··                    ·◇·              ◇··       ···       ···   ┃
-┃         · ● ◇                  · ● ·╔ K E Y B I N D I N G S ════════════════════════════════════════════════════════════════════╗           · ● ·     · ● ·     · ● ·  ┃
-┃          · ·                    · ◇ ║Panels & chain                                                                             ║            · ·       ◇ ·       ◇ ·   ┃
-┃       GAIN 7.5               BASS 10║  1 / 2 / 3 / 4  focus chain, amp, timeline, pedals (again: hide)                          ║5         MIC 4.0  BLEND 0.0 ROOM 0.0 ┃
-┃▚▞▚▞▚▞▚▞▚▞▚▞▚▞▚▞▚▞▚▞▚▞▚▞▚▞▚▞▚▞▚▞▚▞▚▞▚║  Tab / Shift-Tab  jump to next / previous panel                                           ║▚▞▚▞▚▞▚▞▚▞▚▞▚▞▚▞▚▞▚▞▚▞▚▞▚▞▚▞▚▞▚▞▚▞▚▞▚▞┃
-┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━║  ←/→  move inside the focused panel                                                       ║━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
-┌ GUITAR RIG ─────────────────────────║  [ / ]  move the ribbon's stage earlier / later                                           ║──────────────────────────────────────┐
-│ NOISE GATE ◉                        ║  Space  bypass stage, pedal, or transport under focus                                     ║DD                                    │
-│                 2.0  3.0            ║Play & edit                                                                                ║                ＋                     │
-│                 ▗▄▄▄▄▄▄▄▖           ║  ↑/↓  +/−  knob / adjust value                                                            ║                                      │
-│┤ SELECT A PEDAL — ←→ ├              ║  D  remove pedal from the board                                                           ║                                      │
-│                                     ║  A / C  next amp / cabinet                                                                ║                                      │
-│                                     ║  I / X  IR browser / IR bypass                                                            ║                                      │
-│                                     ║  O  change audio devices                                                                  ║                                      │
-│                                     ║  Z / U  amp-plugin bypass / browser                                                       ║                                      │
-└─────────────────────────────────────║Tools                                                                                      ║──────────────────────────────────────┘
+┃         · ● ◇                  · ● ·                  · ● ·                  · ● ·                  · ● ·                  · ● ·            · ● ·     · ● ·     · ● ·  ┃
+┃          · ·                    · ◇                    ◇ ·                    · ·                    · ·                    · ·              · ·       ◇ ·       ◇ ·   ┃
+┃       GAIN 7.5               BASS 10.0               MID 0.0              TREBLE 6.5            PRESENCE 4.0            MASTER 5.5         MIC 4.0  BLEND 0.0 ROOM 0.0 ┃
+┃▚▞▚▞▚▞▚▞▚▞▚▞▚▞▚▞▚▞▚▞▚▞▚▞▚▞▚▞▚▞▚▞▚▞▚▞▚╔ K E Y B I N D I N G S ════════════════════════════════════════════════════════════════════╗▚▞▚▞▚▞▚▞▚▞▚▞▚▞▚▞▚▞▚▞▚▞▚▞▚▞▚▞▚▞▚▞▚▞▚▞▚▞┃
+┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━║Panels & chain                                                                             ║━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
+┌ GUITAR RIG ─────────────────────────║  1 / 2 / 3 / 4  focus chain, amp, timeline, pedals (again: hide)                          ║──────────────────────────────────────┐
+│╔ NOISE GATE ◉ ══════════════════════║  Tab / Shift-Tab  jump to next / previous panel                                           ║ADD ═════════════════════════════════╗│
+│║                2.0  3.0            ║  ←/→  move inside the focused panel                                                       ║                ＋                    ║│
+│║                ▗▄▄▄▄▄▄▄▖           ║  [ / ]  move the ribbon's stage earlier / later                                           ║                                     ║│
+│╚════════════════════════════════════║  Space  bypass stage, pedal, or transport under focus                                     ║═════════════════════════════════════╝│
+│┏┤ SELECT A PEDAL — ←→ ├━━━━━━━━━━━━━║Play & edit                                                                                ║━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓│
+│┃                                    ║  ↑/↓  +/−  knob / adjust value                                                            ║                                     ┃│
+│┃                                    ║  D  remove pedal from the board                                                           ║                                     ┃│
+│┃                                    ║  A / C  next amp / cabinet                                                                ║                                     ┃│
+│┃                                    ║  I / X  IR browser / IR bypass                                                            ║                                     ┃│
+│┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━║  O  change audio devices                                                                  ║━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛│
+└─────────────────────────────────────║  Z / U  amp-plugin bypass / browser                                                       ║──────────────────────────────────────┘
+                                      ║Tools                                                                                      ║                                       
                                       ║  P  preset browser                                                                        ║                                       
                                       ║  S  save current rig as preset                                                            ║                                       
                                       ║  T  chromatic tuner                                                                       ║                                       

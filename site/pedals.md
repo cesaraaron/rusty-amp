@@ -41,7 +41,7 @@ Where a pedal sits in that order is part of its character — see <a href="how-i
 
 ## All pedals {#pedals}
 
-Pick a pedal to load it into the editor — exactly like tabbing to its tile in the app. Every knob runs 0–10.
+Pick a pedal to load it into the editor — exactly like arrowing to its tile in the app. Every knob runs 0–10.
 
 <div class="selector" data-tabs data-tabs-hash>
   <div class="tiles tiles--pedals" role="tablist" aria-label="Pedals">

@@ -45,8 +45,7 @@ pub(super) fn draw(
     // so a hidden panel simply contributes no constraint and no render call.
     let show_timeline = panels.timeline && timeline.is_some();
     let mut cons: Vec<Constraint> = vec![
-        Constraint::Length(2), // signal-flow ribbon
-        Constraint::Length(3), // meters
+        Constraint::Length(2), // signal-flow ribbon + mini input/output bars
     ];
     if panels.amp {
         // One merged amp box: selector row + knobs/mics + grille + borders.
@@ -78,6 +77,7 @@ pub(super) fn draw(
         f,
         rows[i],
         params,
+        levels,
         board,
         plugin,
         ext_cab,
@@ -85,8 +85,6 @@ pub(super) fn draw(
         focus == Some(CHAIN_TILE),
         chain_cursor,
     );
-    i += 1;
-    render_meters(f, rows[i], levels);
     i += 1;
     if panels.amp {
         render_amp_panel(f, rows[i], params, focus, ext_cab, ext_amp);
@@ -117,6 +115,7 @@ fn render_header(
     f: &mut Frame,
     area: Rect,
     params: &Params,
+    levels: &Levels,
     board: &[bool],
     plugin: Option<&str>,
     ext_cab: Option<&str>,
@@ -195,7 +194,20 @@ fn render_header(
     }
     push_stage(&mut chain, "OUTPUT".to_owned(), Style::default().fg(CHROME));
 
-    f.render_widget(Paragraph::new(Line::from(chain)), inner);
+    // Half / half: live order on the left, single-line input/output mini-bars
+    // on the right. The chain clips at the half-width boundary on long boards.
+    let halves = Layout::default()
+        .direction(Direction::Horizontal)
+        .constraints([Constraint::Ratio(1, 2), Constraint::Ratio(1, 2)])
+        .split(inner);
+    f.render_widget(Paragraph::new(Line::from(chain)), halves[0]);
+
+    let bars = Layout::default()
+        .direction(Direction::Horizontal)
+        .constraints([Constraint::Ratio(1, 2), Constraint::Ratio(1, 2)])
+        .split(halves[1]);
+    render_vu_row(f, bars[0], "IN ", levels.input.load(Relaxed));
+    render_vu_row(f, bars[1], "OUT ", levels.output.load(Relaxed));
 }
 
 /// Ribbon label + live on/off for a pedal stage (`None` for the amp+cab block).
@@ -224,67 +236,13 @@ fn pedal_stage_state(params: &Params, stage: ChainStage) -> Option<(&'static str
     }
 }
 
-fn render_meters(f: &mut Frame, area: Rect, levels: &Levels) {
-    let block = Block::default()
-        .borders(Borders::NONE)
-        .style(Style::default().bg(Color::Black));
-    let inner = block.inner(area);
-    f.render_widget(block, area);
-
-    let rows = Layout::default()
-        .direction(Direction::Vertical)
-        .constraints([
-            Constraint::Length(1),
-            Constraint::Length(1),
-            Constraint::Length(1),
-        ])
-        .split(inner);
-
-    let in_level = levels.input.load(Relaxed);
-    let out_level = levels.output.load(Relaxed);
-    let out_db = amp_to_db(out_level);
-    let watts = (out_level * out_level * 100.0).min(100.0);
-
-    render_vu_row(f, rows[0], "  INPUT  ", in_level);
-    render_vu_row(f, rows[1], " OUTPUT  ", out_level);
-
-    let scale_line = Paragraph::new(Line::from(vec![
-        Span::styled("         ", Style::default()),
-        Span::styled("-60", Style::default().fg(DIM)),
-        Span::styled("        ", Style::default()),
-        Span::styled("-48", Style::default().fg(DIM)),
-        Span::styled("        ", Style::default()),
-        Span::styled("-36", Style::default().fg(DIM)),
-        Span::styled("        ", Style::default()),
-        Span::styled("-24", Style::default().fg(DIM)),
-        Span::styled("        ", Style::default()),
-        Span::styled("-12", Style::default().fg(DIM)),
-        Span::styled("       ", Style::default()),
-        Span::styled("-6", Style::default().fg(DIM)),
-        Span::styled("     ", Style::default()),
-        Span::styled("0 dB", Style::default().fg(CHROME)),
-        Span::styled("    ", Style::default()),
-        Span::styled(
-            format!("{:.0}W", watts),
-            Style::default()
-                .fg(if watts > 80.0 {
-                    HOT
-                } else if watts > 40.0 {
-                    WARN
-                } else {
-                    SAFE
-                })
-                .add_modifier(Modifier::BOLD),
-        ),
-        Span::styled(
-            format!("  {:>+.1} dB", out_db),
-            Style::default().fg(if out_db > -3.0 { HOT } else { CHROME }),
-        ),
-    ]));
-    f.render_widget(scale_line, rows[2]);
-}
-
+/// One single-line level bar for the header mini-meters. Deliberately subdued
+/// header chrome: every color is shaded toward black (terminals have no alpha,
+/// so this is the transparency stand-in) and the label is un-bolded. Same fill
+/// math and green/amber/red thresholds as always — just quieter.
 fn render_vu_row(f: &mut Frame, area: Rect, label: &str, level: f32) {
+    /// Dim factor for meter chrome: hush the bars without losing the hues.
+    const METER_DIM: f32 = 0.45;
     let db = amp_to_db(level);
     let fill = ((db + 60.0) / 60.0).clamp(0.0, 1.0) as f64;
 
@@ -295,29 +253,29 @@ fn render_vu_row(f: &mut Frame, area: Rect, label: &str, level: f32) {
     let yellow_end = (bar_width as f64 * 0.88) as usize;
 
     let mut spans = vec![
-        Span::styled(
-            label,
-            Style::default().fg(CHROME).add_modifier(Modifier::BOLD),
-        ),
-        Span::styled("▐", Style::default().fg(DIM)),
+        Span::styled(label, Style::default().fg(shade(CHROME, METER_DIM))),
+        Span::styled("▐", Style::default().fg(shade(DIM, METER_DIM))),
     ];
 
     for i in 0..bar_width {
         let ch = if i < filled { '█' } else { '░' };
         let color = if i < filled {
             if i < green_end {
-                SAFE
+                shade(SAFE, METER_DIM)
             } else if i < yellow_end {
-                WARN
+                shade(WARN, METER_DIM)
             } else {
-                HOT
+                shade(HOT, METER_DIM)
             }
         } else {
-            Color::Rgb(30, 30, 30)
+            shade(Color::Rgb(30, 30, 30), METER_DIM)
         };
         spans.push(Span::styled(ch.to_string(), Style::default().fg(color)));
     }
-    spans.push(Span::styled("▌", Style::default().fg(DIM)));
+    spans.push(Span::styled(
+        "▌",
+        Style::default().fg(shade(DIM, METER_DIM)),
+    ));
     f.render_widget(Paragraph::new(Line::from(spans)), area);
 }
 
@@ -612,16 +570,16 @@ fn render_grille(f: &mut Frame, area: Rect, color: Color) {
 }
 
 // ── Guitar rig (pedalboard) ───────────────────────────────────────────────────
-// Master–detail layout: a compact text tile per pedal (name + LED + values)
-// across the top, and a fixed 5-row dial editor for the focused pedal below
-// (title + 4 rows of controls, no ON/OFF foot row — the title LED says it).
-// Only the rig's outer box carries a border; extra terminal space flows to the
-// timeline, never into bigger knobs. Screen cost is flat in pedal count —
-// adding pedals grows the tile grid, not the editor.
-/// Outer height of the detail editor: title row + 4 knob rows.
-const RIG_DETAIL_H: u16 = 5;
-/// Tile height: name+LED row, values row, footswitch glyph row. No borders.
-const RIG_TILE_H: u16 = 3;
+// Master–detail layout: a boxed tile per pedal (name + LED + values) across
+// the top, and a fixed 6-row dial editor for the focused pedal below (livery
+// box + title LED + 4 rows of controls, no ON/OFF foot row). Only the rig's
+// outer box, the tiles and the editor carry borders; extra terminal space
+// flows to the timeline, never into bigger knobs. Screen cost is flat in pedal
+// count — adding pedals grows the tile grid, not the editor.
+/// Outer height of the detail editor: borders (2) + 4 knob rows.
+const RIG_DETAIL_H: u16 = 6;
+/// Tile height: borders (2) + name/values/footswitch rows. No borders elsewhere.
+const RIG_TILE_H: u16 = 4;
 
 /// Full outer height of the rig panel for the root layout: rig border (2) +
 /// tile grid + fixed detail editor. Mirrors the `render_rig` split so the
@@ -700,7 +658,6 @@ fn render_rig(f: &mut Frame, area: Rect, params: &Params, board: &[bool], focus:
 }
 
 /// The "+ ADD" tile: an empty slot inviting the user to add a pedal.
-/// Borderless — three text rows under the rig box.
 fn render_add_tile(f: &mut Frame, area: Rect, focused: bool) {
     let color = if focused { ACCENT } else { shade(ACCENT, 0.5) };
     let dim = if focused {
@@ -708,24 +665,25 @@ fn render_add_tile(f: &mut Frame, area: Rect, focused: bool) {
     } else {
         Modifier::DIM
     };
-    let rows = Layout::default()
-        .direction(Direction::Vertical)
-        .constraints([
-            Constraint::Length(1),
-            Constraint::Length(1),
-            Constraint::Length(1),
-        ])
-        .split(area);
-    f.render_widget(
-        Paragraph::new(Line::from(Span::styled(
+    let block = Block::default()
+        .borders(Borders::ALL)
+        .border_type(BorderType::Double)
+        .border_style(Style::default().fg(color).add_modifier(dim))
+        .title(Line::from(Span::styled(
             " + ADD ",
             Style::default()
                 .fg(color)
                 .add_modifier(Modifier::BOLD)
                 .add_modifier(dim),
-        ))),
-        rows[0],
-    );
+        )))
+        .style(Style::default().bg(Color::Black));
+    let inner = block.inner(area);
+    f.render_widget(block, area);
+
+    let parts = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints([Constraint::Length(1), Constraint::Length(1)])
+        .split(inner);
     f.render_widget(
         Paragraph::new(Line::from(Span::styled(
             "＋",
@@ -735,7 +693,7 @@ fn render_add_tile(f: &mut Frame, area: Rect, focused: bool) {
                 .add_modifier(dim),
         )))
         .alignment(Alignment::Center),
-        rows[1],
+        parts[0],
     );
     f.render_widget(
         Paragraph::new(Line::from(Span::styled(
@@ -743,15 +701,14 @@ fn render_add_tile(f: &mut Frame, area: Rect, focused: bool) {
             Style::default().fg(DIM).add_modifier(dim),
         )))
         .alignment(Alignment::Center),
-        rows[2],
+        parts[1],
     );
 }
 
-/// A compact pedal tile: name + LED, all knob values on one line, and a
-/// footswitch glyph. Borderless — three text rows under the rig box. The
-/// focused pedal's tile lights up to its full livery; every other tile is
-/// heavily faded — and fades further when the whole rig is unfocused — so the
-/// focused region reads at a glance.
+/// A compact pedal tile: name + LED in the title, all knob values on one line,
+/// and a footswitch. The focused pedal's tile lights up to its full livery; every
+/// other tile is heavily faded — and fades further when the whole rig is unfocused
+/// — so the focused region reads at a glance.
 fn render_pedal_tile(
     f: &mut Frame,
     area: Rect,
@@ -810,16 +767,19 @@ fn render_pedal_tile(
         Span::raw(" "),
     ]);
 
+    let block = Block::default()
+        .borders(Borders::ALL)
+        .border_type(BorderType::Double)
+        .border_style(Style::default().fg(body).add_modifier(dim))
+        .title(title)
+        .style(Style::default().bg(Color::Black));
+    let inner = block.inner(area);
+    f.render_widget(block, area);
+
     let parts = Layout::default()
         .direction(Direction::Vertical)
-        .constraints([
-            Constraint::Length(1),
-            Constraint::Length(1),
-            Constraint::Length(1),
-        ])
-        .split(area);
-
-    f.render_widget(Paragraph::new(title), parts[0]);
+        .constraints([Constraint::Length(1), Constraint::Length(1)])
+        .split(inner);
 
     let values: String = (pedal.start..pedal.end)
         .map(|ki| format!("{:.1}", (KNOBS[ki].param)(params).load(Relaxed) * 10.0))
@@ -841,7 +801,7 @@ fn render_pedal_tile(
                 .add_modifier(dim),
         )))
         .alignment(Alignment::Center),
-        parts[1],
+        parts[0],
     );
 
     let foot_color = if on { body } else { shade(pedal.color, 0.25) };
@@ -851,21 +811,21 @@ fn render_pedal_tile(
             Style::default().fg(foot_color).add_modifier(dim),
         )))
         .alignment(Alignment::Center),
-        parts[2],
+        parts[1],
     );
 }
 
 /// The detail editor: full-size dials for whichever pedal currently has focus.
 /// When focus is elsewhere (amp/mic/selectors) it shows a hint instead.
-/// Borderless — a title line (name + LED in the pedal's livery) over 4 rows of
-/// knobs. There is no ON/OFF foot row: the title LED is the on/off indicator.
+/// The editor takes on the focused pedal's livery; the title LED is the on/off
+/// indicator (there is no ON/OFF foot row).
 fn render_pedal_detail(f: &mut Frame, area: Rect, params: &Params, focus: Option<usize>) {
     let pedal = PEDALS
         .iter()
         .find(|p| focus.is_some_and(|i| (p.start..p.end).contains(&i)));
 
-    // The title takes on the focused pedal's livery; otherwise it stays dim.
-    let title_color = pedal.map_or(DIM, |p| p.color);
+    // The editor takes on the focused pedal's livery; otherwise it stays dim.
+    let border_color = pedal.map_or(DIM, |p| p.color);
     let adding = focus == Some(ADD_TILE);
     let title = match pedal {
         Some(p) => {
@@ -881,14 +841,14 @@ fn render_pedal_detail(f: &mut Frame, area: Rect, params: &Params, focus: Option
                 Span::styled("○", Style::default().fg(OFF))
             };
             Line::from(vec![
-                Span::styled("┤ EDITING: ", Style::default().fg(title_color)),
+                Span::styled("┤ EDITING: ", Style::default().fg(border_color)),
                 Span::styled(
                     p.name,
                     Style::default().fg(p.color).add_modifier(Modifier::BOLD),
                 ),
                 Span::raw(" "),
                 led,
-                Span::styled(" ├", Style::default().fg(title_color)),
+                Span::styled(" ├", Style::default().fg(border_color)),
             ])
         }
         None if adding => Line::from(Span::styled(
@@ -901,11 +861,14 @@ fn render_pedal_detail(f: &mut Frame, area: Rect, params: &Params, focus: Option
         )),
     };
 
-    let parts = Layout::default()
-        .direction(Direction::Vertical)
-        .constraints([Constraint::Length(1), Constraint::Min(0)])
-        .split(area);
-    f.render_widget(Paragraph::new(title), parts[0]);
+    let block = Block::default()
+        .borders(Borders::ALL)
+        .border_type(BorderType::Thick)
+        .border_style(Style::default().fg(border_color))
+        .title(title)
+        .style(Style::default().bg(Color::Black));
+    let inner = block.inner(area);
+    f.render_widget(block, area);
 
     let Some(pedal) = pedal else {
         let hint = if adding {
@@ -916,7 +879,7 @@ fn render_pedal_detail(f: &mut Frame, area: Rect, params: &Params, focus: Option
         f.render_widget(
             Paragraph::new(Line::from(Span::styled(hint, Style::default().fg(DIM))))
                 .alignment(Alignment::Center),
-            parts[1],
+            inner,
         );
         return;
     };
@@ -926,7 +889,7 @@ fn render_pedal_detail(f: &mut Frame, area: Rect, params: &Params, focus: Option
     let cols = Layout::default()
         .direction(Direction::Horizontal)
         .constraints(vec![Constraint::Ratio(1, count as u32); count])
-        .split(parts[1]);
+        .split(inner);
 
     for (i, ki) in (pedal.start..pedal.end).enumerate() {
         let val = (KNOBS[ki].param)(params).load(Relaxed);
