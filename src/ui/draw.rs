@@ -43,10 +43,8 @@ pub(super) fn draw(
 
     // Build the vertical layout from the visible panels. Rows are tracked by index
     // so a hidden panel simply contributes no constraint and no render call.
-    // Row 0 is a blank top margin so the header never touches the terminal edge.
     let show_timeline = panels.timeline && timeline.is_some();
     let mut cons: Vec<Constraint> = vec![
-        Constraint::Length(1), // top margin (left blank)
         Constraint::Length(3), // chain box + mini input/output bars
     ];
     if panels.amp {
@@ -76,7 +74,6 @@ pub(super) fn draw(
         .split(inner);
 
     let mut i = 0usize;
-    i += 1; // top margin row: intentionally left blank
     render_header(
         f,
         rows[i],
@@ -671,8 +668,8 @@ fn render_grille(f: &mut Frame, area: Rect, color: Color) {
 /// Outer height of the detail editor: rule row (1) + 6 knob rows + bottom
 /// border (no top border — the rule row is the top edge).
 const RIG_DETAIL_H: u16 = 8;
-/// Tile height: borders (2) + name/values/footswitch rows. No borders elsewhere.
-const RIG_TILE_H: u16 = 4;
+/// Tile height: borders (2) + values row. The LED is the on/off indicator.
+const RIG_TILE_H: u16 = 3;
 
 /// Full outer height of the rig panel for the root layout: rig border (2) +
 /// tile grid + fixed detail editor. Mirrors the `render_rig` split so the
@@ -794,33 +791,27 @@ fn render_add_tile(f: &mut Frame, area: Rect, focused: bool) {
     let inner = block.inner(area);
     f.render_widget(block, area);
 
-    let parts = Layout::default()
-        .direction(Direction::Vertical)
-        .constraints([Constraint::Length(1), Constraint::Length(1)])
-        .split(inner);
     f.render_widget(
-        Paragraph::new(Line::from(Span::styled(
-            "＋",
-            Style::default()
-                .fg(color)
-                .add_modifier(Modifier::BOLD)
-                .add_modifier(dim),
-        )))
+        Paragraph::new(Line::from(vec![
+            Span::styled(
+                "＋",
+                Style::default()
+                    .fg(color)
+                    .add_modifier(Modifier::BOLD)
+                    .add_modifier(dim),
+            ),
+            Span::styled(
+                if focused { "  Enter" } else { "" },
+                Style::default().fg(DIM).add_modifier(dim),
+            ),
+        ]))
         .alignment(Alignment::Center),
-        parts[0],
-    );
-    f.render_widget(
-        Paragraph::new(Line::from(Span::styled(
-            if focused { "Enter" } else { "" },
-            Style::default().fg(DIM).add_modifier(dim),
-        )))
-        .alignment(Alignment::Center),
-        parts[1],
+        inner,
     );
 }
 
-/// A compact pedal tile: name + LED in the title, all knob values on one line,
-/// and a footswitch. The focused pedal's tile lights up to its full livery; every
+/// A compact pedal tile: name + LED in the title, all knob values on one line.
+/// The focused pedal's tile lights up to its full livery; every
 /// other tile is heavily faded — and fades further when the whole rig is unfocused
 /// — so the focused region reads at a glance.
 fn render_pedal_tile(
@@ -898,11 +889,6 @@ fn render_pedal_tile(
     let inner = block.inner(area);
     f.render_widget(block, area);
 
-    let parts = Layout::default()
-        .direction(Direction::Vertical)
-        .constraints([Constraint::Length(1), Constraint::Length(1)])
-        .split(inner);
-
     let values: String = (pedal.start..pedal.end)
         .map(|ki| format!("{:.1}", (KNOBS[ki].param)(params).load(Relaxed) * 10.0))
         .collect::<Vec<_>>()
@@ -923,17 +909,7 @@ fn render_pedal_tile(
                 .add_modifier(dim),
         )))
         .alignment(Alignment::Center),
-        parts[0],
-    );
-
-    let foot_color = if on { body } else { shade(pedal.color, 0.25) };
-    f.render_widget(
-        Paragraph::new(Line::from(Span::styled(
-            "▗▄▄▄▄▄▄▄▖",
-            Style::default().fg(foot_color).add_modifier(dim),
-        )))
-        .alignment(Alignment::Center),
-        parts[1],
+        inner,
     );
 }
 
@@ -1099,7 +1075,7 @@ fn render_pedal_detail(
 }
 
 /// Knob cell frame: every knob permanently reserves a 1-cell border footprint
-/// (airy gaps between knobs), and the focused knob alone draws its box — a
+/// on all four sides, and the focused knob alone draws its full box — a
 /// `Plain` ACCENT frame. Geometry is identical boxed or not, so moving focus
 /// never shifts the layout and dial art stays the same size.
 fn knob_cell(f: &mut Frame, area: Rect, focused: bool) -> Rect {
@@ -1673,8 +1649,8 @@ mod tests {
         screen_text(&term)
     }
 
-    /// The focused knob alone draws a box (Plain corners); an unfocused knob
-    /// renders the same content with blank padding and no box.
+    /// The focused knob alone draws a full box (top, sides, bottom); an
+    /// unfocused knob renders the same content with blank insets and no box.
     #[test]
     fn focused_knob_gets_a_border_box() {
         let on = knob_text(true);
