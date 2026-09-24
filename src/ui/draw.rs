@@ -50,8 +50,9 @@ pub(super) fn draw(
         Constraint::Length(3), // chain box + mini input/output bars
     ];
     if panels.amp {
-        // One merged amp box: selector row + knobs/mics + grille + borders.
-        cons.push(Constraint::Length(8)); // amplifier + cabinet/mic + selector
+        // Two side-by-side boxes (amp + cab, 11 rows each): selector, knobs,
+        // bottom margin, grille strip inside each box.
+        cons.push(Constraint::Length(11)); // amplifier + cabinet/mic + selectors
     }
     if show_timeline {
         // Fixed 10-row strip (transport + two 3-row tracks + hint); any leftover
@@ -292,13 +293,8 @@ fn render_vu_row(f: &mut Frame, area: Rect, label: &str, level: f32) {
     f.render_widget(Paragraph::new(Line::from(spans)), area);
 }
 
-/// Model selector row inside the merged amp box (no border of its own).
-fn render_amp_selector(f: &mut Frame, area: Rect, params: &Params, focused: bool) {
-    let cols = Layout::default()
-        .direction(Direction::Horizontal)
-        .constraints([Constraint::Ratio(1, 2), Constraint::Ratio(1, 2)])
-        .split(area);
-
+/// Amp-model selector row (no border of its own; lives in the amp box).
+fn render_amp_models(f: &mut Frame, area: Rect, params: &Params, focused: bool) {
     // ── Amp model selector ────────────────────────────────────────────────────
     // When an external AU is the active amp the built-in model is bypassed, so the
     // whole selector is dimmed to signal it has no effect until `Z` returns to it.
@@ -355,12 +351,12 @@ fn render_amp_selector(f: &mut Frame, area: Rect, params: &Params, focused: bool
         };
         amp_spans.push(Span::styled(hint, Style::default().fg(DIM)));
     }
-    f.render_widget(Paragraph::new(Line::from(amp_spans)), cols[0]);
+    f.render_widget(Paragraph::new(Line::from(amp_spans)), area);
+}
 
-    // ── Cabinet model selector ────────────────────────────────────────────────
-    // The built-in cab model has no effect when an external IR is the active cab, or
-    // when an external amp is supplying its own cab (amp+cab mode) — dim the selector
-    // in either case. (In amp-only mode the built-in cab is back in the path.)
+/// Cabinet-model selector row (no border of its own; lives in the cab box).
+fn render_cab_models(f: &mut Frame, area: Rect, params: &Params, focused: bool) {
+    let label_color = if focused { ACCENT } else { DIM };
     let cab_model = params.cab_model();
     let ext_active = params.cab_external_active.load(Relaxed);
     let cab_inactive = ext_active || cab_bypassed_by_amp(params);
@@ -410,12 +406,13 @@ fn render_amp_selector(f: &mut Frame, area: Rect, params: &Params, focused: bool
         };
         cab_spans.push(Span::styled(hint, Style::default().fg(DIM)));
     }
-    f.render_widget(Paragraph::new(Line::from(cab_spans)), cols[1]);
+    f.render_widget(Paragraph::new(Line::from(cab_spans)), area);
 }
 
 // ── Amplifier head + cabinet/mic ──────────────────────────────────────────────
-// One bordered box for panel 2: the model selector row on top, knobs + mics in
-// the middle, speaker grille below.
+// Panel 2 as two side-by-side boxes, each with its own 4 borders: the amp box
+// (model selector, tone-stack knobs, blank bottom margin) and the cab box
+// (model selector, mic knobs, speaker grille).
 fn render_amp_panel(
     f: &mut Frame,
     area: Rect,
@@ -427,85 +424,97 @@ fn render_amp_panel(
     let selectors_focused = focus.is_none();
     let amp_active = focus.is_some_and(|i| (AMP_START..AMP_END).contains(&i));
     let mic_active = focus.is_some_and(|i| (MIC_START..MIC_END).contains(&i));
-    // The whole box lights up while the selectors or either knob row owns focus.
-    let panel_active = selectors_focused || amp_active || mic_active;
-    let border_color = border_glyph(panel_active);
-    let dim = if panel_active {
-        Modifier::empty()
-    } else {
-        Modifier::DIM
+    // Each box lights up while the selectors or its own knob row owns focus.
+    let amp_box_active = selectors_focused || amp_active;
+    let cab_box_active = selectors_focused || mic_active;
+    let dim = |active: bool| {
+        if active {
+            Modifier::empty()
+        } else {
+            Modifier::DIM
+        }
     };
 
-    // The amp panel reflects the active amp: a loaded AU's name (with the tone-stack
+    // Side-by-side boxes filling the whole area; each owns its grille row.
+    let boxes = Layout::default()
+        .direction(Direction::Horizontal)
+        .constraints([Constraint::Ratio(7, 10), Constraint::Ratio(3, 10)])
+        .split(area);
+
+    render_amp_box(
+        f,
+        boxes[0],
+        params,
+        focus,
+        ext_amp,
+        selectors_focused,
+        amp_box_active,
+        dim(amp_box_active),
+    );
+    render_cab_box(
+        f,
+        boxes[1],
+        params,
+        focus,
+        ext_cab,
+        selectors_focused,
+        cab_box_active,
+        dim(cab_box_active),
+    );
+}
+
+/// Left box: amp model selector, tone-stack knobs, blank bottom margin, grille
+/// strip.
+#[allow(clippy::too_many_arguments)]
+fn render_amp_box(
+    f: &mut Frame,
+    area: Rect,
+    params: &Params,
+    focus: Option<usize>,
+    ext_amp: Option<&str>,
+    selectors_focused: bool,
+    box_active: bool,
+    dim: Modifier,
+) {
+    // The amp box reflects the active amp: a loaded AU's name (with the tone-stack
     // knobs inert) or the built-in amp model.
     let amp_name = match ext_amp {
         Some(name) => format!("AU: {name}"),
         None => params.amp_model().name().to_uppercase(),
     };
-    // The cabinet/mic panel reflects the active cab. An external amp supplying its own
-    // cab (amp+cab mode) bypasses the whole cab stage; otherwise a loaded IR or the
-    // built-in cab model is shown.
-    let cab_bypassed = cab_bypassed_by_amp(params);
-    let cab_name = if cab_bypassed {
-        "PLUGIN CAB".to_owned()
-    } else {
-        match ext_cab {
-            Some(name) => format!("IR: {name}"),
-            None => params.cab_model().short_name().to_owned(),
-        }
-    };
-
-    let left_title = Line::from(vec![
-        Span::styled("┤ ", Style::default().fg(border_color)),
-        Span::styled(
-            amp_name,
-            Style::default()
-                .fg(AMBER)
-                .add_modifier(Modifier::BOLD)
-                .add_modifier(dim),
-        ),
-        Span::styled(" ├", Style::default().fg(border_color)),
-    ]);
-    let right_title = Line::from(vec![
-        Span::styled("┤ 🎙 ", Style::default().fg(border_color)),
-        Span::styled(
-            cab_name,
-            Style::default()
-                .fg(CHROME)
-                .add_modifier(Modifier::BOLD)
-                .add_modifier(dim),
-        ),
-        Span::styled(" ├", Style::default().fg(border_color)),
-    ])
-    .right_aligned();
+    let border_color = border_glyph(box_active);
 
     let block = Block::default()
         .borders(Borders::ALL)
         .border_type(BorderType::Thick)
-        .border_style(border_style(panel_active))
-        .title(left_title)
-        .title(right_title)
+        .border_style(border_style(box_active))
+        .title(Line::from(vec![
+            Span::styled("┤ ", Style::default().fg(border_color)),
+            Span::styled(
+                amp_name,
+                Style::default()
+                    .fg(AMBER)
+                    .add_modifier(Modifier::BOLD)
+                    .add_modifier(dim),
+            ),
+            Span::styled(" ├", Style::default().fg(border_color)),
+        ]))
         .style(Style::default().bg(Color::Black));
     let inner = block.inner(area);
     f.render_widget(block, area);
 
-    // Selector row on top, control panel (knobs + mic) in the middle, speaker
-    // grille below.
+    // Selector row, knobs, blank bottom margin, grille strip inside the box.
     let parts = Layout::default()
         .direction(Direction::Vertical)
         .constraints([
             Constraint::Length(1),
-            Constraint::Min(4),
+            Constraint::Min(6),
+            Constraint::Length(1),
             Constraint::Length(1),
         ])
         .split(inner);
 
-    render_amp_selector(f, parts[0], params, selectors_focused);
-
-    let panel = Layout::default()
-        .direction(Direction::Horizontal)
-        .constraints([Constraint::Min(0), Constraint::Length(30)])
-        .split(parts[1]);
+    render_amp_models(f, parts[0], params, selectors_focused);
 
     // Amp tone stack knobs.
     let count = AMP_END - AMP_START;
@@ -516,7 +525,7 @@ fn render_amp_panel(
                 .map(|_| Constraint::Ratio(1, count as u32))
                 .collect::<Vec<_>>(),
         )
-        .split(panel[0]);
+        .split(parts[1]);
     // The tone-stack knobs drive the built-in amp; a loaded AU brings its own gain and
     // tone controls (edited in the AU modal), so they are dimmed while it is active —
     // exactly as the mic knobs are while an external IR is up.
@@ -531,9 +540,77 @@ fn render_amp_panel(
             focus == Some(ki),
             amp_live,
             AMBER,
-            !panel_active,
+            !box_active,
         );
     }
+    // parts[2] stays blank: bottom margin below the knobs.
+    render_grille(
+        f,
+        parts[3],
+        shade(ACCENT, if box_active { 0.45 } else { 0.18 }),
+    );
+}
+
+/// Right box: cab model selector, mic knobs, bottom margin, grille strip.
+#[allow(clippy::too_many_arguments)]
+fn render_cab_box(
+    f: &mut Frame,
+    area: Rect,
+    params: &Params,
+    focus: Option<usize>,
+    ext_cab: Option<&str>,
+    selectors_focused: bool,
+    box_active: bool,
+    dim: Modifier,
+) {
+    // The cab box reflects the active cab. An external amp supplying its own
+    // cab (amp+cab mode) bypasses the whole cab stage; otherwise a loaded IR or the
+    // built-in cab model is shown.
+    let cab_bypassed = cab_bypassed_by_amp(params);
+    let cab_name = if cab_bypassed {
+        "PLUGIN CAB".to_owned()
+    } else {
+        match ext_cab {
+            Some(name) => format!("IR: {name}"),
+            None => params.cab_model().short_name().to_owned(),
+        }
+    };
+    let border_color = border_glyph(box_active);
+
+    let block = Block::default()
+        .borders(Borders::ALL)
+        .border_type(BorderType::Thick)
+        .border_style(border_style(box_active))
+        .title(
+            Line::from(vec![
+                Span::styled("┤ 🎙 ", Style::default().fg(border_color)),
+                Span::styled(
+                    cab_name,
+                    Style::default()
+                        .fg(CHROME)
+                        .add_modifier(Modifier::BOLD)
+                        .add_modifier(dim),
+                ),
+                Span::styled(" ├", Style::default().fg(border_color)),
+            ])
+            .right_aligned(),
+        )
+        .style(Style::default().bg(Color::Black));
+    let inner = block.inner(area);
+    f.render_widget(block, area);
+
+    // Selector row, mic knobs, blank bottom margin, grille strip inside the box.
+    let parts = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints([
+            Constraint::Length(1),
+            Constraint::Min(6),
+            Constraint::Length(1),
+            Constraint::Length(1),
+        ])
+        .split(inner);
+
+    render_cab_models(f, parts[0], params, selectors_focused);
 
     // Cabinet mics (position, dynamic↔ribbon blend, room) in front of the cabinet.
     let mic_count = MIC_END - MIC_START;
@@ -544,7 +621,7 @@ fn render_amp_panel(
                 .map(|_| Constraint::Ratio(1, mic_count as u32))
                 .collect::<Vec<_>>(),
         )
-        .split(panel[1]);
+        .split(parts[1]);
     // The mic knobs only colour the built-in cab's multi-mic blend; they are inert when
     // a finished IR is the cab, or when an external amp supplies its own cab.
     let mic_live = ext_cab.is_none() && !cab_bypassed;
@@ -558,14 +635,15 @@ fn render_amp_panel(
             focus == Some(ki),
             mic_live,
             CHROME,
-            !panel_active,
+            !box_active,
         );
     }
 
+    // parts[2] stays blank: bottom margin mirroring the amp box.
     render_grille(
         f,
-        parts[2],
-        shade(ACCENT, if panel_active { 0.45 } else { 0.18 }),
+        parts[3],
+        shade(ACCENT, if box_active { 0.45 } else { 0.18 }),
     );
 }
 
@@ -584,13 +662,15 @@ fn render_grille(f: &mut Frame, area: Rect, color: Color) {
 
 // ── Guitar rig (pedalboard) ───────────────────────────────────────────────────
 // Master–detail layout: a boxed tile per pedal (name + LED + values) across
-// the top, and a fixed 6-row dial editor for the focused pedal below (livery
-// box + title LED + 4 rows of controls, no ON/OFF foot row). Only the rig's
-// outer box, the tiles and the editor carry borders; extra terminal space
+// the top, and a fixed 7-row dial editor for the focused pedal below (open
+// top facing the focused tile's open bottom, 6 rows of controls). The focused
+// tile drops its bottom border so the two read as one connected flow. Only the
+// rig's outer box, the tiles and the editor carry borders; extra terminal space
 // flows to the timeline, never into bigger knobs. Screen cost is flat in pedal
 // count — adding pedals grows the tile grid, not the editor.
-/// Outer height of the detail editor: borders (2) + 4 knob rows.
-const RIG_DETAIL_H: u16 = 6;
+/// Outer height of the detail editor: rule row (1) + 6 knob rows + bottom
+/// border (no top border — the rule row is the top edge).
+const RIG_DETAIL_H: u16 = 8;
 /// Tile height: borders (2) + name/values/footswitch rows. No borders elsewhere.
 const RIG_TILE_H: u16 = 4;
 
@@ -652,6 +732,9 @@ fn render_rig(f: &mut Frame, area: Rect, params: &Params, board: &[bool], focus:
         .constraints(vec![Constraint::Length(TILE_H); tile_rows])
         .split(parts[0]);
 
+    // Notch span for the editor's top edge: the focused tile's cell, but only
+    // when it sits in the last grid row (directly above the editor).
+    let mut notch: Option<(u16, u16)> = None;
     for r in 0..tile_rows {
         let base = r * cols;
         let n = cols.min(tile_count - base);
@@ -661,13 +744,25 @@ fn render_rig(f: &mut Frame, area: Rect, params: &Params, board: &[bool], focus:
             .split(grid_rows[r]);
         for (c, cell) in cells.iter().take(n).enumerate() {
             match on_board.get(base + c) {
-                Some(&pi) => render_pedal_tile(f, *cell, &PEDALS[pi], focus, params, !rig_active),
-                None => render_add_tile(f, *cell, focus == Some(ADD_TILE)),
+                Some(&pi) => {
+                    let pedal = &PEDALS[pi];
+                    let focused_here = focus.is_some_and(|i| (pedal.start..pedal.end).contains(&i));
+                    if focused_here && r + 1 == tile_rows {
+                        notch = Some((cell.x, cell.width));
+                    }
+                    render_pedal_tile(f, *cell, pedal, focus, params, !rig_active)
+                }
+                None => {
+                    if focus == Some(ADD_TILE) && r + 1 == tile_rows {
+                        notch = Some((cell.x, cell.width));
+                    }
+                    render_add_tile(f, *cell, focus == Some(ADD_TILE))
+                }
             }
         }
     }
 
-    render_pedal_detail(f, parts[1], params, focus);
+    render_pedal_detail(f, parts[1], params, focus, notch);
 }
 
 /// The "+ ADD" tile: an empty slot inviting the user to add a pedal.
@@ -678,9 +773,15 @@ fn render_add_tile(f: &mut Frame, area: Rect, focused: bool) {
     } else {
         Modifier::DIM
     };
+    // Like a focused pedal tile: open bottom facing the editor's open top.
+    let add_borders = if focused {
+        Borders::TOP | Borders::LEFT | Borders::RIGHT
+    } else {
+        Borders::ALL
+    };
     let block = Block::default()
-        .borders(Borders::ALL)
-        .border_type(BorderType::Double)
+        .borders(add_borders)
+        .border_type(BorderType::Plain)
         .border_style(Style::default().fg(color).add_modifier(dim))
         .title(Line::from(Span::styled(
             " + ADD ",
@@ -780,9 +881,17 @@ fn render_pedal_tile(
         Span::raw(" "),
     ]);
 
+    // The focused tile drops its bottom border: open bottom facing the editor's
+    // open top reads as one connected flow, and the side borders run the full
+    // cell height toward the body.
+    let tile_borders = if active {
+        Borders::TOP | Borders::LEFT | Borders::RIGHT
+    } else {
+        Borders::ALL
+    };
     let block = Block::default()
-        .borders(Borders::ALL)
-        .border_type(BorderType::Double)
+        .borders(tile_borders)
+        .border_type(BorderType::Plain)
         .border_style(Style::default().fg(body).add_modifier(dim))
         .title(title)
         .style(Style::default().bg(Color::Black));
@@ -830,9 +939,69 @@ fn render_pedal_tile(
 
 /// The detail editor: full-size dials for whichever pedal currently has focus.
 /// When focus is elsewhere (amp/mic/selectors) it shows a hint instead.
-/// The editor takes on the focused pedal's livery; the title LED is the on/off
-/// indicator (there is no ON/OFF foot row).
-fn render_pedal_detail(f: &mut Frame, area: Rect, params: &Params, focus: Option<usize>) {
+/// The tile above already names the pedal, so the editor carries no title: an
+/// open-topped box (left/right/bottom only) facing the focused tile's open
+/// bottom, knobs filling the whole interior. The editor takes on the focused
+/// pedal's livery.
+/// Top edge of the detail editor, drawn on the rule row *inside* the side
+/// borders: a full `├──┤` rule, or — when `gap` carries the focused tile's
+/// `(lo, hi)` column range in rule-local coordinates — the same rule with a
+/// gap exactly under the tile, joined with `┘`/`└`. A degenerate gap falls
+/// back to the full rule.
+fn editor_top_edge(rule: Rect, gap: Option<(usize, usize)>, color: Color) -> Line<'static> {
+    let style = Style::default().fg(color);
+    let w = rule.width as usize;
+    if w == 0 {
+        return Line::from(Span::raw(""));
+    }
+    let full = || {
+        let mut s = String::with_capacity(w);
+        s.push('├');
+        for _ in 1..w.saturating_sub(1) {
+            s.push('─');
+        }
+        if w > 1 {
+            s.push('┤');
+        }
+        s
+    };
+    let Some((gx0, gx1)) = gap else {
+        return Line::from(Span::styled(full(), style));
+    };
+    // Clamp the gap into the rule row; a degenerate gap means a full rule.
+    let (gx0, gx1) = (gx0.min(w), gx1.min(w));
+    if gx1 <= gx0 {
+        return Line::from(Span::styled(full(), style));
+    }
+    let mut out = String::with_capacity(w);
+    for col in 0..w {
+        let ch = if col < gx0 || col >= gx1 {
+            if col == 0 {
+                '├'
+            } else if col + 1 == w {
+                '┤'
+            } else {
+                '─'
+            }
+        } else if col == gx0 && gx0 > 0 {
+            '┘'
+        } else if col + 1 == gx1 && gx1 < w {
+            '└'
+        } else {
+            ' '
+        };
+        out.push(ch);
+    }
+    Line::from(Span::styled(out, style))
+}
+
+fn render_pedal_detail(
+    f: &mut Frame,
+    area: Rect,
+    params: &Params,
+    focus: Option<usize>,
+    notch: Option<(u16, u16)>,
+) {
     let pedal = PEDALS
         .iter()
         .find(|p| focus.is_some_and(|i| (p.start..p.end).contains(&i)));
@@ -840,59 +1009,65 @@ fn render_pedal_detail(f: &mut Frame, area: Rect, params: &Params, focus: Option
     // The editor takes on the focused pedal's livery; otherwise it stays dim.
     let border_color = pedal.map_or(DIM, |p| p.color);
     let adding = focus == Some(ADD_TILE);
-    let title = match pedal {
-        Some(p) => {
-            let on = (p.enabled)(params).load(Relaxed);
-            let led = if on {
-                Span::styled(
-                    "◉",
-                    Style::default()
-                        .fg(Color::Rgb(255, 70, 70))
-                        .add_modifier(Modifier::BOLD),
-                )
-            } else {
-                Span::styled("○", Style::default().fg(OFF))
-            };
-            Line::from(vec![
-                Span::styled("┤ EDITING: ", Style::default().fg(border_color)),
-                Span::styled(
-                    p.name,
-                    Style::default().fg(p.color).add_modifier(Modifier::BOLD),
-                ),
-                Span::raw(" "),
-                led,
-                Span::styled(" ├", Style::default().fg(border_color)),
-            ])
-        }
-        None if adding => Line::from(Span::styled(
-            "┤ ADD A PEDAL — Enter ├",
-            Style::default().fg(AMBER),
-        )),
-        None => Line::from(Span::styled(
-            "┤ SELECT A PEDAL — ←→ ├",
-            Style::default().fg(DIM),
-        )),
-    };
 
     let block = Block::default()
-        .borders(Borders::ALL)
-        .border_type(BorderType::Thick)
+        .borders(Borders::LEFT | Borders::RIGHT | Borders::BOTTOM)
+        .border_type(BorderType::Plain)
         .border_style(Style::default().fg(border_color))
-        .title(title)
         .style(Style::default().bg(Color::Black));
     let inner = block.inner(area);
     f.render_widget(block, area);
 
+    // Rule row on top (inside the side borders), knobs below: the rule never
+    // shares a row with knob boxes, so the notch can't be overwritten.
+    let body = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints([Constraint::Length(1), Constraint::Min(6)])
+        .split(inner);
+    // Notch span into rule-row coordinates as an explicit interval, so the far
+    // joint lands exactly under the tile's right edge (width-preserving shifts
+    // would drift it by a column at the box edge).
+    let gap = notch.map(|(x, w)| {
+        let rx = body[0].x as usize;
+        let rw = body[0].width as usize;
+        (
+            (x as usize).saturating_sub(rx),
+            (x as usize + w as usize).saturating_sub(rx).min(rw),
+        )
+    });
+    f.render_widget(
+        Paragraph::new(editor_top_edge(body[0], gap, border_color)),
+        body[0],
+    );
+
     let Some(pedal) = pedal else {
-        let hint = if adding {
-            "Press Enter to add a pedal to the board."
+        // No pedal under focus: one-line state label, hint beneath it.
+        let (label, hint) = if adding {
+            (
+                "ADD A PEDAL — Enter",
+                "Press Enter to add a pedal to the board.",
+            )
         } else {
-            "Press 4 for the pedalboard, 1 for the chain."
+            (
+                "SELECT A PEDAL — ←→",
+                "Press 4 for the pedalboard, 1 for the chain.",
+            )
         };
+        let parts = Layout::default()
+            .direction(Direction::Vertical)
+            .constraints([Constraint::Length(1), Constraint::Min(0)])
+            .split(body[1]);
+        f.render_widget(
+            Paragraph::new(Line::from(Span::styled(
+                label,
+                Style::default().fg(if adding { AMBER } else { DIM }),
+            ))),
+            parts[0],
+        );
         f.render_widget(
             Paragraph::new(Line::from(Span::styled(hint, Style::default().fg(DIM))))
                 .alignment(Alignment::Center),
-            inner,
+            parts[1],
         );
         return;
     };
@@ -902,7 +1077,7 @@ fn render_pedal_detail(f: &mut Frame, area: Rect, params: &Params, focus: Option
     let cols = Layout::default()
         .direction(Direction::Horizontal)
         .constraints(vec![Constraint::Ratio(1, count as u32); count])
-        .split(inner);
+        .split(body[1]);
 
     for (i, ki) in (pedal.start..pedal.end).enumerate() {
         let val = (KNOBS[ki].param)(params).load(Relaxed);
@@ -923,6 +1098,33 @@ fn render_pedal_detail(f: &mut Frame, area: Rect, params: &Params, focus: Option
     }
 }
 
+/// Knob cell frame: every knob permanently reserves a 1-cell border footprint
+/// (airy gaps between knobs), and the focused knob alone draws its box — a
+/// `Plain` ACCENT frame. Geometry is identical boxed or not, so moving focus
+/// never shifts the layout and dial art stays the same size.
+fn knob_cell(f: &mut Frame, area: Rect, focused: bool) -> Rect {
+    if area.height < 3 || area.width < 3 {
+        return area; // too squeezed for a frame: content full-bleed
+    }
+    if focused {
+        let block = Block::default()
+            .borders(Borders::ALL)
+            .border_type(BorderType::Plain)
+            .border_style(Style::default().fg(ACCENT).add_modifier(Modifier::BOLD))
+            .style(Style::default().bg(Color::Black));
+        let inner = block.inner(area);
+        f.render_widget(block, area);
+        inner
+    } else {
+        Rect::new(
+            area.x.saturating_add(1),
+            area.y.saturating_add(1),
+            area.width.saturating_sub(2),
+            area.height.saturating_sub(2),
+        )
+    }
+}
+
 #[allow(clippy::too_many_arguments)]
 fn render_compact_knob(
     f: &mut Frame,
@@ -939,6 +1141,8 @@ fn render_compact_knob(
     } else {
         Modifier::empty()
     };
+    // Reserved border footprint + focused-only box (see `knob_cell`).
+    let area = knob_cell(f, area, focused);
     let rows = Layout::default()
         .direction(Direction::Vertical)
         .constraints([Constraint::Min(2), Constraint::Length(1)])
@@ -1021,6 +1225,8 @@ fn render_compact_fader(
     } else {
         Modifier::empty()
     };
+    // Reserved border footprint + focused-only box (see `knob_cell`).
+    let area = knob_cell(f, area, focused);
     let rows = Layout::default()
         .direction(Direction::Vertical)
         .constraints([Constraint::Min(2), Constraint::Length(1)])
@@ -1455,6 +1661,73 @@ mod tests {
             out.push('\n');
         }
         out
+    }
+
+    /// Render one knob cell into a scratch area and return its glyphs.
+    fn knob_text(focused: bool) -> String {
+        let mut term = Terminal::new(TestBackend::new(24, 8)).expect("test backend");
+        term.draw(|f| {
+            render_compact_knob(f, f.area(), "GAIN", 0.5, focused, true, AMBER, false);
+        })
+        .expect("draw");
+        screen_text(&term)
+    }
+
+    /// The focused knob alone draws a box (Plain corners); an unfocused knob
+    /// renders the same content with blank padding and no box.
+    #[test]
+    fn focused_knob_gets_a_border_box() {
+        let on = knob_text(true);
+        assert!(
+            on.contains('┌') && on.contains('┐') && on.contains('└') && on.contains('┘'),
+            "focused knob draws no box:\n{on}"
+        );
+        assert!(on.contains("GAIN"), "focused knob lost its label");
+        let off = knob_text(false);
+        assert!(
+            !off.contains('┌') && !off.contains('└'),
+            "unfocused knob draws a box:\n{off}"
+        );
+        assert!(off.contains("GAIN"), "unfocused knob lost its label");
+    }
+
+    /// Flatten a [`Line`] to plain text for glyph assertions.
+    fn line_text(line: Line<'_>) -> String {
+        line.spans.iter().map(|s| s.content.as_ref()).collect()
+    }
+
+    /// The editor top edge is a full rule without a notch, and a gapped rule
+    /// with `┘`/`└` joints exactly under the focused tile's span with one.
+    /// (The rule row lives inside the side borders, so its ends join them
+    /// with `├`/`┤`.)
+    #[test]
+    fn editor_top_edge_notches_under_the_focused_tile() {
+        use ratatui::layout::Rect;
+        // Rule row 20 wide: gap is a rule-local (lo, hi) interval.
+        let rule = Rect::new(30, 0, 20, 1);
+        // No notch: full rule joining both sides.
+        assert_eq!(
+            line_text(editor_top_edge(rule, None, ACCENT)),
+            "├──────────────────┤"
+        );
+        // Gap at columns 5..13: joints meet the tile sides.
+        assert_eq!(
+            line_text(editor_top_edge(rule, Some((5, 13)), ACCENT)),
+            "├────┘      └──────┤"
+        );
+        // Gap flush with an edge drops that join; degenerate gaps fall back.
+        assert_eq!(
+            line_text(editor_top_edge(rule, Some((0, 4)), ACCENT)),
+            "   └───────────────┤"
+        );
+        assert_eq!(
+            line_text(editor_top_edge(rule, Some((40, 44)), ACCENT)),
+            "├──────────────────┤"
+        );
+        assert_eq!(
+            line_text(editor_top_edge(rule, Some((5, 5)), ACCENT)),
+            "├──────────────────┤"
+        );
     }
 
     /// Render the main screen with the given board/focus and return its glyphs.
