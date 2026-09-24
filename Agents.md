@@ -34,6 +34,13 @@ Guitar input
 
 Every bypassable stage can be toggled independently with `Space`.
 
+**Monitor-only buses.** The practice metronome and the practice player (backing
+track + recorded take) are summed into the output **after** the recording tap (see
+`audio/mod.rs`), so none of them is ever captured in a rendered WAV. The practice
+player reads two pre-decoded stereo tracks against a shared timeline cursor with a
+loop region; decoded buffers are installed lock-free and displaced buffers are
+disposed of on the control thread.
+
 ### Key modules to know
 
 | Area | What it does |
@@ -41,8 +48,9 @@ Every bypassable stage can be toggled independently with `Space`.
 | Audio engine | Real-time processing loop — latency-sensitive, no allocations on the hot path |
 | Amp models | Three distinct DSP paths (tube soft-clip, silicon clip, solid-state rail-clip) with per-model tone stacks and rectifier sag simulation |
 | Cabinet sim | Multi-stage biquad EQ chains that model close-mic'd 4×12 responses |
-| TUI | ratatui-based UI: selector row (amp + cabinet), pedals row, amp/FX row, VU meters, preset browser overlay |
+| TUI | ratatui-based UI: selector row (amp + cabinet), pedals row, amp/FX row, VU meters, practice timeline pane, preset browser overlay; the pedalboard, amp panel, and timeline can be shown/hidden with `1`/`2`/`3` |
 | Preset system | TOML files loaded from `./presets/` and `~/.config/rusty-amp/presets/` |
+| Practice / jam-along | `src/practice.rs` (shared transport + offline decode via symphonia), `src/dsp/player.rs` (audio-thread `PlayerVoice`), `src/ui/practice.rs` (timeline pane + track browser), `src/dsp/resample.rs` (shared windowed-sinc resampler) |
 | Docs website | `site/` — Markdown + inline HTML rendered by Eleventy, published to GitHub Pages |
 
 ---
@@ -106,3 +114,4 @@ authoring conventions.
 - **Biquad state must be preserved across buffer boundaries.** Filter state lives outside the processing loop and is passed in by reference each call.
 - **Knob values are normalized 0.0–1.0 internally.** The TUI displays them as 0–10; conversion happens at the UI layer.
 - **Rectifier sag is stateful.** The sag envelope has attack and release times that differ per amp model; do not reset this state on model switch unless explicitly tested.
+- **Practice tracks are never freed on the audio thread.** Decode/resample offline on the control thread, hand the finished track over through an `rtrb` ring, and ship any displaced track back for disposal (the same discipline as plugin inserts and external IRs). The transport is a per-callback `Transport` snapshot of relaxed atomics.

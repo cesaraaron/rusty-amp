@@ -31,7 +31,10 @@ impl RecordingState {
         self.active.store(true, Relaxed);
     }
 
-    pub fn stop_and_save(&self) -> Result<PathBuf> {
+    /// Stop recording and hand back the captured interleaved stereo samples
+    /// (L, R) at the engine rate, without writing a file. The caller can save them
+    /// and/or place them on the practice timeline.
+    pub fn stop_take(&self) -> Result<(Vec<f32>, u32)> {
         self.active.store(false, Relaxed);
         let samples = self
             .buffer
@@ -39,11 +42,17 @@ impl RecordingState {
             .map_err(|_| anyhow!("recording buffer lock poisoned"))
             .map(|mut g| std::mem::take(&mut *g))?;
         let sr = self.sample_rate.load(Relaxed);
+        Ok((samples, sr))
+    }
+
+    pub fn stop_and_save(&self) -> Result<PathBuf> {
+        let (samples, sr) = self.stop_take()?;
         save_wav(&samples, sr)
     }
 }
 
-fn save_wav(samples: &[f32], sample_rate: u32) -> Result<PathBuf> {
+/// Write interleaved stereo `samples` to `~/rusty-amp-<unix>.wav` at `sample_rate`.
+pub fn save_wav(samples: &[f32], sample_rate: u32) -> Result<PathBuf> {
     let base = dirs::home_dir().unwrap_or_else(|| PathBuf::from("."));
     let secs = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)

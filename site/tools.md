@@ -10,6 +10,7 @@ lead: "Built-in utilities you can reach at any time — a chromatic tuner that m
 toc:
   - { href: "#tuner", label: "Tuner" }
   - { href: "#metronome", label: "Metronome" }
+  - { href: "#practice", label: "Practice / jam-along" }
   - { href: "#recording", label: "Recording" }
 prev: { href: "plugins.html", label: "CLAP plugins" }
 next: { href: "how-it-works.html", label: "How it works (under the hood)" }
@@ -57,6 +58,32 @@ The metronome keeps ticking after you close the modal, so you can dial in a temp
 <div class="note note--info">
 <b>Never on the tape.</b> The click is mixed into the monitor output <em>after</em> the recording tap, so an active metronome is <b>never captured</b> in your WAV — you can practise to the beat and record a clean take at the same time.
 </div>
+
+## Practice / jam-along <span class="muted">(<kbd>B</kbd>)</span> {#practice}
+
+Play along with a backing track and loop the hard bits. Press <kbd>B</kbd> to open the **Practice tracks** browser and pick an audio file — **MP3, WAV, or FLAC** — from `~/Music`, `~/Desktop`, the current directory, `$RUSTY_AMP_PRACTICE_DIR`, or a path you type in. The file is decoded and resampled to your interface's rate off the audio thread, so the TUI never stalls.
+
+The **practice timeline** is the horizontal pane under the amp panel. It shows a transport line and one line per track, with a mini waveform and the playhead:
+
+- **Transport** — press <kbd>Tab</kbd> to focus the timeline, then <kbd>↑</kbd>/<kbd>↓</kbd> to pick the transport, <kbd>Space</kbd> to play/pause, and <kbd>←</kbd>/<kbd>→</kbd> to seek ±5&nbsp;s.
+- **Loop a section** — park the playhead and press <kbd>[</kbd> for the in-point and <kbd>]</kbd> for the out-point; <kbd>L</kbd> toggles looping. The loop region is shaded on the timeline.
+- **Mute a track** — select the backing or take line and press <kbd>Space</kbd> (the LED turns hollow).
+- **Delete a track** — select it and press <kbd>Delete</kbd>/<kbd>Backspace</kbd>.
+- **Your take** — press <kbd>R</kbd> to record; when you stop, the take is saved as a WAV **and** dropped onto the timeline, aligned to where the backing was when you started.
+
+<div class="note note--info">
+<b>Monitor-only, like the metronome.</b> The backing track and your take are mixed into your monitor <em>after</em> the recording tap, so they are <b>never captured</b> in a new WAV — you always record just your guitar.
+</div>
+
+### Hiding panels {#panels}
+
+The board takes a lot of room. Toggle the three big panels at any time:
+
+- <kbd>1</kbd> — the guitar **pedalboard**
+- <kbd>2</kbd> — the **amp &amp; cabinet** panel
+- <kbd>3</kbd> — the **practice timeline**
+
+Hidden panels are skipped by <kbd>Tab</kbd> and give their space back to the rest of the rig. The choice lasts for the session.
 
 ## Recording <span class="muted">(<kbd>R</kbd>)</span> {#recording}
 

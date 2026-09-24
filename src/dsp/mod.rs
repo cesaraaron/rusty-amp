@@ -5,10 +5,13 @@ pub mod conv;
 pub mod effects;
 pub mod metronome;
 pub mod oversample;
+pub mod player;
+pub mod resample;
 pub mod tonestack;
 pub mod tuner;
 
 pub use metronome::{Metronome, MetronomeVoice};
+pub use player::{PlayerTrack, PlayerVoice, Transport};
 pub use tuner::Tuner;
 
 use atomic_float::AtomicF32;

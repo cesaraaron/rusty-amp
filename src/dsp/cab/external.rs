@@ -27,6 +27,7 @@ use anyhow::{Context, Result, anyhow};
 use super::ir::FADE_START_FRAC;
 use super::{Cabinet, SpeakerDrive};
 use crate::dsp::conv::FftConvolver;
+use crate::dsp::resample::resample;
 
 /// Longest IR, in taps per channel, kept after conditioning. Guitar-cab IRs are
 /// typically 512–2048 taps; anything longer is truncated (with a raised-cosine tail
@@ -162,54 +163,6 @@ fn normalize_pair(l: &mut [f32], r: &mut [f32]) {
             *v *= g;
         }
     }
-}
-
-/// Offline windowed-sinc resampler. Used once per channel when an IR's sample rate
-/// differs from the engine's; never on the audio thread. For downsampling the
-/// cutoff and kernel width scale with `ratio` to suppress aliasing.
-fn resample(x: &[f32], ratio: f32) -> Vec<f32> {
-    if (ratio - 1.0).abs() < 1e-6 || x.is_empty() {
-        return x.to_vec();
-    }
-    const LOBES: f32 = 16.0; // sinc lobes each side at unity ratio
-    let down = ratio < 1.0;
-    let cutoff = ratio.min(1.0); // < 1 when downsampling: lowers the anti-alias band
-    let half = if down { LOBES / ratio } else { LOBES };
-
-    let out_len = ((x.len() as f32) * ratio).round() as usize;
-    let mut out = vec![0.0f32; out_len.max(1)];
-    for (m, o) in out.iter_mut().enumerate() {
-        let center = m as f32 / ratio; // position in input samples
-        let i0 = (center - half).floor() as isize;
-        let i1 = (center + half).ceil() as isize;
-        let (mut acc, mut wsum) = (0.0f32, 0.0f32);
-        for i in i0..=i1 {
-            if i < 0 || i as usize >= x.len() {
-                continue;
-            }
-            let t = center - i as f32;
-            let w = sinc(t * cutoff) * cutoff * lanczos(t, half);
-            acc += w * x[i as usize];
-            wsum += w;
-        }
-        *o = if wsum.abs() > 1e-9 { acc / wsum } else { 0.0 };
-    }
-    out
-}
-
-#[inline]
-fn sinc(x: f32) -> f32 {
-    if x.abs() < 1e-6 {
-        1.0
-    } else {
-        let px = PI * x;
-        px.sin() / px
-    }
-}
-
-#[inline]
-fn lanczos(t: f32, half: f32) -> f32 {
-    if t.abs() >= half { 0.0 } else { sinc(t / half) }
 }
 
 /// A cabinet driven by a loaded `.wav` impulse response: [`SpeakerDrive`] on the

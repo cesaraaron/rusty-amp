@@ -9,8 +9,10 @@ use std::sync::atomic::Ordering::Relaxed;
 
 use crate::dsp::cab::ExternalIrCab;
 use crate::dsp::metronome::{Metronome, MetronomeVoice};
+use crate::dsp::player::{PlayerTrack, PlayerVoice};
 use crate::dsp::tuner::{Tuner, TunerDetector};
 use crate::dsp::{DspChain, Levels, Params, StereoInsert};
+use crate::practice::Practice;
 use crate::recording::RecordingState;
 
 /// A swappable plugin insert handed to the audio thread (`Some` to install, `None`
@@ -86,6 +88,14 @@ pub struct AudioEngine {
     ext_amp_tx: Producer<ExtAmpCommand>,
     /// Receives external amps the audio thread displaced, for off-thread disposal.
     ext_amp_dropped_rx: Consumer<Box<dyn StereoInsert>>,
+    /// Sends practice backing-track swaps to the audio thread.
+    backing_tx: Producer<Option<PlayerTrack>>,
+    /// Receives backing tracks the audio thread displaced, for off-thread disposal.
+    backing_dropped_rx: Consumer<PlayerTrack>,
+    /// Sends practice take-track swaps to the audio thread.
+    record_tx: Producer<Option<PlayerTrack>>,
+    /// Receives take tracks the audio thread displaced, for off-thread disposal.
+    record_dropped_rx: Consumer<PlayerTrack>,
 }
 
 impl AudioEngine {
@@ -137,6 +147,32 @@ impl AudioEngine {
         self.ext_amp_tx
             .push(amp)
             .map_err(|_| anyhow!("external-amp command queue is full"))
+    }
+
+    /// Install (`Some`) or clear (`None`) the practice backing track.
+    ///
+    /// Decode and rate-match the file first (see [`crate::practice::decode_track`]) —
+    /// that work is offline; this call only hands the finished buffers to the audio
+    /// thread lock-free. The displaced track is disposed of here, on the caller's
+    /// thread, so its sample buffer is never freed in the realtime callback.
+    pub fn set_backing_track(&mut self, track: Option<PlayerTrack>) -> Result<()> {
+        while let Ok(old) = self.backing_dropped_rx.pop() {
+            drop(old);
+        }
+        self.backing_tx
+            .push(track)
+            .map_err(|_| anyhow!("backing-track command queue is full"))
+    }
+
+    /// Install (`Some`) or clear (`None`) the practice take track. Same contract as
+    /// [`Self::set_backing_track`].
+    pub fn set_record_track(&mut self, track: Option<PlayerTrack>) -> Result<()> {
+        while let Ok(old) = self.record_dropped_rx.pop() {
+            drop(old);
+        }
+        self.record_tx
+            .push(track)
+            .map_err(|_| anyhow!("record-track command queue is full"))
     }
 }
 
@@ -300,6 +336,7 @@ pub fn start(
     recording: Arc<RecordingState>,
     tuner: Arc<Tuner>,
     metronome: Arc<Metronome>,
+    practice: Arc<Practice>,
 ) -> Result<AudioEngine> {
     let host = cpal::default_host();
 
@@ -356,6 +393,7 @@ pub fn start(
         Arc::clone(&recording),
         Arc::clone(&tuner),
         Arc::clone(&metronome),
+        Arc::clone(&practice),
     ) {
         Ok(engine) => Ok(engine),
         Err(err) => {
@@ -378,6 +416,7 @@ pub fn start(
                 recording,
                 tuner,
                 metronome,
+                practice,
             )
         }
     }
@@ -450,6 +489,7 @@ fn build_engine(
     recording: Arc<RecordingState>,
     tuner: Arc<Tuner>,
     metronome: Arc<Metronome>,
+    practice: Arc<Practice>,
 ) -> Result<AudioEngine> {
     recording.sample_rate.store(sr as u32, Relaxed);
 
@@ -466,6 +506,10 @@ fn build_engine(
     // added *after* the recording tap so it is never captured in the WAV.
     let mut metro_voice = MetronomeVoice::new(sr);
 
+    // Practice player: backing track + recorded take, both mixed into the monitor
+    // output only (post-record), like the metronome.
+    let mut player = PlayerVoice::new();
+
     // Lock-free handoff for swapping the plugin insert in/out without touching the
     // running stream: commands flow UI → audio, displaced inserts flow back to be
     // dropped off the audio thread.
@@ -477,6 +521,14 @@ fn build_engine(
     let (ext_amp_tx, mut ext_amp_rx) = RingBuffer::<ExtAmpCommand>::new(INSERT_QUEUE_CAP);
     let (mut ext_amp_dropped_tx, ext_amp_dropped_rx) =
         RingBuffer::<Box<dyn StereoInsert>>::new(INSERT_QUEUE_CAP);
+    // Practice-track handoff: decoded tracks flow UI → audio, displaced tracks flow
+    // back to the control thread so their buffers are never freed in the callback.
+    let (backing_tx, mut backing_rx) = RingBuffer::<Option<PlayerTrack>>::new(INSERT_QUEUE_CAP);
+    let (mut backing_dropped_tx, backing_dropped_rx) =
+        RingBuffer::<PlayerTrack>::new(INSERT_QUEUE_CAP);
+    let (record_tx, mut record_rx) = RingBuffer::<Option<PlayerTrack>>::new(INSERT_QUEUE_CAP);
+    let (mut record_dropped_tx, record_dropped_rx) =
+        RingBuffer::<PlayerTrack>::new(INSERT_QUEUE_CAP);
 
     let attack = 1.0 - (-1.0 / (0.001 * sr)).exp();
     let release = 1.0 - (-1.0 / (0.300 * sr)).exp();
@@ -513,6 +565,18 @@ fn build_engine(
                     let _ = ext_amp_dropped_tx.push(old);
                 }
             }
+            // Practice backing/take tracks: install the decoded buffers, ship the
+            // displaced ones back for off-thread disposal.
+            while let Ok(cmd) = backing_rx.pop() {
+                if let Some(old) = player.set_backing(cmd) {
+                    let _ = backing_dropped_tx.push(old);
+                }
+            }
+            while let Ok(cmd) = record_rx.pop() {
+                if let Some(old) = player.set_record(cmd) {
+                    let _ = record_dropped_tx.push(old);
+                }
+            }
 
             let frames = data.len() / in_channels;
             if out_l.len() < frames {
@@ -544,6 +608,10 @@ fn build_engine(
             let metro_active = metronome.active.load(Relaxed);
             let metro_bpm = metronome.bpm.load(Relaxed);
 
+            // One transport snapshot per block (and any pending seek applied here).
+            let transport = practice.snapshot();
+            player.begin(&transport);
+
             for ((&sample, &l), &r) in in_buf.iter().zip(out_l.iter()).zip(out_r.iter()) {
                 let a = sample.abs();
                 in_env += if a > in_env { attack } else { release } * (a - in_env);
@@ -562,10 +630,12 @@ fn build_engine(
                     buf.push(r);
                 }
 
-                // Metronome click is mixed into the monitor path only (post-record).
+                // Metronome click and the practice player are mixed into the monitor
+                // path only (post-record), so neither ever lands in the WAV.
                 let click = metro_voice.next_sample(metro_active, metro_bpm);
-                let (out_left, out_right) = (l + click, r + click);
-                let out_mono = mono + click;
+                let (pl, pr) = player.next_frame(&transport);
+                let (out_left, out_right) = (l + click + pl, r + click + pr);
+                let out_mono = mono + click + 0.5 * (pl + pr);
 
                 // Fan the stereo pair out to the device channels: L→0, R→1,
                 // any extra channels get the mono sum; a mono device gets the sum.
@@ -582,6 +652,9 @@ fn build_engine(
                     let _ = producer.push(s);
                 }
             }
+            // Publish the timeline cursor for the UI. Stored after the loop so a
+            // block's worth of playback shows as one position.
+            practice.store_position(player.cursor());
             levels.input.store(in_env, Relaxed);
             levels.output.store(out_env, Relaxed);
         },
@@ -613,5 +686,9 @@ fn build_engine(
         ext_dropped_rx,
         ext_amp_tx,
         ext_amp_dropped_rx,
+        backing_tx,
+        backing_dropped_rx,
+        record_tx,
+        record_dropped_rx,
     })
 }

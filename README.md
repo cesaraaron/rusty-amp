@@ -36,6 +36,8 @@ On top of that sit complex effects which add width and depth to sound. All of it
 - 🎚️ **AU amp host (macOS)** — load an Audio Unit amp sim (e.g. a Marshall plugin) as an amp-position override, either amp+cab or amp-only (keeping the built-in cab/IR), with unit-aware params and latency-aligned
 - 🎵 **Built-in tuner** — a chromatic tuner with a ±cents needle and a live note spectrum
 - 🥁 **Practice metronome** — an adjustable-tempo click you hear while playing but that never bleeds into your recordings
+- 🎼 **Jam-along timeline** — load an MP3/WAV/FLAC backing track, loop a section to drill it, and drop your recorded take onto the timeline; the tracks stay out of your recordings
+- 🪟 **Toggleable panels** — show or hide the pedalboard, the amp & cabinet panel, and the timeline with `1`/`2`/`3`
 - ⏺️ **One-key recording** straight to a stereo WAV file
 - 🖥️ **Cross-platform** — runs on macOS, Windows, and Linux
 

@@ -8,10 +8,13 @@ use ratatui::{
 use std::sync::atomic::Ordering::Relaxed;
 
 use crate::dsp::{AmpModel, CabModel, Levels, Params};
+use crate::practice::Practice;
 
 use super::config::{
-    ADD_TILE, AMP_END, AMP_START, KNOBS, MIC_END, MIC_START, PEDALS, Pedal, PedalUi,
+    ADD_TILE, AMP_END, AMP_START, KNOBS, MIC_END, MIC_START, PEDALS, PRACTICE_TILE, Panels, Pedal,
+    PedalUi,
 };
+use super::practice::PracticeUi;
 use super::styles::*;
 
 #[allow(clippy::too_many_arguments)]
@@ -27,6 +30,8 @@ pub(super) fn draw(
     plugin: Option<&str>,
     ext_cab: Option<&str>,
     ext_amp: Option<&str>,
+    panels: Panels,
+    timeline: Option<(&Practice, &PracticeUi)>,
 ) {
     let area = f.area();
 
@@ -38,27 +43,59 @@ pub(super) fn draw(
     let inner = outer.inner(area);
     f.render_widget(outer, area);
 
+    // Build the vertical layout from the visible panels. Rows are tracked by index
+    // so a hidden panel simply contributes no constraint and no render call.
+    let show_timeline = panels.timeline && timeline.is_some();
+    let mut cons: Vec<Constraint> = vec![
+        Constraint::Length(3), // header
+        Constraint::Length(3), // meters
+    ];
+    if panels.amp {
+        cons.push(Constraint::Length(3)); // amp / cab selector
+        cons.push(Constraint::Length(7)); // amplifier + cabinet/mic
+    }
+    if show_timeline {
+        // Compact when the board is also shown; grows to fill when it is hidden.
+        cons.push(if panels.rig {
+            Constraint::Length(6)
+        } else {
+            Constraint::Min(6)
+        });
+    }
+    if panels.rig {
+        cons.push(Constraint::Min(0)); // guitar rig
+    }
+    cons.push(Constraint::Length(3)); // help
+
     let rows = Layout::default()
         .direction(Direction::Vertical)
-        .constraints([
-            Constraint::Length(3), // header
-            Constraint::Length(3), // meters
-            Constraint::Length(3), // amp / cab selector
-            Constraint::Length(7), // amplifier + cabinet/mic
-            Constraint::Min(0),    // guitar rig
-            Constraint::Length(2), // help (two rows — one line overflows once every
-                                   // hint, including the optional plugin ones, is on)
-        ])
+        .constraints(cons)
         .split(inner);
 
+    let mut i = 0usize;
     render_header(
-        f, rows[0], params, recording, blink, plugin, ext_cab, ext_amp,
+        f, rows[i], params, recording, blink, plugin, ext_cab, ext_amp,
     );
-    render_meters(f, rows[1], levels);
-    render_amp_selector(f, rows[2], params, focus.is_none());
-    render_amp(f, rows[3], params, focus, ext_cab, ext_amp);
-    render_rig(f, rows[4], params, board, focus);
-    render_help(f, rows[5], status);
+    i += 1;
+    render_meters(f, rows[i], levels);
+    i += 1;
+    if panels.amp {
+        render_amp_selector(f, rows[i], params, focus.is_none());
+        i += 1;
+        render_amp(f, rows[i], params, focus, ext_cab, ext_amp);
+        i += 1;
+    }
+    if show_timeline {
+        if let Some((practice, ui)) = timeline {
+            ui.render(f, rows[i], practice, focus == Some(PRACTICE_TILE), blink);
+        }
+        i += 1;
+    }
+    if panels.rig {
+        render_rig(f, rows[i], params, board, focus);
+        i += 1;
+    }
+    render_help(f, rows[i], status);
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -1188,7 +1225,19 @@ fn render_help(f: &mut Frame, area: Rect, status: Option<&str>) {
     row2.push(Span::styled("Q", Style::default().fg(AMBER)));
     row2.push(Span::styled(" quit", Style::default().fg(DIM)));
 
-    let help = Paragraph::new(vec![row1, Line::from(row2)])
+    // Third row: practice and panel visibility.
+    let row3 = Line::from(vec![
+        Span::styled("B", Style::default().fg(AMBER)),
+        Span::styled(" backing  ", Style::default().fg(DIM)),
+        Span::styled("1", Style::default().fg(AMBER)),
+        Span::styled(" board  ", Style::default().fg(DIM)),
+        Span::styled("2", Style::default().fg(AMBER)),
+        Span::styled(" amp  ", Style::default().fg(DIM)),
+        Span::styled("3", Style::default().fg(AMBER)),
+        Span::styled(" timeline", Style::default().fg(DIM)),
+    ]);
+
+    let help = Paragraph::new(vec![row1, Line::from(row2), row3])
         .alignment(Alignment::Center)
         .style(Style::default().bg(Color::Black));
     f.render_widget(help, area);
@@ -1438,7 +1487,19 @@ mod tests {
         let mut term = Terminal::new(TestBackend::new(W, H)).expect("test backend");
         term.draw(|f| {
             draw(
-                f, params, &levels, focus, board, false, false, None, None, None, None,
+                f,
+                params,
+                &levels,
+                focus,
+                board,
+                false,
+                false,
+                None,
+                None,
+                None,
+                None,
+                Panels::all_visible(),
+                None,
             );
             overlay(f);
         })
@@ -1509,6 +1570,8 @@ mod tests {
                     None,
                     None,
                     None,
+                    Panels::all_visible(),
+                    None,
                 );
             })
             .expect("draw");
@@ -1568,6 +1631,8 @@ mod tests {
                     None,
                     None,
                     None,
+                    Panels::all_visible(),
+                    None,
                 );
             })
             .expect("draw");
@@ -1603,6 +1668,8 @@ mod tests {
                 None,
                 None,
                 Some("Silver Jubilee"),
+                Panels::all_visible(),
+                None,
             );
         })
         .expect("draw");
@@ -1646,6 +1713,8 @@ mod tests {
                     None,
                     None,
                     None,
+                    Panels::all_visible(),
+                    None,
                 );
             })
             .expect("draw");
@@ -1668,7 +1737,19 @@ mod tests {
         let mut term = Terminal::new(TestBackend::new(W, H)).expect("test backend");
         term.draw(|f| {
             draw(
-                f, &params, &levels, None, &board, false, false, None, None, None, None,
+                f,
+                &params,
+                &levels,
+                None,
+                &board,
+                false,
+                false,
+                None,
+                None,
+                None,
+                None,
+                Panels::all_visible(),
+                None,
             );
             render_add_pedal_modal(f, &available, 0);
         })
@@ -1782,6 +1863,56 @@ mod tests {
         assert!(
             text.contains("External amp active"),
             "IR browser should warn while an external amp is active"
+        );
+    }
+
+    /// Render the main screen with an (empty) practice timeline, for the given panel
+    /// visibility, and return its glyphs.
+    fn render_with_practice(panels: Panels) -> String {
+        let params = Params::new();
+        let levels = Levels::new();
+        let practice = crate::practice::Practice::new();
+        let ui = crate::ui::practice::PracticeUi::new(48_000.0);
+        let mut term = Terminal::new(TestBackend::new(W, H)).expect("test backend");
+        term.draw(|f| {
+            draw(
+                f,
+                &params,
+                &levels,
+                None,
+                &board_all(false),
+                false,
+                false,
+                None,
+                None,
+                None,
+                None,
+                panels,
+                Some((&practice, &ui)),
+            );
+        })
+        .expect("draw");
+        screen_text(&term)
+    }
+
+    /// The practice timeline pane renders its empty state (no track loaded) and is
+    /// left out entirely when the panel is hidden with `3`.
+    #[test]
+    fn practice_pane_renders_and_hides() {
+        let shown = render_with_practice(Panels::all_visible());
+        assert!(
+            shown.contains("P R A C T I C E"),
+            "practice pane missing when shown"
+        );
+        insta::assert_snapshot!("practice_pane", shown);
+
+        let hidden = render_with_practice(Panels {
+            timeline: false,
+            ..Panels::all_visible()
+        });
+        assert!(
+            !hidden.contains("P R A C T I C E"),
+            "practice pane still drawn while hidden"
         );
     }
 }

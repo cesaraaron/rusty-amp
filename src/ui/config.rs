@@ -567,6 +567,40 @@ pub(super) const PEDALS: &[Pedal] = &[
 // a real knob index, so any code that indexes `KNOBS` must guard against it.
 pub(super) const ADD_TILE: usize = KNOBS.len();
 
+// Sentinel focus value for the practice timeline pane. Like `ADD_TILE`, it is not
+// a real knob index, so any code that indexes `KNOBS` must guard against it.
+pub(super) const PRACTICE_TILE: usize = KNOBS.len() + 1;
+
+/// Which top-level panels the user has chosen to show. Toggled live with the
+/// `1` / `2` / `3` keys. Hidden panels are skipped by focus navigation (like
+/// off-board pedals) and left out of the layout so their space is reclaimed.
+#[derive(Clone, Copy)]
+pub(super) struct Panels {
+    /// Amp & cabinet panel (the selector row plus the amp/mic knob panel).
+    pub amp: bool,
+    /// Guitar pedalboard.
+    pub rig: bool,
+    /// Practice timeline.
+    pub timeline: bool,
+}
+
+impl Panels {
+    /// Every panel visible — the startup state (session-only; not persisted).
+    pub(super) const fn all_visible() -> Self {
+        Self {
+            amp: true,
+            rig: true,
+            timeline: true,
+        }
+    }
+}
+
+impl Default for Panels {
+    fn default() -> Self {
+        Self::all_visible()
+    }
+}
+
 /// Index into `PEDALS` owning the given knob, or `None` for amp/mic knobs.
 pub(super) fn pedal_of(knob: usize) -> Option<usize> {
     PEDALS.iter().position(|p| (p.start..p.end).contains(&knob))

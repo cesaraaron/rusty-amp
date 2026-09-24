@@ -100,7 +100,7 @@ The preset is written to `~/.config/rusty-amp/presets/<name>.toml` and appears i
 | `eagles_hotel_california_solo.toml` | Marshall JCM800 | Marshall Greenback | Hotel California solo — TS boost, vocal mids, singing sustain, delay + hall |
 | `pink_floyd_comfortably_numb_solo_1.toml` | Hiwatt DR103 | WEM (Fane) | Comfortably Numb first solo — light Big Muff, Dyna-Comp, Mistress shimmer, long Echorec |
 | `pink_floyd_comfortably_numb_solo_2.toml` | Hiwatt DR103 | WEM (Fane) | Comfortably Numb outro — thick Big Muff, Electric Mistress swirl, big hall |
-| `pink_floyd_time_chorus.toml` | Hiwatt DR103 | WEM (Fane) | Dark Side "Time" intro/verse/chorus — clean-ish Hiwatt, Fuzz Face fur, Uni-Vibe, dotted-eighth Echorec |
+| `pink_floyd_time_chorus.toml` | Hiwatt DR103 | WEM (Fane) | Dark Side "Time" intro/verse/chorus — clean, dry Hiwatt, whisper of Uni-Vibe, low dotted-eighth Echorec (no fuzz or compression) |
 | `pink_floyd_time_solo.toml` | Hiwatt DR103 | WEM (Fane) | Dark Side "Time" solo — Fuzz Face bite, Uni-Vibe swirl, Echorec delay |
 | `led_zeppelin_stairway_solo.toml` | Marshall JCM800 | Marshall Greenback | Stairway solo — cranked-amp crunch, bright mids, Echoplex slap |
 

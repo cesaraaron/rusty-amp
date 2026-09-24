@@ -212,6 +212,10 @@ Every block below is processed per sample. Bracketed stages are `[bypassable]` �
 
 For the per-knob behaviour of each pedal, see [Pedals & effects](pedals.html).
 
+<div class="note note--info">
+<b>Monitor-only taps.</b> The practice <b>metronome</b> click and the practice player — your <b>backing track</b> and <b>take playback</b> — are summed into the signal that reaches your speakers <em>after</em> the recording tap, so none of them is ever written into a recorded WAV. The player runs two pre-decoded stereo tracks against one shared timeline cursor with a loop region, all decoded and resampled off the audio thread.
+</div>
+
 ## The amp stages {#amp}
 
 All five amps share an **8× oversampled** nonlinear core with a linear-phase polyphase-FIR anti-alias filter, plus a dynamic grid-bias "bloom" that makes the gain respond to how hard you play. Beyond that, each model diverges:

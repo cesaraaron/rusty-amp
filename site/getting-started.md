@@ -104,11 +104,15 @@ The app launches immediately with default values. Press <kbd>P</kbd> at any time
 | <kbd>M</kbd> | Open the [metronome](tools.html#metronome) — an adjustable click that plays along but stays out of recordings |
 | <kbd>V</kbd> | Open the CLAP [plugin browser](plugins.html) |
 | <kbd>S</kbd> | Save the current state as a new user preset |
-| <kbd>R</kbd> | Start / stop [recording](tools.html#recording) — saves a WAV file to your home directory when stopped |
+| <kbd>R</kbd> | Start / stop [recording](tools.html#recording) — saves a WAV file to your home directory and drops the take on the [practice timeline](tools.html#practice) when stopped |
+| <kbd>B</kbd> | Open the **Practice tracks** browser to load a backing track (MP3 / WAV / FLAC) or a take |
+| <kbd>1</kbd> | Show / hide the **pedalboard** |
+| <kbd>2</kbd> | Show / hide the **amp &amp; cabinet** panel |
+| <kbd>3</kbd> | Show / hide the **practice timeline** |
 | <kbd>O</kbd> | Change the audio input/output devices — reopens the device picker and restarts the engine |
 | <kbd>Q</kbd> / <kbd>Ctrl-C</kbd> | Quit |
 
-Focus starts on the **selector row** (amp + cabinet). <kbd>Tab</kbd> moves down through the amp, cabinet mics, each pedal on the board, and finally the `+ ADD` tile. See [the pedalboard](pedals.html#board) for add/remove details, and [Presets](presets.html) for the browser and save dialog.
+Focus starts on the **selector row** (amp + cabinet). <kbd>Tab</kbd> moves down through the amp, cabinet mics, each pedal on the board, the `+ ADD` tile, and the [practice timeline](tools.html#practice). See [the pedalboard](pedals.html#board) for add/remove details, and [Presets](presets.html) for the browser and save dialog.
 
 <div class="note note--info">
 Looking for the <b>chromatic tuner</b> (<kbd>T</kbd>), the <b>metronome</b> (<kbd>M</kbd>), or <b>one-key recording</b> (<kbd>R</kbd>)? They have their own page — see <a href="tools.html">Tools</a>.

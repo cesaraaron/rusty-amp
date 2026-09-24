@@ -69,6 +69,8 @@ pub fn run(
                 None,
                 None,
                 None,
+                super::config::Panels::all_visible(),
+                None,
             );
             match step_ref {
                 Step::InputDevice { cursor } => {

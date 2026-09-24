@@ -7,6 +7,7 @@ mod ir_browser;
 mod metronome;
 #[cfg(feature = "clap")]
 mod plugins;
+mod practice;
 mod presets;
 mod setup;
 mod styles;
@@ -23,15 +24,17 @@ use crossterm::{
 };
 
 use crate::dsp::{Levels, Metronome, Params, Tuner};
+use crate::practice::Practice;
 use crate::preset::Preset;
-use crate::recording::RecordingState;
+use crate::recording::{RecordingState, save_wav};
 
-use config::{ADD_TILE, PEDALS, pedal_of};
+use config::{ADD_TILE, PEDALS, PRACTICE_TILE, Panels, pedal_of};
 use draw::{draw, render_add_pedal_modal};
 use input::{
-    add_pedal, cycle_amp, cycle_cab, nav_knob, next_section, nudge, prev_section, remove_pedal,
-    toggle_pedal,
+    add_pedal, cycle_amp, cycle_cab, ensure_focus_visible, nav_knob, next_section, nudge,
+    prev_section, remove_pedal, toggle_pedal,
 };
+use practice::PracticeUi;
 use presets::{render_preset_modal, render_save_dialog};
 
 /// Board membership derived from the live enabled flags (one entry per pedal).
@@ -114,6 +117,7 @@ pub fn run(
     metronome: Arc<Metronome>,
     presets: Vec<Preset>,
     recording: Arc<RecordingState>,
+    practice: Arc<Practice>,
 ) -> Result<()> {
     enable_raw_mode()?;
     let mut stdout = std::io::stdout();
@@ -141,6 +145,10 @@ pub fn run(
     let mut save_msg: Option<(String, std::time::Instant)> = None;
     let mut tuner_open = false;
     let mut metronome_open = false;
+    // Which top-level panels are shown (session-only; toggled with 1/2/3).
+    let mut panels = Panels::all_visible();
+    // Backing playhead captured when a recording starts, for take alignment.
+    let mut record_start_offset = 0usize;
 
     // ── Session loop: (re)select devices, start the engine, run the UI ─────────
     // The `O` key drops the engine and loops back here so the picker runs again —
@@ -181,6 +189,7 @@ pub fn run(
             Arc::clone(&recording),
             Arc::clone(&tuner),
             Arc::clone(&metronome),
+            Arc::clone(&practice),
         ) {
             Ok(engine) => engine,
             Err(err) => {
@@ -214,12 +223,20 @@ pub fn run(
         let mut amp_browser =
             amp_plugins::AmpBrowser::new(engine.sample_rate(), crate::audio::MAX_BLOCK as u32);
 
+        // ── Practice timeline (backing + take tracks) ─────────────────────────────
+        let mut practice_ui = PracticeUi::new(engine.sample_rate());
+        // A device change drops the engine, so any loaded tracks are gone with it.
+        practice.reset();
+
         // ── Main UI loop ──────────────────────────────────────────────────────────
         let mut change_device = false;
         loop {
             tick = tick.wrapping_add(1);
             let blink = (tick / 15).is_multiple_of(2);
             let rec_active = recording.active.load(std::sync::atomic::Ordering::Relaxed);
+
+            // Install a finished background decode (if any) before drawing.
+            practice_ui.poll_decode(&mut engine, &practice);
 
             // Clear save message after 4 seconds
             if let Some((_, ts)) = &save_msg
@@ -274,6 +291,8 @@ pub fn run(
                     plugin_name,
                     ext_cab_name,
                     ext_amp_name,
+                    panels,
+                    Some((&practice, &practice_ui)),
                 );
                 if add_open {
                     let available: Vec<usize> = (0..PEDALS.len()).filter(|&i| !board[i]).collect();
@@ -312,6 +331,9 @@ pub fn run(
                             .load(std::sync::atomic::Ordering::Relaxed),
                     );
                 }
+                if practice_ui.browser_open {
+                    practice_ui.render_browser(f);
+                }
                 if tuner_open {
                     tuner::render_tuner(f, &tuner);
                 }
@@ -337,6 +359,11 @@ pub fn run(
                 #[cfg(all(feature = "au", target_os = "macos"))]
                 if amp_browser.open {
                     amp_browser.handle_key(key.code, &mut engine, &params);
+                    continue;
+                }
+
+                if practice_ui.browser_open {
+                    practice_ui.handle_browser_key(key.code);
                     continue;
                 }
 
@@ -491,6 +518,53 @@ pub fn run(
                     }
                 } else {
                     match key.code {
+                        // ── Practice timeline (when the pane owns focus) ───────────
+                        KeyCode::Char(' ') if focus == Some(PRACTICE_TILE) => {
+                            match practice_ui.selected {
+                                0 => practice_ui.toggle_play(&practice),
+                                _ => practice_ui.toggle_selected_mute(&practice),
+                            }
+                        }
+                        KeyCode::Up if focus == Some(PRACTICE_TILE) => {
+                            practice_ui.selected = practice_ui.selected.saturating_sub(1);
+                        }
+                        KeyCode::Down if focus == Some(PRACTICE_TILE) => {
+                            practice_ui.selected = (practice_ui.selected + 1).min(2);
+                        }
+                        KeyCode::Left if focus == Some(PRACTICE_TILE) => {
+                            practice_ui.seek_by(&practice, -5.0);
+                        }
+                        KeyCode::Right if focus == Some(PRACTICE_TILE) => {
+                            practice_ui.seek_by(&practice, 5.0);
+                        }
+                        KeyCode::Char('[') if focus == Some(PRACTICE_TILE) => {
+                            practice_ui.set_loop_start(&practice);
+                        }
+                        KeyCode::Char(']') if focus == Some(PRACTICE_TILE) => {
+                            practice_ui.set_loop_end(&practice);
+                        }
+                        KeyCode::Char('l') | KeyCode::Char('L') if focus == Some(PRACTICE_TILE) => {
+                            practice_ui.toggle_loop(&practice);
+                        }
+                        KeyCode::Delete | KeyCode::Backspace if focus == Some(PRACTICE_TILE) => {
+                            practice_ui.delete_selected(&mut engine, &practice);
+                        }
+                        // ── Global: browser + panel visibility ─────────────────────
+                        KeyCode::Char('b') | KeyCode::Char('B') => {
+                            practice_ui.open_browser();
+                        }
+                        KeyCode::Char('1') => {
+                            panels.rig = !panels.rig;
+                            focus = ensure_focus_visible(focus, &board, &panels);
+                        }
+                        KeyCode::Char('2') => {
+                            panels.amp = !panels.amp;
+                            focus = ensure_focus_visible(focus, &board, &panels);
+                        }
+                        KeyCode::Char('3') => {
+                            panels.timeline = !panels.timeline;
+                            focus = ensure_focus_visible(focus, &board, &panels);
+                        }
                         KeyCode::Char('q') => break,
                         KeyCode::Char('c') if key.modifiers.contains(KeyModifiers::CONTROL) => {
                             break;
@@ -515,9 +589,22 @@ pub fn run(
                         }
                         KeyCode::Char('r') | KeyCode::Char('R') => {
                             if rec_active {
-                                match recording.stop_and_save() {
-                                    Ok(path) => {
-                                        let msg = format!("Saved: {}", path.display());
+                                match recording.stop_take() {
+                                    Ok((samples, sr)) => {
+                                        // Place the take on the timeline, aligned to
+                                        // where the backing was when it started.
+                                        practice_ui.place_take(
+                                            &mut engine,
+                                            &practice,
+                                            &samples,
+                                            record_start_offset,
+                                        );
+                                        let msg = match save_wav(&samples, sr) {
+                                            Ok(path) => {
+                                                format!("Saved + placed: {}", path.display())
+                                            }
+                                            Err(e) => format!("Take placed, save failed: {e}"),
+                                        };
                                         save_msg = Some((msg, std::time::Instant::now()));
                                     }
                                     Err(e) => {
@@ -528,6 +615,7 @@ pub fn run(
                                     }
                                 }
                             } else {
+                                record_start_offset = practice.position();
                                 recording.start();
                             }
                         }
@@ -579,18 +667,18 @@ pub fn run(
                         KeyCode::Char('c') | KeyCode::Char('C') => {
                             cycle_cab(&params);
                         }
-                        KeyCode::Tab => focus = next_section(focus, &board),
-                        KeyCode::BackTab => focus = prev_section(focus, &board),
-                        KeyCode::Right => focus = nav_knob(focus, &board, 1),
-                        KeyCode::Left => focus = nav_knob(focus, &board, -1),
+                        KeyCode::Tab => focus = next_section(focus, &board, &panels),
+                        KeyCode::BackTab => focus = prev_section(focus, &board, &panels),
+                        KeyCode::Right => focus = nav_knob(focus, &board, &panels, 1),
+                        KeyCode::Left => focus = nav_knob(focus, &board, &panels, -1),
                         KeyCode::Up | KeyCode::Char('+') | KeyCode::Char('=') => match focus {
                             None => cycle_amp(&params, 1),
-                            Some(ADD_TILE) => {}
+                            Some(ADD_TILE | PRACTICE_TILE) => {}
                             Some(i) => nudge(&params, i, 0.05),
                         },
                         KeyCode::Down | KeyCode::Char('-') => match focus {
                             None => cycle_amp(&params, -1),
-                            Some(ADD_TILE) => {}
+                            Some(ADD_TILE | PRACTICE_TILE) => {}
                             Some(i) => nudge(&params, i, -0.05),
                         },
                         KeyCode::Enter if focus == Some(ADD_TILE) => {
@@ -610,6 +698,7 @@ pub fn run(
                                 add_open = true;
                                 add_cursor = 0;
                             }
+                            Some(PRACTICE_TILE) => {}
                             Some(i) => toggle_pedal(&params, i),
                             None => {}
                         },

@@ -2,7 +2,10 @@ use std::sync::atomic::Ordering::Relaxed;
 
 use crate::dsp::{AmpModel, CabModel, Params};
 
-use super::config::{ADD_TILE, AMP_END, AMP_START, KNOBS, MIC_END, MIC_START, PEDALS, pedal_of};
+use super::config::{
+    ADD_TILE, AMP_END, AMP_START, KNOBS, MIC_END, MIC_START, PEDALS, PRACTICE_TILE, Panels,
+    pedal_of,
+};
 
 /// A knob is reachable only if it belongs to the amp/mic (always present) or to
 /// a pedal currently on the board.
@@ -14,38 +17,69 @@ fn knob_visible(knob: usize, board: &[bool]) -> bool {
 }
 
 /// The section start a focus belongs to: `None` (selectors), the amp/mic starts,
-/// a pedal start, or the `ADD_TILE` sentinel.
+/// a pedal start, or the `ADD_TILE` / `PRACTICE_TILE` sentinels.
 fn section_start_of(focus: Option<usize>) -> Option<usize> {
     match focus {
         None => None,
         Some(i) if i == ADD_TILE => Some(ADD_TILE),
+        Some(i) if i == PRACTICE_TILE => Some(PRACTICE_TILE),
         Some(i) if (AMP_START..AMP_END).contains(&i) => Some(AMP_START),
         Some(i) if (MIC_START..MIC_END).contains(&i) => Some(MIC_START),
         Some(i) => pedal_of(i).map(|p| PEDALS[p].start),
     }
 }
 
-/// Tab stops: selectors → amp → mic → on-board pedals → +ADD tile.
-fn section_stops(board: &[bool]) -> Vec<Option<usize>> {
-    let mut v = vec![None, Some(AMP_START), Some(MIC_START)];
-    for (i, p) in PEDALS.iter().enumerate() {
-        if board[i] {
-            v.push(Some(p.start));
-        }
+/// Tab stops, honouring hidden panels: selectors → amp → mic (if the amp panel
+/// is shown), on-board pedals → +ADD (if the pedalboard is shown), then the
+/// practice timeline (if shown). Always leaves at least one stop so navigation
+/// can never index an empty list.
+fn section_stops(board: &[bool], panels: &Panels) -> Vec<Option<usize>> {
+    let mut v = Vec::new();
+    if panels.amp {
+        v.push(None);
+        v.push(Some(AMP_START));
+        v.push(Some(MIC_START));
     }
-    v.push(Some(ADD_TILE));
+    if panels.rig {
+        for (i, p) in PEDALS.iter().enumerate() {
+            if board.get(i).copied().unwrap_or(false) {
+                v.push(Some(p.start));
+            }
+        }
+        v.push(Some(ADD_TILE));
+    }
+    if panels.timeline {
+        v.push(Some(PRACTICE_TILE));
+    }
+    if v.is_empty() {
+        v.push(None);
+    }
     v
 }
 
-/// Per-knob stops for ←/→: selectors → every visible knob → +ADD tile.
-fn knob_stops(board: &[bool]) -> Vec<Option<usize>> {
-    let mut v = vec![None];
-    v.extend(
-        (0..KNOBS.len())
-            .filter(|&k| knob_visible(k, board))
-            .map(Some),
-    );
-    v.push(Some(ADD_TILE));
+/// Per-knob stops for ←/→: selectors → visible amp/mic knobs → visible pedal
+/// knobs → +ADD tile. Hidden panels contribute no stops.
+fn knob_stops(board: &[bool], panels: &Panels) -> Vec<Option<usize>> {
+    let mut v = Vec::new();
+    if panels.amp {
+        v.push(None);
+        v.extend(
+            (0..KNOBS.len())
+                .filter(|&k| pedal_of(k).is_none())
+                .map(Some),
+        );
+    }
+    if panels.rig {
+        v.extend(
+            (0..KNOBS.len())
+                .filter(|&k| pedal_of(k).is_some() && knob_visible(k, board))
+                .map(Some),
+        );
+        v.push(Some(ADD_TILE));
+    }
+    if v.is_empty() {
+        v.push(None);
+    }
     v
 }
 
@@ -55,16 +89,37 @@ fn cycle(stops: &[Option<usize>], current: Option<usize>, dir: i32) -> Option<us
     stops[(((cur + dir) % n + n) % n) as usize]
 }
 
-pub(super) fn next_section(focus: Option<usize>, board: &[bool]) -> Option<usize> {
-    cycle(&section_stops(board), section_start_of(focus), 1)
+pub(super) fn next_section(focus: Option<usize>, board: &[bool], panels: &Panels) -> Option<usize> {
+    cycle(&section_stops(board, panels), section_start_of(focus), 1)
 }
 
-pub(super) fn prev_section(focus: Option<usize>, board: &[bool]) -> Option<usize> {
-    cycle(&section_stops(board), section_start_of(focus), -1)
+pub(super) fn prev_section(focus: Option<usize>, board: &[bool], panels: &Panels) -> Option<usize> {
+    cycle(&section_stops(board, panels), section_start_of(focus), -1)
 }
 
-pub(super) fn nav_knob(focus: Option<usize>, board: &[bool], dir: i32) -> Option<usize> {
-    cycle(&knob_stops(board), focus, dir)
+pub(super) fn nav_knob(
+    focus: Option<usize>,
+    board: &[bool],
+    panels: &Panels,
+    dir: i32,
+) -> Option<usize> {
+    cycle(&knob_stops(board, panels), focus, dir)
+}
+
+/// Keep `focus` on a visible section after a panel is hidden. When the focused
+/// section is gone, fall back to the first visible stop; otherwise leave the focus
+/// (including a knob mid-section) untouched.
+pub(super) fn ensure_focus_visible(
+    focus: Option<usize>,
+    board: &[bool],
+    panels: &Panels,
+) -> Option<usize> {
+    let stops = section_stops(board, panels);
+    if stops.contains(&section_start_of(focus)) {
+        focus
+    } else {
+        stops[0]
+    }
 }
 
 pub(super) fn nudge(params: &Params, idx: usize, delta: f32) {
@@ -131,31 +186,35 @@ mod tests {
     // ── navigation ────────────────────────────────────────────────────────────
 
     #[test]
-    fn tab_cycles_selectors_amp_mic_addtile_when_board_empty() {
+    fn tab_cycles_all_sections_when_board_empty() {
         let board = board(false);
+        let p = Panels::all_visible();
         let mut f = None; // amp/cab selectors
-        f = next_section(f, &board);
+        f = next_section(f, &board, &p);
         assert_eq!(f, Some(AMP_START));
-        f = next_section(f, &board);
+        f = next_section(f, &board, &p);
         assert_eq!(f, Some(MIC_START));
-        f = next_section(f, &board);
+        f = next_section(f, &board, &p);
         assert_eq!(f, Some(ADD_TILE));
-        f = next_section(f, &board);
+        f = next_section(f, &board, &p);
+        assert_eq!(f, Some(PRACTICE_TILE));
+        f = next_section(f, &board, &p);
         assert_eq!(f, None, "Tab must wrap back to the selectors");
     }
 
     #[test]
     fn shift_tab_is_the_inverse_of_tab() {
         let board = board(true);
+        let p = Panels::all_visible();
         let mut f = None;
         // Walk forward through every stop, then back, and confirm we retrace it.
         let mut forward = vec![f];
-        for _ in 0..PEDALS.len() + 4 {
-            f = next_section(f, &board);
+        for _ in 0..PEDALS.len() + 6 {
+            f = next_section(f, &board, &p);
             forward.push(f);
         }
         for &expected in forward.iter().rev().skip(1) {
-            f = prev_section(f, &board);
+            f = prev_section(f, &board, &p);
             assert_eq!(f, expected, "BackTab did not retrace Tab");
         }
     }
@@ -164,7 +223,7 @@ mod tests {
     fn tab_visits_only_on_board_pedals() {
         let mut b = board(false);
         b[3] = true; // only the DELAY pedal is on the board
-        let stops = section_stops(&b);
+        let stops = section_stops(&b, &Panels::all_visible());
         assert!(stops.contains(&Some(PEDALS[3].start)));
         for (i, p) in PEDALS.iter().enumerate() {
             if i != 3 {
@@ -180,7 +239,7 @@ mod tests {
     #[test]
     fn arrow_nav_skips_knobs_of_off_board_pedals() {
         let b = board(false); // only amp + mic knobs are visible
-        let stops = knob_stops(&b);
+        let stops = knob_stops(&b, &Panels::all_visible());
         assert!(
             !stops.iter().flatten().any(|&k| pedal_of(k).is_some()),
             "a hidden pedal's knob is reachable with ←/→"
@@ -197,10 +256,35 @@ mod tests {
     #[test]
     fn arrow_nav_wraps_at_both_ends() {
         let b = board(false);
+        let p = Panels::all_visible();
         // From the selectors, ← wraps to the last stop (the +ADD tile).
-        assert_eq!(nav_knob(None, &b, -1), Some(ADD_TILE));
+        assert_eq!(nav_knob(None, &b, &p, -1), Some(ADD_TILE));
         // From the +ADD tile, → wraps back to the selectors.
-        assert_eq!(nav_knob(Some(ADD_TILE), &b, 1), None);
+        assert_eq!(nav_knob(Some(ADD_TILE), &b, &p, 1), None);
+    }
+
+    #[test]
+    fn hidden_panels_are_skipped_by_navigation() {
+        let b = board(true);
+        // Hide the amp and the board: only the timeline remains a Tab stop.
+        let hidden = Panels {
+            amp: false,
+            rig: false,
+            timeline: true,
+        };
+        assert_eq!(section_stops(&b, &hidden), vec![Some(PRACTICE_TILE)]);
+        assert_eq!(
+            knob_stops(&b, &hidden),
+            vec![None],
+            "no knobs remain reachable when both knob panels are hidden"
+        );
+        // Hiding everything still leaves one safe stop.
+        let none = Panels {
+            amp: false,
+            rig: false,
+            timeline: false,
+        };
+        assert_eq!(section_stops(&b, &none), vec![None]);
     }
 
     // ── knob edits ──────────────────────────────────────────────────────────────

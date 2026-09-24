@@ -10,6 +10,7 @@ pub mod dsp;
 /// feature) and macOS Audio Units as an amp-position override (behind `au`).
 #[cfg(any(feature = "clap", feature = "au"))]
 pub mod host;
+pub mod practice;
 pub mod preset;
 pub mod recording;
 pub mod ui;
