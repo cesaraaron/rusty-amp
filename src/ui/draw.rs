@@ -1215,7 +1215,10 @@ pub(super) fn render_help_modal(f: &mut Frame) {
             "  1 / 2 / 3 / 4",
             "  focus chain, amp, timeline, pedals (again: hide)",
         ),
-        row("  Tab / Shift-Tab", "  jump to next / previous panel"),
+        row(
+            "  Tab / Shift-Tab",
+            "  cycle amp/cab (2) or pedals (4) in the panel",
+        ),
         row("  ←/→", "  move inside the focused panel"),
         row("  [ / ]", "  move the ribbon's stage earlier / later"),
         row("  Space", "  bypass stage, pedal, or transport under focus"),

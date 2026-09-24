@@ -89,7 +89,7 @@ The app launches immediately with default values. Press <kbd>P</kbd> at any time
 | Key | Action |
 | --- | ------ |
 | <kbd>1</kbd> / <kbd>2</kbd> / <kbd>3</kbd> / <kbd>4</kbd> | Focus the live order, amp &amp; cabinet, [practice timeline](tools.html#practice), or pedalboard — press again on the focused panel to hide it (`1` never hides) |
-| <kbd>Tab</kbd> / <kbd>Shift-Tab</kbd> | Jump to the next / previous panel (chain → amp → timeline → pedals) |
+| <kbd>Tab</kbd> / <kbd>Shift-Tab</kbd> | Cycle within the focused panel — amp ↔ cab (panel 2), or pedal-by-pedal (panel 4); inert on the chain and timeline |
 | <kbd>←</kbd> / <kbd>→</kbd> | Move inside the focused panel — pick a stage on the ribbon, a knob on the amp/pedals (seeks on the timeline) |
 | <kbd>↑</kbd> / <kbd>+</kbd> / <kbd>=</kbd> | Increase focused knob by 5% |
 | <kbd>↓</kbd> / <kbd>-</kbd> | Decrease focused knob by 5% |
@@ -114,7 +114,7 @@ The app launches immediately with default values. Press <kbd>P</kbd> at any time
 
 The footer only shows `K keybindings  Q quit` — the full list above lives in the <kbd>K</kbd> modal, including the preset-browser, timeline, and metronome keys.
 
-Focus starts on the **live-order ribbon**. <kbd>Tab</kbd> walks the panels in number order — chain → amp → [practice timeline](tools.html#practice) → pedals → back to the chain. See [the pedalboard](pedals.html#board) for add/remove details, and [Presets](presets.html) for the browser and save dialog.
+Focus starts on the **live-order ribbon**. Switch panels with the number keys — <kbd>1</kbd> chain, <kbd>2</kbd> amp &amp; cabinet, <kbd>3</kbd> [practice timeline](tools.html#practice), <kbd>4</kbd> pedals (and press the same number again on a focused panel to hide it). Inside a panel, <kbd>Tab</kbd> cycles amp ↔ cab or pedal-by-pedal, and <kbd>←</kbd>/<kbd>→</kbd> cycle the knobs of whichever section owns focus. See [the pedalboard](pedals.html#board) for add/remove details, and [Presets](presets.html) for the browser and save dialog.
 
 <div class="note note--info">
 Looking for the <b>chromatic tuner</b> (<kbd>T</kbd>), the <b>metronome</b> (<kbd>M</kbd>), or <b>one-key recording</b> (<kbd>R</kbd>)? They have their own page — see <a href="tools.html">Tools</a>.

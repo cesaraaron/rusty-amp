@@ -65,7 +65,7 @@ Play along with a backing track and loop the hard bits. Press <kbd>B</kbd> to op
 
 The **practice timeline** is the horizontal pane under the amp panel. It shows a transport line and one line per track, with a mini waveform and the playhead:
 
-- **Transport** — press <kbd>3</kbd> or <kbd>Tab</kbd> to focus the timeline, then <kbd>↑</kbd>/<kbd>↓</kbd> to pick the transport, <kbd>Space</kbd> to play/pause, and <kbd>←</kbd>/<kbd>→</kbd> to seek ±5&nbsp;s.
+- **Transport** — press <kbd>3</kbd> to focus the timeline, then <kbd>↑</kbd>/<kbd>↓</kbd> to pick the transport, <kbd>Space</kbd> to play/pause, and <kbd>←</kbd>/<kbd>→</kbd> to seek ±5&nbsp;s.
 - **Loop a section** — park the playhead and press <kbd>[</kbd> for the in-point and <kbd>]</kbd> for the out-point; <kbd>L</kbd> toggles looping. The loop region is shaded on the timeline.
 - **Mute a track** — select the backing or take line and press <kbd>Space</kbd> (the LED turns hollow).
 - **Delete a track** — select it and press <kbd>Delete</kbd>/<kbd>Backspace</kbd>.
@@ -79,7 +79,7 @@ The **practice timeline** is the horizontal pane under the amp panel. It shows a
 
 The screen is four numbered panels. <kbd>1</kbd> focuses the live-order ribbon (always visible), <kbd>2</kbd> the **amp &amp; cabinet** panel, <kbd>3</kbd> the **practice timeline**, <kbd>4</kbd> the guitar **pedalboard** — pressing a number again on its focused panel hides it (`1` never hides).
 
-Hidden panels are skipped by <kbd>Tab</kbd> and give their space back to the rest of the rig. The choice lasts for the session.
+Hidden panels give their space back to the rest of the rig, and the number keys are the only way to switch between panels — <kbd>Tab</kbd> stays inside the focused one. The choice lasts for the session.
 
 ## Recording <span class="muted">(<kbd>R</kbd>)</span> {#recording}
 

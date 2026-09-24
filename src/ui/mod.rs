@@ -32,10 +32,9 @@ use crate::recording::{RecordingState, save_wav};
 use config::{ADD_TILE, AMP_START, CHAIN_TILE, PEDALS, PRACTICE_TILE, Panels, pedal_of};
 use draw::{draw, render_add_pedal_modal, render_amp_modal, render_cab_modal, render_help_modal};
 use input::{
-    add_pedal, amp_choices, cab_choices, ensure_focus_visible, init_amp_cursor, init_cab_cursor,
-    move_chain_cursor, move_selected_stage, next_panel_focus, nudge, press_number,
-    prev_panel_focus, remove_pedal, select_amp, select_cab, step_knob_in_panel, toggle_pedal,
-    toggle_stage,
+    NavMemory, add_pedal, amp_choices, cab_choices, ensure_focus_visible, init_amp_cursor,
+    init_cab_cursor, move_chain_cursor, move_selected_stage, nudge, press_number, remove_pedal,
+    select_amp, select_cab, step_knob_in_panel, tab_in_panel, toggle_pedal, toggle_stage,
 };
 use practice::PracticeUi;
 use presets::{PathDialogKind, render_path_dialog, render_preset_modal, render_save_dialog};
@@ -133,6 +132,9 @@ pub fn run(
     let mut focus: Option<usize> = Some(CHAIN_TILE);
     // Selected stage within the ribbon; follows its stage through moves.
     let mut chain_cursor: ChainStage = ChainStage::AmpCab;
+    // Last-focused knob per amp/mic/pedal group, so panel-local `Tab` returns
+    // to where you left off.
+    let mut nav_mem = NavMemory::new();
     // Board membership: a pedal is on the board iff it is enabled. Off-board
     // pedals are bypassed in the DSP and hidden from the rig. Rebuilt with
     // `sync_board` whenever a preset rewrites the enabled flags.
@@ -863,11 +865,21 @@ pub fn run(
                             cab_open = true;
                             cab_cursor = init_cab_cursor(&params);
                         }
+                        // `Tab` is panel-local: it cycles amp↔cab in panel 2 and
+                        // pedals in panel 4, and is inert on the ribbon/timeline.
+                        // Panels are switched with the number keys.
                         KeyCode::Tab => {
-                            focus = next_panel_focus(focus, &board, &panels, &params.chain_slots());
+                            focus =
+                                tab_in_panel(focus, &board, &params.chain_slots(), 1, &mut nav_mem);
                         }
                         KeyCode::BackTab => {
-                            focus = prev_panel_focus(focus, &board, &panels, &params.chain_slots());
+                            focus = tab_in_panel(
+                                focus,
+                                &board,
+                                &params.chain_slots(),
+                                -1,
+                                &mut nav_mem,
+                            );
                         }
                         // ←/→ inside the focused panel: the ribbon moves its
                         // stage cursor, panels 2/4 walk their knobs, and the

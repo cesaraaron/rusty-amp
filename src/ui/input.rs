@@ -91,17 +91,121 @@ pub(super) fn panel_entry(panel: u8, board: &[bool], order: &[u8; CHAIN_LEN]) ->
     }
 }
 
-/// Next/previous visible panel in 1→2→3→4 order, wrapping around panel 1 (which
-/// is always visible, so this always terminates).
-fn next_panel(panel: u8, panels: &Panels, dir: i32) -> u8 {
-    let mut p = panel;
-    for _ in 0..4 {
-        p = (((p as i32 - 1 + dir).rem_euclid(4)) + 1) as u8;
-        if panel_visible(panels, p) {
-            return p;
+/// Group ids for [`NavMemory`]: the amp knob block, the cab/mic knob block, and
+/// one group per `PEDALS` entry (`2 + pi`).
+const GROUP_AMP: usize = 0;
+const GROUP_MIC: usize = 1;
+const GROUP_COUNT: usize = 2 + PEDALS.len();
+
+fn group_pedal(pi: usize) -> usize {
+    2 + pi
+}
+
+/// Last-focused knob per group, so `Tab` back into a section lands where you
+/// left off instead of snapping to its first knob. Owned by the UI thread.
+pub(super) struct NavMemory {
+    last: [Option<usize>; GROUP_COUNT],
+}
+
+impl NavMemory {
+    pub(super) fn new() -> Self {
+        Self {
+            last: [None; GROUP_COUNT],
         }
     }
-    1
+
+    /// The group a knob belongs to (amp / mic / pedal), or `None` for the
+    /// sentinel focuses.
+    fn group_of(focus: Option<usize>) -> Option<usize> {
+        let k = focus?;
+        if (AMP_START..AMP_END).contains(&k) {
+            Some(GROUP_AMP)
+        } else if (MIC_START..MIC_END).contains(&k) {
+            Some(GROUP_MIC)
+        } else {
+            pedal_of(k).map(group_pedal)
+        }
+    }
+
+    fn remember(&mut self, focus: Option<usize>) {
+        if let Some(group) = Self::group_of(focus) {
+            self.last[group] = focus;
+        }
+    }
+
+    /// The remembered knob for `group`, if it is still reachable (its pedal may
+    /// have left the board), else `None`.
+    fn recall(&self, group: usize, board: &[bool]) -> Option<usize> {
+        self.last[group].filter(|&k| knob_visible(k, board))
+    }
+}
+
+/// First knob of a group, used when there is nothing to recall.
+fn group_first(group: usize) -> Option<usize> {
+    match group {
+        GROUP_AMP => Some(AMP_START),
+        GROUP_MIC => Some(MIC_START),
+        g => PEDALS.get(g.checked_sub(2)?).map(|p| p.start),
+    }
+}
+
+/// `Tab` / `Shift-Tab` inside the focused panel:
+/// - panel 1 (ribbon) and panel 3 (timeline): inert;
+/// - panel 2: toggle between the amp and cab/mic knob groups;
+/// - panel 4: step to the next/previous on-board pedal in chain order, ending
+///   on the `+ ADD` tile and wrapping.
+///
+/// The current group's knob is remembered first, so returning to a section
+/// lands on the knob you last touched there.
+pub(super) fn tab_in_panel(
+    focus: Option<usize>,
+    board: &[bool],
+    order: &[u8; CHAIN_LEN],
+    dir: i32,
+    mem: &mut NavMemory,
+) -> Option<usize> {
+    match panel_of(focus) {
+        1 | 3 => focus,
+        2 => {
+            mem.remember(focus);
+            let current = NavMemory::group_of(focus).unwrap_or(GROUP_AMP);
+            let target = if current == GROUP_AMP {
+                GROUP_MIC
+            } else {
+                GROUP_AMP
+            };
+            mem.recall(target, board).or_else(|| group_first(target))
+        }
+        _ => {
+            mem.remember(focus);
+            // On-board pedals in chain order, then the +ADD tile.
+            let pedals: Vec<usize> = order
+                .iter()
+                .filter_map(|&raw| ChainStage::from_u8(raw))
+                .filter_map(|stage| stage.pedal_index())
+                .filter(|&pi| board.get(pi).copied().unwrap_or(false))
+                .collect();
+            let cur = match focus {
+                Some(ADD_TILE) => Some(pedals.len()),
+                Some(k) => pedal_of(k).and_then(|pi| pedals.iter().position(|&p| p == pi)),
+                None => None,
+            };
+            let next = match cur {
+                Some(pos) => {
+                    let n = (pedals.len() + 1) as i32;
+                    (((pos as i32 + dir.signum()) % n + n) % n) as usize
+                }
+                None if dir < 0 => pedals.len(),
+                None => 0,
+            };
+            match pedals.get(next) {
+                Some(&pi) => mem
+                    .recall(group_pedal(pi), board)
+                    .or_else(|| group_first(group_pedal(pi))),
+                None => Some(ADD_TILE),
+            }
+        }
+    }
 }
 
 /// First entry scanning panels 1→2→3→4, for focus repair after a panel hides.
@@ -142,74 +246,53 @@ pub(super) fn press_number(
     (panels, panel_entry(n, board, order))
 }
 
-/// `Tab` / `Shift-Tab`: jump to the next / previous visible panel's entry.
-pub(super) fn next_panel_focus(
-    focus: Option<usize>,
-    board: &[bool],
-    panels: &Panels,
-    order: &[u8; CHAIN_LEN],
-) -> Option<usize> {
-    panel_entry(next_panel(panel_of(focus), panels, 1), board, order)
-}
+// `Tab` / `Shift-Tab` are panel-local now (see `tab_in_panel`); panels are
+// switched with the number keys, so the old global panel walk is gone.
 
-pub(super) fn prev_panel_focus(
-    focus: Option<usize>,
-    board: &[bool],
-    panels: &Panels,
-    order: &[u8; CHAIN_LEN],
-) -> Option<usize> {
-    panel_entry(next_panel(panel_of(focus), panels, -1), board, order)
-}
-
-fn cycle(stops: &[Option<usize>], current: Option<usize>, dir: i32) -> Option<usize> {
-    let n = stops.len() as i32;
-    let cur = stops.iter().position(|&s| s == current).unwrap_or(0) as i32;
-    stops[(((cur + dir) % n + n) % n) as usize]
-}
-
-/// Knob stops within one panel for `←`/`→`: panel 2 walks amp knobs → mic
-/// knobs (wrapping); panel 4 walks on-board pedal knobs in chain order plus
-/// `+ADD`. Panels 1 and 3 own their arrows (stage cursor / seek), so they
-/// contribute no stops.
-fn panel_knob_stops(panel: u8, board: &[bool], order: &[u8; CHAIN_LEN]) -> Vec<Option<usize>> {
-    let mut v = Vec::new();
-    match panel {
+/// Knob range for the section a focus owns scoped `←`/`→` navigation in:
+/// panel 2 the amp or mic group containing the focus, panel 4 the focused
+/// pedal's own knobs. `None` (no section owns the arrows) leaves focus alone.
+fn scoped_knob_range(focus: Option<usize>) -> Option<(usize, usize)> {
+    match panel_of(focus) {
         2 => {
-            v.extend((AMP_START..AMP_END).chain(MIC_START..MIC_END).map(Some));
+            if focus.is_some_and(|k| (MIC_START..MIC_END).contains(&k)) {
+                Some((MIC_START, MIC_END))
+            } else {
+                Some((AMP_START, AMP_END))
+            }
         }
         4 => {
-            for &raw in order {
-                if let Some(stage) = ChainStage::from_u8(raw)
-                    && let Some(pi) = stage.pedal_index()
-                {
-                    v.extend(
-                        (PEDALS[pi].start..PEDALS[pi].end)
-                            .filter(|&k| knob_visible(k, board))
-                            .map(Some),
-                    );
-                }
-            }
-            v.push(Some(ADD_TILE));
+            let pi = focus.and_then(pedal_of)?;
+            Some((PEDALS[pi].start, PEDALS[pi].end))
         }
-        _ => {}
+        _ => None,
     }
-    if v.is_empty() {
-        v.push(None);
-    }
-    v
 }
 
-/// `←`/`→` inside the focused panel (2 or 4). Panels 1 and 3 handle their own
-/// arrows, so focus there is returned untouched.
+/// `←`/`→` inside the focused panel: cycle knobs within the focused amp/mic
+/// section, or within the focused pedal, wrapping around that section only. The
+/// ribbon and timeline own their arrows; a focus with no section (the `+ ADD`
+/// tile, a stale focus) is left untouched.
 pub(super) fn step_knob_in_panel(
     focus: Option<usize>,
     board: &[bool],
-    order: &[u8; CHAIN_LEN],
+    _order: &[u8; CHAIN_LEN],
     dir: i32,
 ) -> Option<usize> {
-    match panel_of(focus) {
-        2 | 4 => cycle(&panel_knob_stops(panel_of(focus), board, order), focus, dir),
-        _ => focus,
+    let Some((start, end)) = scoped_knob_range(focus) else {
+        return focus;
+    };
+    let stops: Vec<usize> = (start..end).filter(|&k| knob_visible(k, board)).collect();
+    match focus.and_then(|c| stops.iter().position(|&s| s == c)) {
+        Some(pos) => {
+            let n = stops.len() as i32;
+            stops
+                .get((((pos as i32 + dir) % n + n) % n) as usize)
+                .copied()
+        }
+        // A stale focus re-anchors at the section's first reachable knob, and
+        // stays put if the whole section is unreachable.
+        None => stops.first().copied().or(focus),
     }
 }
 
@@ -397,68 +480,98 @@ mod tests {
 
     // ── navigation ────────────────────────────────────────────────────────────
 
+    /// `Tab` is inert on the ribbon (panel 1) and the timeline (panel 3).
     #[test]
-    fn tab_walks_panels_in_number_order() {
-        let b = board(false);
-        let p = Panels::all_visible();
-        let o = order();
-        // Panel 1 (ribbon) → 2 (first amp knob) → 3 (timeline) → 4 (+ADD,
-        // empty board) → back to 1.
-        let mut f = Some(CHAIN_TILE);
-        f = next_panel_focus(f, &b, &p, &o);
-        assert_eq!(f, Some(AMP_START), "Tab from ribbon must land on GAIN");
-        f = next_panel_focus(f, &b, &p, &o);
-        assert_eq!(f, Some(PRACTICE_TILE));
-        f = next_panel_focus(f, &b, &p, &o);
-        assert_eq!(f, Some(ADD_TILE), "empty board enters at +ADD");
-        f = next_panel_focus(f, &b, &p, &o);
-        assert_eq!(f, Some(CHAIN_TILE), "Tab must wrap back to the ribbon");
-    }
-
-    #[test]
-    fn shift_tab_is_the_inverse_of_tab() {
-        let b = board(true);
-        let p = Panels::all_visible();
-        let o = order();
-        let mut f = Some(CHAIN_TILE);
-        let mut forward = vec![f];
-        for _ in 0..6 {
-            f = next_panel_focus(f, &b, &p, &o);
-            forward.push(f);
-        }
-        for &expected in forward.iter().rev().skip(1) {
-            f = prev_panel_focus(f, &b, &p, &o);
-            assert_eq!(f, expected, "BackTab did not retrace Tab");
-        }
-    }
-
-    #[test]
-    fn tab_skips_hidden_panels() {
+    fn tab_is_inert_on_ribbon_and_timeline() {
         let b = board(true);
         let o = order();
-        let hidden = Panels {
-            amp: false,
-            rig: false,
-            timeline: true,
-        };
-        // Only the ribbon and the timeline remain.
+        let mut mem = NavMemory::new();
         assert_eq!(
-            next_panel_focus(Some(CHAIN_TILE), &b, &hidden, &o),
+            tab_in_panel(Some(CHAIN_TILE), &b, &o, 1, &mut mem),
+            Some(CHAIN_TILE)
+        );
+        assert_eq!(
+            tab_in_panel(Some(CHAIN_TILE), &b, &o, -1, &mut mem),
+            Some(CHAIN_TILE)
+        );
+        assert_eq!(
+            tab_in_panel(Some(PRACTICE_TILE), &b, &o, 1, &mut mem),
             Some(PRACTICE_TILE)
         );
+    }
+
+    /// Panel 2: `Tab` toggles amp ↔ cab, and each section remembers the knob it
+    /// was last left on.
+    #[test]
+    fn tab_toggles_amp_and_cab_and_remembers_knobs() {
+        let b = board(true);
+        let o = order();
+        let mut mem = NavMemory::new();
+        // From an amp knob, first Tab enters the cab group at its first knob.
+        let cab_first = tab_in_panel(Some(AMP_START + 2), &b, &o, 1, &mut mem).unwrap();
+        assert_eq!(cab_first, MIC_START);
+        // Move within the cab, then Tab back: the amp knob we left is restored.
+        let cab_moved = step_knob_in_panel(Some(cab_first), &b, &o, 1).unwrap();
+        assert_eq!(cab_moved, MIC_START + 1);
+        let back = tab_in_panel(Some(cab_moved), &b, &o, 1, &mut mem).unwrap();
+        assert_eq!(back, AMP_START + 2, "amp section must recall its last knob");
+        // And the cab section recalls MIC_START + 1.
         assert_eq!(
-            next_panel_focus(Some(PRACTICE_TILE), &b, &hidden, &o),
-            Some(CHAIN_TILE)
+            tab_in_panel(Some(back), &b, &o, 1, &mut mem),
+            Some(MIC_START + 1)
         );
-        // Hiding everything still leaves the ribbon.
-        let none = Panels {
-            amp: false,
-            rig: false,
-            timeline: false,
-        };
+    }
+
+    /// Panel 4: `Tab` steps pedals in chain order, ends on `+ ADD`, wraps, and
+    /// remembers each pedal's last knob.
+    #[test]
+    fn tab_cycles_pedals_then_add_and_remembers_knobs() {
+        let b = board(true);
+        let o = order();
+        let mut mem = NavMemory::new();
+        // The first on-board pedal leads the chain (Gate).
+        let gate = PEDALS[0].start;
+        let second = tab_in_panel(Some(gate), &b, &o, 1, &mut mem).unwrap();
+        assert_eq!(second, PEDALS[1].start, "Tab advances to the next pedal");
+        // Leave the second pedal on a later knob, step away and back: restored.
+        let moved = PEDALS[1].start + 1;
+        let third = tab_in_panel(Some(moved), &b, &o, 1, &mut mem).unwrap();
+        assert_eq!(third, PEDALS[2].start);
         assert_eq!(
-            next_panel_focus(Some(CHAIN_TILE), &b, &none, &o),
-            Some(CHAIN_TILE)
+            tab_in_panel(Some(third), &b, &o, -1, &mut mem),
+            Some(moved),
+            "a pedal must recall its last knob"
+        );
+        // The last pedal's successor is +ADD; from +ADD it wraps both ways.
+        let last = PEDALS[PEDALS.len() - 1].start;
+        assert_eq!(
+            tab_in_panel(Some(last), &b, &o, 1, &mut mem),
+            Some(ADD_TILE),
+            "the pedal cycle must end on + ADD"
+        );
+        assert_eq!(
+            tab_in_panel(Some(ADD_TILE), &b, &o, 1, &mut mem),
+            Some(gate)
+        );
+        assert_eq!(
+            tab_in_panel(Some(ADD_TILE), &b, &o, -1, &mut mem),
+            Some(last)
+        );
+    }
+
+    /// With an empty board, panel 4's `Tab` sits on `+ ADD` (the only step).
+    #[test]
+    fn tab_on_empty_board_stays_on_add() {
+        let b = board(false);
+        let o = order();
+        let mut mem = NavMemory::new();
+        assert_eq!(
+            tab_in_panel(Some(ADD_TILE), &b, &o, 1, &mut mem),
+            Some(ADD_TILE)
+        );
+        assert_eq!(
+            tab_in_panel(Some(ADD_TILE), &b, &o, -1, &mut mem),
+            Some(ADD_TILE)
         );
     }
 
@@ -482,34 +595,74 @@ mod tests {
         );
     }
 
+    /// Panel 2 `←`/`→` stays within the amp or mic group, wrapping there only.
     #[test]
-    fn arrows_stay_inside_their_panel() {
+    fn arrows_cycle_within_the_focused_amp_or_cab_section() {
         let b = board(true);
         let o = order();
-        // Panel 2: amp knobs → mic knobs, wrapping around (no selector stop).
+        // Amp group: 0..6.
+        assert_eq!(
+            step_knob_in_panel(Some(AMP_START), &b, &o, 1),
+            Some(AMP_START + 1)
+        );
+        assert_eq!(
+            step_knob_in_panel(Some(AMP_END - 1), &b, &o, 1),
+            Some(AMP_START),
+            "→ past the last amp knob must wrap inside the amp group"
+        );
         assert_eq!(
             step_knob_in_panel(Some(AMP_START), &b, &o, -1),
-            Some(MIC_END - 1),
-            "← from the first amp knob must wrap to the last mic knob"
+            Some(AMP_END - 1),
+            "← before the first amp knob must wrap inside the amp group"
+        );
+        // Cab/mic group: 6..9, never crossing into the amp.
+        assert_eq!(
+            step_knob_in_panel(Some(MIC_START), &b, &o, -1),
+            Some(MIC_END - 1)
         );
         assert_eq!(
             step_knob_in_panel(Some(MIC_END - 1), &b, &o, 1),
-            Some(AMP_START),
-            "→ from the last mic knob must wrap to the first amp knob"
+            Some(MIC_START)
         );
-        // A stale selector focus re-anchors into the amp knobs.
-        let stale = step_knob_in_panel(None, &b, &o, 1);
-        assert!(
-            matches!(stale, Some(k) if (AMP_START..MIC_END).contains(&k)),
-            "→ from a stale selector focus must enter the amp knobs: {stale:?}"
+        // A stale focus re-anchors at the amp group's first knob.
+        assert_eq!(step_knob_in_panel(None, &b, &o, 1), Some(AMP_START));
+    }
+
+    /// Panel 4 `←`/`→` stays within the focused pedal, wrapping there only.
+    #[test]
+    fn arrows_cycle_within_the_focused_pedal() {
+        let b = board(true);
+        let o = order();
+        let gate = PEDALS[0].start;
+        assert_eq!(step_knob_in_panel(Some(gate), &b, &o, 1), Some(gate + 1));
+        assert_eq!(
+            step_knob_in_panel(Some(PEDALS[0].end - 1), &b, &o, 1),
+            Some(gate),
+            "→ past the pedal's last knob must wrap inside the pedal"
         );
-        // Panel 4 never leaks into the amp: from +ADD, → wraps within the board.
+        assert_eq!(
+            step_knob_in_panel(Some(gate), &b, &o, -1),
+            Some(PEDALS[0].end - 1)
+        );
+        // A three-knob pedal walks only its own three.
+        let comp = PEDALS[3].start;
+        let mut seen = vec![comp];
+        let mut f = Some(comp);
+        for _ in 0..4 {
+            f = step_knob_in_panel(f, &b, &o, 1);
+            seen.push(f.unwrap());
+        }
+        assert_eq!(
+            seen,
+            vec![comp, comp + 1, comp + 2, comp, comp + 1],
+            "arrows must wrap within the pedal only"
+        );
+        // The +ADD tile owns no knobs: arrows are inert there.
         assert_eq!(
             step_knob_in_panel(Some(ADD_TILE), &b, &o, 1),
-            Some(PEDALS[0].start),
-            "→ from +ADD must wrap to the first pedal in chain order"
+            Some(ADD_TILE)
         );
-        // Ribbon and timeline own their arrows: focus untouched.
+        // Ribbon and timeline own their arrows.
         assert_eq!(
             step_knob_in_panel(Some(CHAIN_TILE), &b, &o, 1),
             Some(CHAIN_TILE)
@@ -520,50 +673,25 @@ mod tests {
         );
     }
 
+    /// An off-board pedal's arrows re-anchor to its own first knob instead of
+    /// leaking onto another pedal.
     #[test]
-    fn arrows_visit_pedal_knobs_in_chain_order() {
-        let b = board(true);
-        let mut rev: Vec<u8> = ChainStage::default_order().into_iter().collect();
-        rev.reverse();
-        let rev: [u8; CHAIN_LEN] = rev.try_into().unwrap();
-        // Collect the full → walk starting at the first pedal knob.
-        let first = PEDALS[17].start; // REVERB leads the reversed chain
-        let mut seen = vec![first];
-        let mut f = Some(first);
-        for _ in 0..KNOBS.len() {
-            f = step_knob_in_panel(f, &b, &rev, 1);
-            if f == Some(ADD_TILE) {
-                break;
-            }
-            seen.push(f.unwrap());
-        }
-        let want: Vec<usize> = rev
-            .iter()
-            .filter_map(|&v| ChainStage::from_u8(v))
-            .filter_map(|s| s.pedal_index())
-            .flat_map(|pi| PEDALS[pi].start..PEDALS[pi].end)
-            .collect();
-        assert_eq!(seen, want);
-    }
-
-    #[test]
-    fn arrows_skip_knobs_of_off_board_pedals() {
-        let b = board(false); // no pedal knobs are reachable
+    fn arrows_never_leave_the_focused_pedal_group() {
+        let mut b = board(false);
+        b[3] = true; // only COMP is on the board
         let o = order();
-        for k in PEDALS.iter().flat_map(|p| p.start..p.end) {
-            // Stepping from a stale off-board knob re-anchors inside panel 4's
-            // stops (+ADD), never onto another off-board knob.
+        let off = PEDALS[0].start;
+        assert_eq!(
+            step_knob_in_panel(Some(off), &b, &o, 1),
+            Some(off),
+            "an off-board pedal's arrows must not reach another pedal"
+        );
+        // The mic group is unaffected by the board state.
+        for k in AMP_START..MIC_END {
             let f = step_knob_in_panel(Some(k), &b, &o, 1);
             assert!(
-                f == Some(ADD_TILE),
-                "off-board pedal knob leaked with ←/→: {f:?}"
-            );
-        }
-        // Every amp/mic knob is still reachable.
-        for k in AMP_START..MIC_END {
-            assert!(
-                panel_knob_stops(2, &b, &o).contains(&Some(k)),
-                "amp/mic knob {k} is not reachable"
+                f.is_some_and(|x| (AMP_START..MIC_END).contains(&x)),
+                "amp/mic knob {k} leaked out of panel 2: {f:?}"
             );
         }
     }
@@ -612,32 +740,6 @@ mod tests {
         assert_eq!(
             ensure_focus_visible(Some(PEDALS[0].start + 1), &b, &Panels::all_visible(), &o),
             Some(PEDALS[0].start + 1)
-        );
-    }
-
-    #[test]
-    fn hidden_panels_are_skipped_by_navigation() {
-        let b = board(true);
-        let o = order();
-        // Hide the amp and the board: Tab bounces between ribbon and timeline.
-        let hidden = Panels {
-            amp: false,
-            rig: false,
-            timeline: true,
-        };
-        assert_eq!(
-            next_panel_focus(Some(CHAIN_TILE), &b, &hidden, &o),
-            Some(PRACTICE_TILE)
-        );
-        // Hiding everything still leaves the ribbon.
-        let none = Panels {
-            amp: false,
-            rig: false,
-            timeline: false,
-        };
-        assert_eq!(
-            next_panel_focus(Some(CHAIN_TILE), &b, &none, &o),
-            Some(CHAIN_TILE)
         );
     }
 

@@ -21,7 +21,7 @@ next: { href: "amps-cabs.html", label: "Amps, cabinets &amp; IRs" }
   <img src="assets/pedalboard.png" alt="rusty-amp pedal board" />
 </figure>
 
-The **Guitar Rig** shows one compact tile row per pedal that's on the board, followed by a `+ ADD` tile. Press <kbd>4</kbd> for the board, then <kbd>←</kbd>/<kbd>→</kbd> to a tile to load its knobs into the editor below — the focused tile drops its bottom edge and the editor opens its top edge around it, one connected shape with the tile's LED dot as the on/off indicator. Only **enabled** pedals are on the board at startup; everything else lives in the picker.
+The **Guitar Rig** shows one compact tile row per pedal that's on the board, followed by a `+ ADD` tile. Press <kbd>4</kbd> for the board, <kbd>Tab</kbd> to step pedal-by-pedal, and <kbd>←</kbd>/<kbd>→</kbd> to move through the focused pedal's knobs — the focused tile drops its bottom edge and the editor opens its top edge around it, one connected shape with the tile's LED dot as the on/off indicator. Only **enabled** pedals are on the board at startup; everything else lives in the picker.
 
 | Key | Action |
 | --- | ------ |
