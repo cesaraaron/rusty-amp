@@ -9,7 +9,7 @@ use std::sync::atomic::Ordering::Relaxed;
 
 use crate::dsp::tuner::{SPECTRUM_BINS, Tuner, note_of, spectrum_bin_freq};
 
-use super::styles::{AMBER, CHROME, DIM, HOT, ORANGE, SAFE, WARM, WARN};
+use super::styles::{ACCENT, AMBER, CHROME, DIM, HOT, SAFE, WARN};
 
 /// Cents window (±) treated as "in tune".
 const IN_TUNE_CENTS: f32 = 5.0;
@@ -35,7 +35,7 @@ pub(super) fn render_tuner(f: &mut Frame, tuner: &Tuner) {
     let block = Block::default()
         .borders(Borders::ALL)
         .border_type(BorderType::Double)
-        .border_style(Style::default().fg(ORANGE))
+        .border_style(Style::default().fg(ACCENT))
         .title(Span::styled(
             " T U N E R ",
             Style::default().fg(AMBER).add_modifier(Modifier::BOLD),
@@ -218,11 +218,11 @@ fn render_spectrum(f: &mut Frame, area: Rect, tuner: &Tuner, freq: f32) {
             let lit = v >= threshold;
             let highlight = hot_bin == Some(bin);
             let (ch, color) = if lit {
-                let c = if highlight { SAFE } else { ORANGE };
+                let c = if highlight { SAFE } else { ACCENT };
                 ('█', c)
             } else if highlight {
                 // Keep the fundamental's column visible even where it's short.
-                ('│', WARM)
+                ('│', ACCENT)
             } else {
                 (' ', DIM)
             };

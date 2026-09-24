@@ -13,7 +13,7 @@ use ratatui::{
 
 use std::sync::atomic::Ordering::Relaxed;
 
-use super::styles::{AMBER, CHROME, DIM, ORANGE, SAFE};
+use super::styles::{ACCENT, AMBER, CHROME, DIM, SAFE};
 use crate::audio::AudioEngine;
 use crate::dsp::Params;
 use crate::host::au::{self, AuParam, DiscoveredAu, LoadedAu};
@@ -202,7 +202,7 @@ impl AmpBrowser {
         let block = Block::default()
             .borders(Borders::ALL)
             .border_type(BorderType::Double)
-            .border_style(Style::default().fg(ORANGE))
+            .border_style(Style::default().fg(ACCENT))
             .title(Span::styled(
                 title,
                 Style::default().fg(AMBER).add_modifier(Modifier::BOLD),
@@ -350,8 +350,8 @@ fn param_row(p: &AuParam, selected: bool) -> Line<'static> {
     let (prefix, name_style, bar_color) = if selected {
         (
             "▶ ",
-            Style::default().fg(ORANGE).add_modifier(Modifier::BOLD),
-            ORANGE,
+            Style::default().fg(ACCENT).add_modifier(Modifier::BOLD),
+            ACCENT,
         )
     } else {
         ("  ", Style::default().fg(CHROME), DIM)
@@ -360,7 +360,7 @@ fn param_row(p: &AuParam, selected: bool) -> Line<'static> {
     Line::from(vec![
         Span::styled(
             prefix,
-            Style::default().fg(if selected { ORANGE } else { DIM }),
+            Style::default().fg(if selected { ACCENT } else { DIM }),
         ),
         Span::styled(format!("{:<22}", truncate(&p.name, 22)), name_style),
         Span::styled(bar, Style::default().fg(bar_color)),
@@ -386,7 +386,7 @@ fn entry(name: &str, selected: bool) -> Line<'static> {
         (
             "▶ ",
             Style::default()
-                .fg(ORANGE)
+                .fg(ACCENT)
                 .add_modifier(Modifier::BOLD | Modifier::REVERSED),
         )
     } else {
@@ -395,7 +395,7 @@ fn entry(name: &str, selected: bool) -> Line<'static> {
     Line::from(vec![
         Span::styled(
             prefix.to_owned(),
-            Style::default().fg(if selected { ORANGE } else { DIM }),
+            Style::default().fg(if selected { ACCENT } else { DIM }),
         ),
         Span::styled(name.to_owned(), name_style),
     ])

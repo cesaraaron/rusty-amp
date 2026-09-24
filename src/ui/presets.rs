@@ -6,7 +6,7 @@ use ratatui::{
     widgets::{Block, BorderType, Borders, Clear, Paragraph},
 };
 
-use super::styles::{AMBER, CHROME, DIM, ORANGE};
+use super::styles::{ACCENT, AMBER, CHROME, DIM};
 use crate::preset::{Preset, PresetSource};
 
 const GREEN: ratatui::style::Color = ratatui::style::Color::Rgb(80, 200, 120);
@@ -23,7 +23,7 @@ pub(super) fn render_preset_modal(f: &mut Frame, presets: &[Preset], cursor: usi
     let block = Block::default()
         .borders(Borders::ALL)
         .border_type(BorderType::Double)
-        .border_style(Style::default().fg(ORANGE))
+        .border_style(Style::default().fg(ACCENT))
         .title(Span::styled(
             " P R E S E T S ",
             Style::default().fg(AMBER).add_modifier(Modifier::BOLD),
@@ -45,7 +45,7 @@ pub(super) fn render_preset_modal(f: &mut Frame, presets: &[Preset], cursor: usi
             (
                 "▶ ",
                 Style::default()
-                    .fg(ORANGE)
+                    .fg(ACCENT)
                     .add_modifier(Modifier::BOLD | Modifier::REVERSED),
                 Style::default().fg(AMBER).add_modifier(Modifier::REVERSED),
             )
@@ -62,7 +62,7 @@ pub(super) fn render_preset_modal(f: &mut Frame, presets: &[Preset], cursor: usi
         let mut spans = vec![
             Span::styled(
                 prefix.to_string(),
-                Style::default().fg(if selected { ORANGE } else { DIM }),
+                Style::default().fg(if selected { ACCENT } else { DIM }),
             ),
             Span::styled(label, name_style),
             Span::styled(desc.to_string(), desc_style),

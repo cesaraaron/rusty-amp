@@ -16,7 +16,7 @@ use crate::audio::DeviceInfo;
 use crate::dsp::{Levels, Params};
 
 use super::draw::draw;
-use super::styles::{AMBER, CHROME, DIM, ORANGE, WARM};
+use super::styles::{ACCENT, AMBER, CHROME, DIM};
 
 pub struct Selection {
     pub input_idx: usize,
@@ -200,7 +200,7 @@ fn render_list_modal(
     let block = Block::default()
         .borders(Borders::ALL)
         .border_type(BorderType::Double)
-        .border_style(Style::default().fg(ORANGE))
+        .border_style(Style::default().fg(ACCENT))
         .title(Span::styled(
             title,
             Style::default().fg(AMBER).add_modifier(Modifier::BOLD),
@@ -255,9 +255,9 @@ fn render_list_modal(
                 (
                     "▶ ",
                     Style::default()
-                        .fg(ORANGE)
+                        .fg(ACCENT)
                         .add_modifier(Modifier::BOLD | Modifier::REVERSED),
-                    Style::default().fg(WARM).add_modifier(Modifier::REVERSED),
+                    Style::default().fg(ACCENT).add_modifier(Modifier::REVERSED),
                 )
             } else {
                 ("  ", Style::default().fg(CHROME), Style::default().fg(DIM))
@@ -270,7 +270,7 @@ fn render_list_modal(
             Line::from(vec![
                 Span::styled(
                     prefix,
-                    Style::default().fg(if selected { ORANGE } else { DIM }),
+                    Style::default().fg(if selected { ACCENT } else { DIM }),
                 ),
                 Span::styled(label, name_style),
                 Span::styled(hint.clone(), hint_style),

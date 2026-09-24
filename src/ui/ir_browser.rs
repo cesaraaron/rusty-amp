@@ -18,7 +18,7 @@ use ratatui::{
     widgets::{Block, BorderType, Borders, Clear, Paragraph},
 };
 
-use super::styles::{AMBER, CHROME, DIM, ORANGE, SAFE, WARN};
+use super::styles::{ACCENT, AMBER, CHROME, DIM, SAFE, WARN};
 use crate::audio::AudioEngine;
 use crate::dsp::Params;
 use crate::dsp::cab::{ExternalIrCab, MAX_IR_LEN, load_ir};
@@ -160,7 +160,7 @@ impl IrBrowser {
         let block = Block::default()
             .borders(Borders::ALL)
             .border_type(BorderType::Double)
-            .border_style(Style::default().fg(ORANGE))
+            .border_style(Style::default().fg(ACCENT))
             .title(Span::styled(
                 " C A B I N E T   I R s ",
                 Style::default().fg(AMBER).add_modifier(Modifier::BOLD),
@@ -314,7 +314,7 @@ fn entry(name: &str, detail: &str, selected: bool) -> Line<'static> {
         (
             "▶ ",
             Style::default()
-                .fg(ORANGE)
+                .fg(ACCENT)
                 .add_modifier(Modifier::BOLD | Modifier::REVERSED),
         )
     } else {
@@ -323,7 +323,7 @@ fn entry(name: &str, detail: &str, selected: bool) -> Line<'static> {
     let mut spans = vec![
         Span::styled(
             prefix.to_owned(),
-            Style::default().fg(if selected { ORANGE } else { DIM }),
+            Style::default().fg(if selected { ACCENT } else { DIM }),
         ),
         Span::styled(name.to_owned(), name_style),
     ];

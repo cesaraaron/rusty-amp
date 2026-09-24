@@ -8,7 +8,7 @@ use ratatui::{
 
 use crate::dsp::metronome::{MAX_BPM, MIN_BPM, Metronome};
 
-use super::styles::{AMBER, CHROME, DIM, HOT, ORANGE, SAFE};
+use super::styles::{ACCENT, AMBER, CHROME, DIM, HOT, SAFE};
 
 pub(super) fn render_metronome(f: &mut Frame, metronome: &Metronome, blink: bool) {
     let area = centered_rect(60, 45, f.area());
@@ -26,7 +26,7 @@ pub(super) fn render_metronome(f: &mut Frame, metronome: &Metronome, blink: bool
     let block = Block::default()
         .borders(Borders::ALL)
         .border_type(BorderType::Double)
-        .border_style(Style::default().fg(ORANGE))
+        .border_style(Style::default().fg(ACCENT))
         .title(Span::styled(
             " M E T R O N O M E ",
             Style::default().fg(AMBER).add_modifier(Modifier::BOLD),
@@ -126,7 +126,7 @@ fn render_slider(f: &mut Frame, area: Rect, bpm: u32, active: bool) {
     }
     let frac = (bpm - MIN_BPM) as f32 / (MAX_BPM - MIN_BPM) as f32;
     let pos = (frac * (track - 1) as f32).round() as usize;
-    let fill_color = if active { SAFE } else { ORANGE };
+    let fill_color = if active { SAFE } else { ACCENT };
 
     let mut spans = vec![Span::styled("  ", Style::default())];
     for i in 0..track {

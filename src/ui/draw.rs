@@ -33,7 +33,7 @@ pub(super) fn draw(
     let outer = Block::default()
         .borders(Borders::ALL)
         .border_type(BorderType::Double)
-        .border_style(Style::default().fg(WARM))
+        .border_style(border_style(true))
         .style(Style::default().bg(Color::Black));
     let inner = outer.inner(area);
     f.render_widget(outer, area);
@@ -75,7 +75,7 @@ fn render_header(
     let block = Block::default()
         .borders(Borders::BOTTOM)
         .border_type(BorderType::Double)
-        .border_style(Style::default().fg(WARM))
+        .border_style(Style::default().fg(ACCENT))
         .style(Style::default().bg(Color::Black));
     let inner = block.inner(area);
     f.render_widget(block, area);
@@ -104,23 +104,23 @@ fn render_header(
     let mut title_spans = vec![
         Span::styled(
             "  R U S T Y  A M P  ",
-            Style::default().fg(ORANGE).add_modifier(Modifier::BOLD),
+            Style::default().fg(ACCENT).add_modifier(Modifier::BOLD),
         ),
         Span::styled(
             concat!("v", env!("CARGO_PKG_VERSION"), "  "),
             Style::default().fg(DIM),
         ),
-        Span::styled("▐", Style::default().fg(WARM)),
+        Span::styled("▐", Style::default().fg(shade(ACCENT, 0.6))),
         Span::styled(
             format!("  {amp_name}  "),
             Style::default().fg(CHROME).add_modifier(Modifier::BOLD),
         ),
-        Span::styled("▐", Style::default().fg(WARM)),
+        Span::styled("▐", Style::default().fg(shade(ACCENT, 0.6))),
         Span::styled(
             format!("  {cab_name}  "),
             Style::default().fg(CHROME).add_modifier(Modifier::BOLD),
         ),
-        Span::styled("▐", Style::default().fg(WARM)),
+        Span::styled("▐", Style::default().fg(shade(ACCENT, 0.6))),
     ];
 
     // Loaded plugin insert (if any), between the cabinet and the power lamp.
@@ -129,14 +129,14 @@ fn render_header(
             format!("  🔌 {name}  "),
             Style::default().fg(AMBER).add_modifier(Modifier::BOLD),
         ));
-        title_spans.push(Span::styled("▐", Style::default().fg(WARM)));
+        title_spans.push(Span::styled("▐", Style::default().fg(shade(ACCENT, 0.6))));
     }
 
     title_spans.push(Span::styled(
         "  ● POWER ON  ",
         Style::default().fg(SAFE).add_modifier(Modifier::BOLD),
     ));
-    title_spans.push(Span::styled("▐", Style::default().fg(WARM)));
+    title_spans.push(Span::styled("▐", Style::default().fg(shade(ACCENT, 0.6))));
     title_spans.push(if recording && blink {
         Span::styled(
             "  ● ON AIR  ",
@@ -207,14 +207,14 @@ fn render_header(
 
     for (label, on) in pre_pedals {
         if on {
-            push_stage(&mut chain, label, ORANGE);
+            push_stage(&mut chain, label, ACCENT);
         }
     }
     push_stage(&mut chain, "AMP", AMBER);
     push_stage(&mut chain, "CAB", AMBER);
     for (label, on) in post_pedals {
         if on {
-            push_stage(&mut chain, label, ORANGE);
+            push_stage(&mut chain, label, ACCENT);
         }
     }
     push_stage(&mut chain, "OUTPUT", CHROME);
@@ -320,16 +320,10 @@ fn render_vu_row(f: &mut Frame, area: Rect, label: &str, level: f32) {
 }
 
 fn render_amp_selector(f: &mut Frame, area: Rect, params: &Params, focused: bool) {
-    let border_color = if focused {
-        ORANGE
-    } else {
-        Color::Rgb(60, 40, 0)
-    };
-
     let block = Block::default()
         .borders(Borders::ALL)
         .border_type(BorderType::Thick)
-        .border_style(Style::default().fg(border_color))
+        .border_style(border_style(focused))
         .style(Style::default().bg(Color::Black));
     let inner = block.inner(area);
     f.render_widget(block, area);
@@ -343,7 +337,7 @@ fn render_amp_selector(f: &mut Frame, area: Rect, params: &Params, focused: bool
     // When an external AU is the active amp the built-in model is bypassed, so the
     // whole selector is dimmed to signal it has no effect until `Z` returns to it.
     let amp_model = params.amp_model();
-    let label_color = if focused { AMBER } else { DIM };
+    let label_color = if focused { ACCENT } else { DIM };
     let amp_ext_active = params.amp_external_active.load(Relaxed);
     let amp_label_fg = if amp_ext_active { OFF } else { label_color };
 
@@ -365,10 +359,10 @@ fn render_amp_selector(f: &mut Frame, area: Rect, params: &Params, focused: bool
             Style::default().fg(OFF)
         } else if selected {
             Style::default()
-                .fg(ORANGE)
+                .fg(ACCENT)
                 .add_modifier(Modifier::BOLD | Modifier::REVERSED)
         } else {
-            Style::default().fg(Color::Rgb(80, 60, 0))
+            Style::default().fg(shade(ACCENT, 0.3))
         };
         let (bl, br) = if selected {
             ("◀ ", " ▶")
@@ -378,7 +372,7 @@ fn render_amp_selector(f: &mut Frame, area: Rect, params: &Params, focused: bool
         let bc = if amp_ext_active {
             OFF
         } else if selected {
-            AMBER
+            ACCENT
         } else {
             DIM
         };
@@ -420,10 +414,10 @@ fn render_amp_selector(f: &mut Frame, area: Rect, params: &Params, focused: bool
             Style::default().fg(OFF)
         } else if selected {
             Style::default()
-                .fg(ORANGE)
+                .fg(ACCENT)
                 .add_modifier(Modifier::BOLD | Modifier::REVERSED)
         } else {
-            Style::default().fg(Color::Rgb(80, 60, 0))
+            Style::default().fg(shade(ACCENT, 0.3))
         };
         let (bl, br) = if selected {
             ("◀ ", " ▶")
@@ -433,7 +427,7 @@ fn render_amp_selector(f: &mut Frame, area: Rect, params: &Params, focused: bool
         let bc = if cab_inactive {
             OFF
         } else if selected {
-            AMBER
+            ACCENT
         } else {
             DIM
         };
@@ -464,10 +458,14 @@ fn render_amp(
 ) {
     let amp_active = focus.is_some_and(|i| (AMP_START..AMP_END).contains(&i));
     let mic_active = focus.is_some_and(|i| (MIC_START..MIC_END).contains(&i));
-    let border_color = if amp_active || mic_active {
-        ORANGE
+    // The amp + cabinet/mic panel is one focusable region; dim it hard when neither
+    // half owns the focus.
+    let panel_active = amp_active || mic_active;
+    let border_color = border_glyph(panel_active);
+    let dim = if panel_active {
+        Modifier::empty()
     } else {
-        WARM
+        Modifier::DIM
     };
 
     // The amp panel reflects the active amp: a loaded AU's name (with the tone-stack
@@ -493,7 +491,10 @@ fn render_amp(
         Span::styled("┤ ", Style::default().fg(border_color)),
         Span::styled(
             amp_name,
-            Style::default().fg(AMBER).add_modifier(Modifier::BOLD),
+            Style::default()
+                .fg(AMBER)
+                .add_modifier(Modifier::BOLD)
+                .add_modifier(dim),
         ),
         Span::styled(" ├", Style::default().fg(border_color)),
     ]);
@@ -501,7 +502,10 @@ fn render_amp(
         Span::styled("┤ 🎙 ", Style::default().fg(border_color)),
         Span::styled(
             cab_name,
-            Style::default().fg(CHROME).add_modifier(Modifier::BOLD),
+            Style::default()
+                .fg(CHROME)
+                .add_modifier(Modifier::BOLD)
+                .add_modifier(dim),
         ),
         Span::styled(" ├", Style::default().fg(border_color)),
     ])
@@ -510,7 +514,7 @@ fn render_amp(
     let block = Block::default()
         .borders(Borders::ALL)
         .border_type(BorderType::Thick)
-        .border_style(Style::default().fg(border_color))
+        .border_style(border_style(panel_active))
         .title(left_title)
         .title(right_title)
         .style(Style::default().bg(Color::Black));
@@ -552,6 +556,7 @@ fn render_amp(
             focus == Some(ki),
             amp_live,
             AMBER,
+            !panel_active,
         );
     }
 
@@ -578,10 +583,15 @@ fn render_amp(
             focus == Some(ki),
             mic_live,
             CHROME,
+            !panel_active,
         );
     }
 
-    render_grille(f, parts[1], shade(WARM, 0.45));
+    render_grille(
+        f,
+        parts[1],
+        shade(ACCENT, if panel_active { 0.45 } else { 0.18 }),
+    );
 }
 
 fn render_grille(f: &mut Frame, area: Rect, color: Color) {
@@ -602,13 +612,19 @@ fn render_grille(f: &mut Frame, area: Rect, color: Color) {
 // the top, and a full-size dial editor for the focused pedal below. Screen cost
 // is flat in pedal count — adding pedals grows the tile grid, not the editor.
 fn render_rig(f: &mut Frame, area: Rect, params: &Params, board: &[bool], focus: Option<usize>) {
+    // The rig is "active" whenever focus is on one of its pedals (or the + ADD
+    // tile); otherwise it recedes with the other inactive panels.
+    let rig_active = focus
+        .is_some_and(|i| i == ADD_TILE || PEDALS.iter().any(|p| (p.start..p.end).contains(&i)));
     let block = Block::default()
         .borders(Borders::ALL)
         .border_type(BorderType::Plain)
-        .border_style(Style::default().fg(WARM))
+        .border_style(border_style(rig_active))
         .title(Line::from(Span::styled(
             " GUITAR RIG ",
-            Style::default().fg(AMBER).add_modifier(Modifier::BOLD),
+            Style::default()
+                .fg(border_glyph(rig_active))
+                .add_modifier(Modifier::BOLD),
         )))
         .style(Style::default().bg(Color::Black));
     let inner = block.inner(area);
@@ -648,7 +664,7 @@ fn render_rig(f: &mut Frame, area: Rect, params: &Params, board: &[bool], focus:
             .split(grid_rows[r]);
         for (c, cell) in cells.iter().take(n).enumerate() {
             match on_board.get(base + c) {
-                Some(&pi) => render_pedal_tile(f, *cell, &PEDALS[pi], focus, params),
+                Some(&pi) => render_pedal_tile(f, *cell, &PEDALS[pi], focus, params, !rig_active),
                 None => render_add_tile(f, *cell, focus == Some(ADD_TILE)),
             }
         }
@@ -659,14 +675,22 @@ fn render_rig(f: &mut Frame, area: Rect, params: &Params, board: &[bool], focus:
 
 /// The "+ ADD" tile: an empty slot inviting the user to add a pedal.
 fn render_add_tile(f: &mut Frame, area: Rect, focused: bool) {
-    let color = if focused { AMBER } else { DIM };
+    let color = if focused { ACCENT } else { shade(ACCENT, 0.5) };
+    let dim = if focused {
+        Modifier::empty()
+    } else {
+        Modifier::DIM
+    };
     let block = Block::default()
         .borders(Borders::ALL)
         .border_type(BorderType::Double)
-        .border_style(Style::default().fg(color))
+        .border_style(Style::default().fg(color).add_modifier(dim))
         .title(Line::from(Span::styled(
             " + ADD ",
-            Style::default().fg(color).add_modifier(Modifier::BOLD),
+            Style::default()
+                .fg(color)
+                .add_modifier(Modifier::BOLD)
+                .add_modifier(dim),
         )))
         .style(Style::default().bg(Color::Black));
     let inner = block.inner(area);
@@ -679,7 +703,10 @@ fn render_add_tile(f: &mut Frame, area: Rect, focused: bool) {
     f.render_widget(
         Paragraph::new(Line::from(Span::styled(
             "＋",
-            Style::default().fg(color).add_modifier(Modifier::BOLD),
+            Style::default()
+                .fg(color)
+                .add_modifier(Modifier::BOLD)
+                .add_modifier(dim),
         )))
         .alignment(Alignment::Center),
         parts[0],
@@ -687,7 +714,7 @@ fn render_add_tile(f: &mut Frame, area: Rect, focused: bool) {
     f.render_widget(
         Paragraph::new(Line::from(Span::styled(
             if focused { "Enter" } else { "" },
-            Style::default().fg(DIM),
+            Style::default().fg(DIM).add_modifier(dim),
         )))
         .alignment(Alignment::Center),
         parts[1],
@@ -695,28 +722,41 @@ fn render_add_tile(f: &mut Frame, area: Rect, focused: bool) {
 }
 
 /// A compact pedal tile: name + LED in the title, all knob values on one line,
-/// and a footswitch. The focused pedal's tile lights up to its full livery; the
-/// rest dim by on/off state.
+/// and a footswitch. The focused pedal's tile lights up to its full livery; every
+/// other tile is heavily faded — and fades further when the whole rig is unfocused
+/// — so the focused region reads at a glance.
 fn render_pedal_tile(
     f: &mut Frame,
     area: Rect,
     pedal: &Pedal,
     focus: Option<usize>,
     params: &Params,
+    rig_dim: bool,
 ) {
     let on = (pedal.enabled)(params).load(Relaxed);
     let active = focus.is_some_and(|i| (pedal.start..pedal.end).contains(&i));
+    // Unfocused tiles are dimmed via the `DIM` attribute; the shade adds a second,
+    // colour-level fade so an inactive tile truly recedes (a terminal has no alpha).
+    let dim = if active {
+        Modifier::empty()
+    } else {
+        Modifier::DIM
+    };
     let body = if active {
         pedal.color
+    } else if rig_dim {
+        shade(pedal.color, 0.12)
     } else if on {
-        shade(pedal.color, 0.8)
+        shade(pedal.color, 0.55)
     } else {
-        shade(pedal.color, 0.35)
+        shade(pedal.color, 0.25)
     };
-    let name_color = if on {
+    let name_color = if active {
         pedal.color
+    } else if on {
+        shade(pedal.color, 0.7)
     } else {
-        shade(pedal.color, 0.5)
+        shade(pedal.color, 0.4)
     };
 
     let led = if on {
@@ -724,16 +764,20 @@ fn render_pedal_tile(
             "◉",
             Style::default()
                 .fg(Color::Rgb(255, 70, 70))
-                .add_modifier(Modifier::BOLD),
+                .add_modifier(Modifier::BOLD)
+                .add_modifier(dim),
         )
     } else {
-        Span::styled("○", Style::default().fg(OFF))
+        Span::styled("○", Style::default().fg(OFF).add_modifier(dim))
     };
 
     let title = Line::from(vec![
         Span::styled(
             format!(" {} ", pedal.name),
-            Style::default().fg(name_color).add_modifier(Modifier::BOLD),
+            Style::default()
+                .fg(name_color)
+                .add_modifier(Modifier::BOLD)
+                .add_modifier(dim),
         ),
         led,
         Span::raw(" "),
@@ -742,7 +786,7 @@ fn render_pedal_tile(
     let block = Block::default()
         .borders(Borders::ALL)
         .border_type(BorderType::Double)
-        .border_style(Style::default().fg(body))
+        .border_style(Style::default().fg(body).add_modifier(dim))
         .title(title)
         .style(Style::default().bg(Color::Black));
     let inner = block.inner(area);
@@ -757,23 +801,30 @@ fn render_pedal_tile(
         .map(|ki| format!("{:.1}", (KNOBS[ki].param)(params).load(Relaxed) * 10.0))
         .collect::<Vec<_>>()
         .join("  ");
-    let value_color = if active || on { pedal.color } else { OFF };
+    let value_color = if active {
+        pedal.color
+    } else if on {
+        shade(pedal.color, 0.8)
+    } else {
+        OFF
+    };
     f.render_widget(
         Paragraph::new(Line::from(Span::styled(
             values,
             Style::default()
                 .fg(value_color)
-                .add_modifier(Modifier::BOLD),
+                .add_modifier(Modifier::BOLD)
+                .add_modifier(dim),
         )))
         .alignment(Alignment::Center),
         parts[0],
     );
 
-    let foot_color = if on { body } else { shade(pedal.color, 0.3) };
+    let foot_color = if on { body } else { shade(pedal.color, 0.25) };
     f.render_widget(
         Paragraph::new(Line::from(Span::styled(
             "▗▄▄▄▄▄▄▄▖",
-            Style::default().fg(foot_color),
+            Style::default().fg(foot_color).add_modifier(dim),
         )))
         .alignment(Alignment::Center),
         parts[1],
@@ -858,6 +909,7 @@ fn render_pedal_detail(f: &mut Frame, area: Rect, params: &Params, focus: Option
             focus == Some(ki),
             on,
             pedal.color,
+            false,
         );
     }
 
@@ -890,14 +942,20 @@ fn render_compact_knob(
     focused: bool,
     active: bool,
     accent: Color,
+    dimmed: bool,
 ) {
+    let fade = if dimmed {
+        Modifier::DIM
+    } else {
+        Modifier::empty()
+    };
     let rows = Layout::default()
         .direction(Direction::Vertical)
         .constraints([Constraint::Min(2), Constraint::Length(1)])
         .split(area);
 
     let dial_color = if focused {
-        AMBER
+        ACCENT
     } else if active {
         accent
     } else {
@@ -907,20 +965,25 @@ fn render_compact_knob(
     let dial_h = (rows[0].height as usize).clamp(2, 5);
     let art: Vec<Line> = build_dial(value, focused, dial_h)
         .iter()
-        .map(|l| Line::from(Span::styled(l.clone(), Style::default().fg(dial_color))))
+        .map(|l| {
+            Line::from(Span::styled(
+                l.clone(),
+                Style::default().fg(dial_color).add_modifier(fade),
+            ))
+        })
         .collect();
     f.render_widget(Paragraph::new(art).alignment(Alignment::Center), rows[0]);
 
     let num = value * 10.0;
     let label_color = if focused {
-        AMBER
+        ACCENT
     } else if active {
         DIM
     } else {
         OFF
     };
     let value_color = if focused {
-        ORANGE
+        ACCENT
     } else if active {
         accent
     } else {
@@ -932,13 +995,15 @@ fn render_compact_knob(
             format!("{label} "),
             Style::default()
                 .fg(label_color)
-                .add_modifier(Modifier::BOLD),
+                .add_modifier(Modifier::BOLD)
+                .add_modifier(fade),
         ),
         Span::styled(
             format!("{num:.1}"),
             Style::default()
                 .fg(value_color)
-                .add_modifier(Modifier::BOLD),
+                .add_modifier(Modifier::BOLD)
+                .add_modifier(fade),
         ),
     ]);
     f.render_widget(
@@ -959,14 +1024,20 @@ fn render_compact_fader(
     focused: bool,
     active: bool,
     accent: Color,
+    dimmed: bool,
 ) {
+    let fade = if dimmed {
+        Modifier::DIM
+    } else {
+        Modifier::empty()
+    };
     let rows = Layout::default()
         .direction(Direction::Vertical)
         .constraints([Constraint::Min(2), Constraint::Length(1)])
         .split(area);
 
     let track_color = if focused {
-        AMBER
+        ACCENT
     } else if active {
         accent
     } else {
@@ -979,20 +1050,25 @@ fn render_compact_fader(
     let track_h = (rows[0].height as usize).max(2);
     let art: Vec<Line> = build_fader(value, track_h)
         .into_iter()
-        .map(|l| Line::from(Span::styled(l, Style::default().fg(track_color))))
+        .map(|l| {
+            Line::from(Span::styled(
+                l,
+                Style::default().fg(track_color).add_modifier(fade),
+            ))
+        })
         .collect();
     f.render_widget(Paragraph::new(art).alignment(Alignment::Center), rows[0]);
 
     let num = value * 10.0;
     let label_color = if focused {
-        AMBER
+        ACCENT
     } else if active {
         DIM
     } else {
         OFF
     };
     let value_color = if focused {
-        ORANGE
+        ACCENT
     } else if active {
         accent
     } else {
@@ -1003,13 +1079,15 @@ fn render_compact_fader(
             format!("{label} "),
             Style::default()
                 .fg(label_color)
-                .add_modifier(Modifier::BOLD),
+                .add_modifier(Modifier::BOLD)
+                .add_modifier(fade),
         ),
         Span::styled(
             format!("{num:.1}"),
             Style::default()
                 .fg(value_color)
-                .add_modifier(Modifier::BOLD),
+                .add_modifier(Modifier::BOLD)
+                .add_modifier(fade),
         ),
     ]);
     f.render_widget(
@@ -1135,7 +1213,7 @@ pub(super) fn render_add_pedal_modal(f: &mut Frame, available: &[usize], cursor:
     let block = Block::default()
         .borders(Borders::ALL)
         .border_type(BorderType::Double)
-        .border_style(Style::default().fg(ORANGE))
+        .border_style(Style::default().fg(ACCENT))
         .title(Span::styled(
             " A D D   P E D A L ",
             Style::default().fg(AMBER).add_modifier(Modifier::BOLD),
@@ -1178,7 +1256,7 @@ pub(super) fn render_add_pedal_modal(f: &mut Frame, available: &[usize], cursor:
                 Line::from(vec![
                     Span::styled(
                         prefix,
-                        Style::default().fg(if selected { ORANGE } else { DIM }),
+                        Style::default().fg(if selected { ACCENT } else { DIM }),
                     ),
                     Span::styled(p.name, style),
                 ])
@@ -1272,6 +1350,26 @@ fn shade(c: Color, factor: f32) -> Color {
         ),
         other => other,
     }
+}
+
+/// Border style for a structural panel: full-bright [`ACCENT`] when the region is
+/// active/focused, otherwise a heavily faded accent with the terminal's `DIM`
+/// attribute. A terminal has no alpha channel, so `DIM` + a dark shade is the
+/// closest we get to a "transparent" inactive border — it recedes so the focused
+/// region stands out.
+fn border_style(active: bool) -> Style {
+    if active {
+        Style::default().fg(ACCENT).add_modifier(Modifier::BOLD)
+    } else {
+        Style::default()
+            .fg(shade(ACCENT, 0.35))
+            .add_modifier(Modifier::DIM)
+    }
+}
+
+/// Accent color for a region's on-border glyphs (titles), matching [`border_style`].
+fn border_glyph(active: bool) -> Color {
+    if active { ACCENT } else { shade(ACCENT, 0.35) }
 }
 
 /// Whether an external amp is active *and* supplying its own cab (amp+cab mode), so the
