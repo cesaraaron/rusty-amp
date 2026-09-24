@@ -29,12 +29,13 @@ use crate::practice::Practice;
 use crate::preset::Preset;
 use crate::recording::{RecordingState, save_wav};
 
-use config::{ADD_TILE, CHAIN_TILE, PEDALS, PRACTICE_TILE, Panels, pedal_of};
-use draw::{draw, render_add_pedal_modal, render_help_modal};
+use config::{ADD_TILE, AMP_START, CHAIN_TILE, PEDALS, PRACTICE_TILE, Panels, pedal_of};
+use draw::{draw, render_add_pedal_modal, render_amp_modal, render_cab_modal, render_help_modal};
 use input::{
-    add_pedal, cycle_amp, cycle_cab, ensure_focus_visible, move_chain_cursor, move_selected_stage,
-    next_panel_focus, nudge, press_number, prev_panel_focus, remove_pedal, step_knob_in_panel,
-    toggle_pedal, toggle_stage,
+    add_pedal, amp_choices, cab_choices, ensure_focus_visible, init_amp_cursor, init_cab_cursor,
+    move_chain_cursor, move_selected_stage, next_panel_focus, nudge, press_number,
+    prev_panel_focus, remove_pedal, select_amp, select_cab, step_knob_in_panel, toggle_pedal,
+    toggle_stage,
 };
 use practice::PracticeUi;
 use presets::{PathDialogKind, render_path_dialog, render_preset_modal, render_save_dialog};
@@ -138,6 +139,11 @@ pub fn run(
     let mut board: Vec<bool> = sync_board(&params);
     let mut add_open = false;
     let mut add_cursor = 0usize;
+    // Amp/cab picker modals (`A`/`C`): cursor preselected on the current pick.
+    let mut amp_open = false;
+    let mut amp_cursor = 0usize;
+    let mut cab_open = false;
+    let mut cab_cursor = 0usize;
     let mut preset_open = false;
     let mut preset_cursor = 0usize;
     let mut presets = presets;
@@ -309,6 +315,29 @@ pub fn run(
                 if add_open {
                     let available: Vec<usize> = (0..PEDALS.len()).filter(|&i| !board[i]).collect();
                     render_add_pedal_modal(f, &available, add_cursor);
+                }
+                if amp_open {
+                    #[cfg(all(feature = "au", target_os = "macos"))]
+                    let (au_loaded, au_name) = (
+                        params
+                            .amp_external_loaded
+                            .load(std::sync::atomic::Ordering::Relaxed),
+                        amp_browser.loaded_name(),
+                    );
+                    #[cfg(not(all(feature = "au", target_os = "macos")))]
+                    let (au_loaded, au_name): (bool, Option<&str>) = (false, None);
+                    render_amp_modal(f, &params, au_name, au_loaded, amp_cursor);
+                }
+                if cab_open {
+                    render_cab_modal(
+                        f,
+                        &params,
+                        ir_browser.loaded_name(),
+                        params
+                            .cab_external_loaded
+                            .load(std::sync::atomic::Ordering::Relaxed),
+                        cab_cursor,
+                    );
                 }
                 if preset_open {
                     render_preset_modal(f, &presets, preset_cursor);
@@ -560,7 +589,7 @@ pub fn run(
                                 && let Some(pi) = pedal_of(i)
                                 && !board[pi]
                             {
-                                focus = None;
+                                focus = Some(AMP_START);
                             }
                             focus =
                                 ensure_focus_visible(focus, &board, &panels, &params.chain_slots());
@@ -619,6 +648,58 @@ pub fn run(
                             add_open = false;
                         }
                         KeyCode::Esc => add_open = false,
+                        _ => {}
+                    }
+                } else if amp_open {
+                    let total = amp_choices(
+                        params
+                            .amp_external_loaded
+                            .load(std::sync::atomic::Ordering::Relaxed),
+                    );
+                    match key.code {
+                        KeyCode::Up => amp_cursor = amp_cursor.saturating_sub(1),
+                        KeyCode::Down => {
+                            amp_cursor = (amp_cursor + 1).min(total.saturating_sub(1));
+                        }
+                        KeyCode::Enter => {
+                            select_amp(
+                                &params,
+                                amp_cursor,
+                                params
+                                    .amp_external_loaded
+                                    .load(std::sync::atomic::Ordering::Relaxed),
+                            );
+                            amp_open = false;
+                        }
+                        KeyCode::Esc | KeyCode::Char('a') | KeyCode::Char('A') => {
+                            amp_open = false;
+                        }
+                        _ => {}
+                    }
+                } else if cab_open {
+                    let total = cab_choices(
+                        params
+                            .cab_external_loaded
+                            .load(std::sync::atomic::Ordering::Relaxed),
+                    );
+                    match key.code {
+                        KeyCode::Up => cab_cursor = cab_cursor.saturating_sub(1),
+                        KeyCode::Down => {
+                            cab_cursor = (cab_cursor + 1).min(total.saturating_sub(1));
+                        }
+                        KeyCode::Enter => {
+                            select_cab(
+                                &params,
+                                cab_cursor,
+                                params
+                                    .cab_external_loaded
+                                    .load(std::sync::atomic::Ordering::Relaxed),
+                            );
+                            cab_open = false;
+                        }
+                        KeyCode::Esc | KeyCode::Char('c') | KeyCode::Char('C') => {
+                            cab_open = false;
+                        }
                         _ => {}
                     }
                 } else {
@@ -775,10 +856,12 @@ pub fn run(
                             save_error = None;
                         }
                         KeyCode::Char('a') | KeyCode::Char('A') => {
-                            cycle_amp(&params, 1);
+                            amp_open = true;
+                            amp_cursor = init_amp_cursor(&params);
                         }
                         KeyCode::Char('c') | KeyCode::Char('C') => {
-                            cycle_cab(&params);
+                            cab_open = true;
+                            cab_cursor = init_cab_cursor(&params);
                         }
                         KeyCode::Tab => {
                             focus = next_panel_focus(focus, &board, &panels, &params.chain_slots());
@@ -804,13 +887,11 @@ pub fn run(
                             focus = step_knob_in_panel(focus, &board, &params.chain_slots(), -1);
                         }
                         KeyCode::Up | KeyCode::Char('+') | KeyCode::Char('=') => match focus {
-                            None => cycle_amp(&params, 1),
-                            Some(ADD_TILE | PRACTICE_TILE | CHAIN_TILE) => {}
+                            Some(ADD_TILE | PRACTICE_TILE | CHAIN_TILE) | None => {}
                             Some(i) => nudge(&params, i, 0.05),
                         },
                         KeyCode::Down | KeyCode::Char('-') => match focus {
-                            None => cycle_amp(&params, -1),
-                            Some(ADD_TILE | PRACTICE_TILE | CHAIN_TILE) => {}
+                            Some(ADD_TILE | PRACTICE_TILE | CHAIN_TILE) | None => {}
                             Some(i) => nudge(&params, i, -0.05),
                         },
                         KeyCode::Enter if focus == Some(ADD_TILE) => {

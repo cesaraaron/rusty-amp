@@ -85,6 +85,16 @@ impl AmpModel {
             Self::Hiwatt => Self::Vox,
         }
     }
+
+    /// All models in picker order — the single source for the amp modal,
+    /// cursor init, and tests.
+    pub const ALL: [Self; 5] = [
+        Self::Marshall,
+        Self::Mesa,
+        Self::Randall,
+        Self::Vox,
+        Self::Hiwatt,
+    ];
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
@@ -133,6 +143,10 @@ impl CabModel {
             Self::Wem => Self::Mesa,
         }
     }
+
+    /// All models in picker order — the single source for the cab modal,
+    /// cursor init, and tests.
+    pub const ALL: [Self; 4] = [Self::Mesa, Self::Marshall, Self::Orange, Self::Wem];
 }
 
 /// One slot in the reorderable signal chain: the 10 pre pedals (mono DSP),

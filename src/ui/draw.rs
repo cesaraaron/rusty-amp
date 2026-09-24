@@ -48,9 +48,10 @@ pub(super) fn draw(
         Constraint::Length(3), // chain box + mini input/output bars
     ];
     if panels.amp {
-        // Two side-by-side boxes (amp + cab, 11 rows each): selector, knobs,
-        // bottom margin, grille strip inside each box.
-        cons.push(Constraint::Length(11)); // amplifier + cabinet/mic + selectors
+        // Two side-by-side boxes (amp + cab, 10 rows each): knobs, bottom
+        // margin, grille strip inside each box. Model picking lives in the
+        // `A`/`C` browser modals; the titles show the active models.
+        cons.push(Constraint::Length(10)); // amplifier + cabinet/mic
     }
     if show_timeline {
         // Fixed 10-row strip (transport + two 3-row tracks + hint); any leftover
@@ -290,126 +291,11 @@ fn render_vu_row(f: &mut Frame, area: Rect, label: &str, level: f32) {
     f.render_widget(Paragraph::new(Line::from(spans)), area);
 }
 
-/// Amp-model selector row (no border of its own; lives in the amp box).
-fn render_amp_models(f: &mut Frame, area: Rect, params: &Params, focused: bool) {
-    // ── Amp model selector ────────────────────────────────────────────────────
-    // When an external AU is the active amp the built-in model is bypassed, so the
-    // whole selector is dimmed to signal it has no effect until `Z` returns to it.
-    let amp_model = params.amp_model();
-    let label_color = if focused { ACCENT } else { DIM };
-    let amp_ext_active = params.amp_external_active.load(Relaxed);
-    let amp_label_fg = if amp_ext_active { OFF } else { label_color };
-
-    let mut amp_spans = vec![Span::styled(
-        "  AMP  ",
-        Style::default()
-            .fg(amp_label_fg)
-            .add_modifier(Modifier::BOLD),
-    )];
-    for m in [
-        AmpModel::Marshall,
-        AmpModel::Mesa,
-        AmpModel::Randall,
-        AmpModel::Vox,
-        AmpModel::Hiwatt,
-    ] {
-        let selected = m == amp_model;
-        let style = if amp_ext_active {
-            Style::default().fg(OFF)
-        } else if selected {
-            Style::default()
-                .fg(ACCENT)
-                .add_modifier(Modifier::BOLD | Modifier::REVERSED)
-        } else {
-            Style::default().fg(shade(ACCENT, 0.3))
-        };
-        let (bl, br) = if selected {
-            ("◀ ", " ▶")
-        } else {
-            ("[ ", " ]")
-        };
-        let bc = if amp_ext_active {
-            OFF
-        } else if selected {
-            ACCENT
-        } else {
-            DIM
-        };
-        amp_spans.push(Span::styled(bl, Style::default().fg(bc)));
-        amp_spans.push(Span::styled(m.short_name(), style));
-        amp_spans.push(Span::styled(br, Style::default().fg(bc)));
-        amp_spans.push(Span::raw("  "));
-    }
-    if focused {
-        let hint = if amp_ext_active {
-            "Z → built-in"
-        } else {
-            "↑/↓  A"
-        };
-        amp_spans.push(Span::styled(hint, Style::default().fg(DIM)));
-    }
-    f.render_widget(Paragraph::new(Line::from(amp_spans)), area);
-}
-
-/// Cabinet-model selector row (no border of its own; lives in the cab box).
-fn render_cab_models(f: &mut Frame, area: Rect, params: &Params, focused: bool) {
-    let label_color = if focused { ACCENT } else { DIM };
-    let cab_model = params.cab_model();
-    let ext_active = params.cab_external_active.load(Relaxed);
-    let cab_inactive = ext_active || cab_bypassed_by_amp(params);
-    let label_fg = if cab_inactive { OFF } else { label_color };
-    let mut cab_spans = vec![Span::styled(
-        "  CAB  ",
-        Style::default().fg(label_fg).add_modifier(Modifier::BOLD),
-    )];
-    for m in [
-        CabModel::Mesa,
-        CabModel::Marshall,
-        CabModel::Orange,
-        CabModel::Wem,
-    ] {
-        let selected = m == cab_model;
-        let style = if cab_inactive {
-            Style::default().fg(OFF)
-        } else if selected {
-            Style::default()
-                .fg(ACCENT)
-                .add_modifier(Modifier::BOLD | Modifier::REVERSED)
-        } else {
-            Style::default().fg(shade(ACCENT, 0.3))
-        };
-        let (bl, br) = if selected {
-            ("◀ ", " ▶")
-        } else {
-            ("[ ", " ]")
-        };
-        let bc = if cab_inactive {
-            OFF
-        } else if selected {
-            ACCENT
-        } else {
-            DIM
-        };
-        cab_spans.push(Span::styled(bl, Style::default().fg(bc)));
-        cab_spans.push(Span::styled(m.short_name(), style));
-        cab_spans.push(Span::styled(br, Style::default().fg(bc)));
-        cab_spans.push(Span::raw("  "));
-    }
-    if focused {
-        let hint = if cab_inactive {
-            "C → built-in"
-        } else {
-            "C to toggle"
-        };
-        cab_spans.push(Span::styled(hint, Style::default().fg(DIM)));
-    }
-    f.render_widget(Paragraph::new(Line::from(cab_spans)), area);
-}
-
 // ── Amplifier head + cabinet/mic ──────────────────────────────────────────────
 // Panel 2 as two side-by-side boxes, each with its own 4 borders: the amp box
-// (model selector, tone-stack knobs, blank bottom margin) and the cab box
-// (model selector, mic knobs, speaker grille).
+// (tone-stack knobs, blank bottom margin, grille) and the cab box (mic knobs,
+// bottom margin, grille). Model picking lives in the `A`/`C` browser modals;
+// the titles show the active models.
 fn render_amp_panel(
     f: &mut Frame,
     area: Rect,
@@ -418,12 +304,11 @@ fn render_amp_panel(
     ext_cab: Option<&str>,
     ext_amp: Option<&str>,
 ) {
-    let selectors_focused = focus.is_none();
     let amp_active = focus.is_some_and(|i| (AMP_START..AMP_END).contains(&i));
     let mic_active = focus.is_some_and(|i| (MIC_START..MIC_END).contains(&i));
-    // Each box lights up while the selectors or its own knob row owns focus.
-    let amp_box_active = selectors_focused || amp_active;
-    let cab_box_active = selectors_focused || mic_active;
+    // Each box lights up while its own knob row owns focus.
+    let amp_box_active = amp_active;
+    let cab_box_active = mic_active;
     let dim = |active: bool| {
         if active {
             Modifier::empty()
@@ -444,7 +329,6 @@ fn render_amp_panel(
         params,
         focus,
         ext_amp,
-        selectors_focused,
         amp_box_active,
         dim(amp_box_active),
     );
@@ -454,14 +338,12 @@ fn render_amp_panel(
         params,
         focus,
         ext_cab,
-        selectors_focused,
         cab_box_active,
         dim(cab_box_active),
     );
 }
 
-/// Left box: amp model selector, tone-stack knobs, blank bottom margin, grille
-/// strip.
+/// Left box: amp tone-stack knobs, blank bottom margin, grille strip.
 #[allow(clippy::too_many_arguments)]
 fn render_amp_box(
     f: &mut Frame,
@@ -469,7 +351,6 @@ fn render_amp_box(
     params: &Params,
     focus: Option<usize>,
     ext_amp: Option<&str>,
-    selectors_focused: bool,
     box_active: bool,
     dim: Modifier,
 ) {
@@ -500,18 +381,16 @@ fn render_amp_box(
     let inner = block.inner(area);
     f.render_widget(block, area);
 
-    // Selector row, knobs, blank bottom margin, grille strip inside the box.
+    // Knobs, blank bottom margin, grille strip inside the box. Model picking
+    // lives in the `A` browser modal; the title shows the active amp.
     let parts = Layout::default()
         .direction(Direction::Vertical)
         .constraints([
-            Constraint::Length(1),
             Constraint::Min(6),
             Constraint::Length(1),
             Constraint::Length(1),
         ])
         .split(inner);
-
-    render_amp_models(f, parts[0], params, selectors_focused);
 
     // Amp tone stack knobs.
     let count = AMP_END - AMP_START;
@@ -522,7 +401,7 @@ fn render_amp_box(
                 .map(|_| Constraint::Ratio(1, count as u32))
                 .collect::<Vec<_>>(),
         )
-        .split(parts[1]);
+        .split(parts[0]);
     // The tone-stack knobs drive the built-in amp; a loaded AU brings its own gain and
     // tone controls (edited in the AU modal), so they are dimmed while it is active —
     // exactly as the mic knobs are while an external IR is up.
@@ -540,15 +419,15 @@ fn render_amp_box(
             !box_active,
         );
     }
-    // parts[2] stays blank: bottom margin below the knobs.
+    // parts[1] stays blank: bottom margin below the knobs.
     render_grille(
         f,
-        parts[3],
+        parts[2],
         shade(ACCENT, if box_active { 0.45 } else { 0.18 }),
     );
 }
 
-/// Right box: cab model selector, mic knobs, bottom margin, grille strip.
+/// Right box: cab mic knobs, bottom margin, grille strip.
 #[allow(clippy::too_many_arguments)]
 fn render_cab_box(
     f: &mut Frame,
@@ -556,7 +435,6 @@ fn render_cab_box(
     params: &Params,
     focus: Option<usize>,
     ext_cab: Option<&str>,
-    selectors_focused: bool,
     box_active: bool,
     dim: Modifier,
 ) {
@@ -596,18 +474,15 @@ fn render_cab_box(
     let inner = block.inner(area);
     f.render_widget(block, area);
 
-    // Selector row, mic knobs, blank bottom margin, grille strip inside the box.
+    // Mic knobs, blank bottom margin, grille strip inside the box.
     let parts = Layout::default()
         .direction(Direction::Vertical)
         .constraints([
-            Constraint::Length(1),
             Constraint::Min(6),
             Constraint::Length(1),
             Constraint::Length(1),
         ])
         .split(inner);
-
-    render_cab_models(f, parts[0], params, selectors_focused);
 
     // Cabinet mics (position, dynamic↔ribbon blend, room) in front of the cabinet.
     let mic_count = MIC_END - MIC_START;
@@ -618,7 +493,7 @@ fn render_cab_box(
                 .map(|_| Constraint::Ratio(1, mic_count as u32))
                 .collect::<Vec<_>>(),
         )
-        .split(parts[1]);
+        .split(parts[0]);
     // The mic knobs only colour the built-in cab's multi-mic blend; they are inert when
     // a finished IR is the cab, or when an external amp supplies its own cab.
     let mic_live = ext_cab.is_none() && !cab_bypassed;
@@ -636,10 +511,10 @@ fn render_cab_box(
         );
     }
 
-    // parts[2] stays blank: bottom margin mirroring the amp box.
+    // parts[1] stays blank: bottom margin mirroring the amp box.
     render_grille(
         f,
-        parts[3],
+        parts[2],
         shade(ACCENT, if box_active { 0.45 } else { 0.18 }),
     );
 }
@@ -1347,7 +1222,8 @@ pub(super) fn render_help_modal(f: &mut Frame) {
         head("Play & edit"),
         row("  ↑/↓  +/−", "  knob / adjust value"),
         row("  D", "  remove pedal from the board"),
-        row("  A / C", "  next amp / cabinet"),
+        row("  A", "  amp model browser"),
+        row("  C", "  cabinet model browser"),
         row("  I / X", "  IR browser / IR bypass"),
         row("  O", "  change audio devices"),
     ];
@@ -1501,6 +1377,147 @@ pub(super) fn render_add_pedal_modal(f: &mut Frame, available: &[usize], cursor:
         .alignment(Alignment::Center),
         rows[1],
     );
+}
+
+/// Shared modal shell for the model pickers: centered `Double` box over `Clear`.
+fn picker_shell(f: &mut Frame, title: &str, rows: usize) -> Rect {
+    let area = {
+        let a = f.area();
+        let width = (a.width * 45 / 100).max(30);
+        let height = ((rows as u16 + 4).min(a.height)).max(6);
+        Rect {
+            x: a.x + (a.width - width) / 2,
+            y: a.y + (a.height - height) / 2,
+            width,
+            height,
+        }
+    };
+    f.render_widget(Clear, area);
+
+    let block = Block::default()
+        .borders(Borders::ALL)
+        .border_type(BorderType::Double)
+        .border_style(Style::default().fg(ACCENT))
+        .title(Span::styled(
+            title.to_owned(),
+            Style::default().fg(AMBER).add_modifier(Modifier::BOLD),
+        ))
+        .style(Style::default().bg(Color::Black));
+    let inner = block.inner(area);
+    f.render_widget(block, area);
+
+    let rows = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints([Constraint::Min(1), Constraint::Length(1)])
+        .split(inner);
+    f.render_widget(
+        Paragraph::new(Line::from(vec![
+            Span::styled("↑/↓", Style::default().fg(AMBER)),
+            Span::styled(" navigate  ", Style::default().fg(DIM)),
+            Span::styled("Enter", Style::default().fg(AMBER)),
+            Span::styled(" select  ", Style::default().fg(DIM)),
+            Span::styled("Esc", Style::default().fg(AMBER)),
+            Span::styled(" close", Style::default().fg(DIM)),
+        ]))
+        .alignment(Alignment::Center),
+        rows[1],
+    );
+    rows[0]
+}
+
+/// One picker row: `▶` cursor plus label, `REVERSED+BOLD` on the cursor row,
+/// dimmed when the row's option is currently bypassed elsewhere.
+fn picker_row(label: String, color: Color, selected: bool, dimmed: bool) -> Line<'static> {
+    let (prefix, name_style) = if selected {
+        (
+            "▶ ",
+            Style::default()
+                .fg(color)
+                .add_modifier(Modifier::BOLD | Modifier::REVERSED),
+        )
+    } else {
+        ("  ", Style::default().fg(color))
+    };
+    let style = if dimmed {
+        name_style.add_modifier(Modifier::DIM)
+    } else {
+        name_style
+    };
+    Line::from(vec![
+        Span::styled(
+            prefix.to_owned(),
+            Style::default().fg(if selected { ACCENT } else { DIM }),
+        ),
+        Span::styled(label, style),
+    ])
+}
+
+/// Amp picker modal (`A`): built-in models plus the loaded AU (when any).
+/// `cursor` is preselected on the current pick; built-ins dim while an AU is
+/// active. Picking a built-in returns to the built-in amp.
+pub(super) fn render_amp_modal(
+    f: &mut Frame,
+    params: &Params,
+    au_name: Option<&str>,
+    au_loaded: bool,
+    cursor: usize,
+) {
+    let rows = AmpModel::ALL.len() + usize::from(au_loaded);
+    let list = picker_shell(f, " S E L E C T   A M P ", rows);
+    let amp_ext_active = params.amp_external_active.load(Relaxed);
+
+    let lines: Vec<Line> = AmpModel::ALL
+        .iter()
+        .enumerate()
+        .map(|(i, m)| picker_row(m.name().to_owned(), AMBER, i == cursor, amp_ext_active))
+        .chain(au_loaded.then(|| {
+            picker_row(
+                format!("AU: {}", au_name.unwrap_or("external amp")),
+                AMBER,
+                AmpModel::ALL.len() == cursor,
+                false,
+            )
+        }))
+        .collect();
+    f.render_widget(Paragraph::new(lines), list);
+}
+
+/// Cabinet picker modal (`C`): built-in models plus the loaded IR (when any).
+/// `cursor` is preselected on the current pick. Picking a built-in returns to
+/// the built-in cab (the IR stays loaded for `X`). While an external amp
+/// supplies its own cab the built-ins dim with a note — picks still apply for
+/// when the built-in path runs again.
+pub(super) fn render_cab_modal(
+    f: &mut Frame,
+    params: &Params,
+    ir_name: Option<&str>,
+    ir_loaded: bool,
+    cursor: usize,
+) {
+    let bypassed = cab_bypassed_by_amp(params);
+    let rows = CabModel::ALL.len() + usize::from(ir_loaded) + usize::from(bypassed);
+    let list = picker_shell(f, " S E L E C T   C A B ", rows);
+
+    let lines: Vec<Line> = CabModel::ALL
+        .iter()
+        .enumerate()
+        .map(|(i, m)| picker_row(m.name().to_owned(), CHROME, i == cursor, bypassed))
+        .chain(ir_loaded.then(|| {
+            picker_row(
+                format!("IR: {}", ir_name.unwrap_or("external IR")),
+                CHROME,
+                CabModel::ALL.len() == cursor,
+                false,
+            )
+        }))
+        .chain(bypassed.then(|| {
+            Line::from(Span::styled(
+                " external amp supplies the cab — picks apply on return",
+                Style::default().fg(DIM),
+            ))
+        }))
+        .collect();
+    f.render_widget(Paragraph::new(lines), list);
 }
 
 /// Builds an ASCII rotary knob `rows` lines tall: a hub, a dotted rim, and a
@@ -1846,46 +1863,21 @@ mod tests {
         }
     }
 
-    /// Every amp model must be reachable and shown in the header/selector.
+    /// Every amp model must be pickable: the amp modal lists each by name.
     #[test]
     fn every_amp_model_renders_its_name() {
-        for model in [
-            AmpModel::Marshall,
-            AmpModel::Mesa,
-            AmpModel::Randall,
-            AmpModel::Vox,
-            AmpModel::Hiwatt,
-        ] {
-            let params = Params::new();
-            params
-                .amp_model
-                .store(model as u8, std::sync::atomic::Ordering::Relaxed);
-            let levels = Levels::new();
-            let mut term = Terminal::new(TestBackend::new(W, H)).expect("test backend");
-            term.draw(|f| {
-                draw(
-                    f,
-                    &params,
-                    &levels,
-                    None,
-                    &board_all(false),
-                    false,
-                    false,
-                    None,
-                    None,
-                    None,
-                    None,
-                    Panels::all_visible(),
-                    ChainStage::AmpCab,
-                    None,
-                );
-            })
-            .expect("draw");
-            let text = screen_text(&term);
+        let params = Params::new();
+        let mut term = Terminal::new(TestBackend::new(W, H)).expect("test backend");
+        term.draw(|f| {
+            render_amp_modal(f, &params, None, false, 0);
+        })
+        .expect("draw");
+        let text = screen_text(&term);
+        for model in AmpModel::ALL {
             assert!(
-                text.contains(model.short_name()),
-                "amp {:?} not shown on screen",
-                model.short_name()
+                text.contains(model.name()),
+                "amp {:?} missing from the picker modal",
+                model.name()
             );
         }
     }
@@ -1931,47 +1923,28 @@ mod tests {
         );
     }
 
-    /// Every built-in cabinet must be reachable and shown in the selector.
+    /// Every built-in cabinet must be pickable: the cab modal lists each by name,
+    /// plus the loaded IR as an extra row when one is installed.
     #[test]
     fn every_cab_model_renders_its_name() {
-        for model in [
-            CabModel::Mesa,
-            CabModel::Marshall,
-            CabModel::Orange,
-            CabModel::Wem,
-        ] {
-            let params = Params::new();
-            params
-                .cab_model
-                .store(model as u8, std::sync::atomic::Ordering::Relaxed);
-            let levels = Levels::new();
-            let mut term = Terminal::new(TestBackend::new(W, H)).expect("test backend");
-            term.draw(|f| {
-                draw(
-                    f,
-                    &params,
-                    &levels,
-                    None,
-                    &board_all(false),
-                    false,
-                    false,
-                    None,
-                    None,
-                    None,
-                    None,
-                    Panels::all_visible(),
-                    ChainStage::AmpCab,
-                    None,
-                );
-            })
-            .expect("draw");
-            let text = screen_text(&term);
+        let params = Params::new();
+        let mut term = Terminal::new(TestBackend::new(W, H)).expect("test backend");
+        term.draw(|f| {
+            render_cab_modal(f, &params, Some("Greenback"), true, 0);
+        })
+        .expect("draw");
+        let text = screen_text(&term);
+        for model in CabModel::ALL {
             assert!(
-                text.contains(model.short_name()),
-                "cab {:?} not shown on screen",
-                model.short_name()
+                text.contains(model.name()),
+                "cab {:?} missing from the picker modal",
+                model.name()
             );
         }
+        assert!(
+            text.contains("IR: Greenback"),
+            "loaded IR missing from the picker modal"
+        );
     }
 
     /// The +ADD pedal modal lists every off-board pedal by name.
@@ -2029,6 +2002,38 @@ mod tests {
             render_add_pedal_modal(f, &available, 0);
         });
         insta::assert_snapshot!("add_pedal_modal", text);
+    }
+
+    /// The amp picker over the default board, cursor preselected on the current
+    /// model (Mesa by default), no AU loaded.
+    #[cfg(feature = "clap")]
+    #[test]
+    fn snapshot_amp_modal() {
+        let params = Params::new();
+        let board = default_board(&params);
+        let text = render_with(&params, &board, None, |f| {
+            render_amp_modal(
+                f,
+                &params,
+                None,
+                false,
+                crate::ui::input::init_amp_cursor(&params),
+            );
+        });
+        insta::assert_snapshot!("amp_modal", text);
+    }
+
+    /// The cab picker over the default board with a loaded (inactive) IR, so
+    /// the trailing external row renders.
+    #[cfg(feature = "clap")]
+    #[test]
+    fn snapshot_cab_modal() {
+        let params = Params::new();
+        let board = default_board(&params);
+        let text = render_with(&params, &board, None, |f| {
+            render_cab_modal(f, &params, Some("Greenback"), true, 0);
+        });
+        insta::assert_snapshot!("cab_modal", text);
     }
 
     /// The preset picker with a fixed System + User preset, cursor on the user

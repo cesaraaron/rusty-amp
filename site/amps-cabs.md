@@ -20,7 +20,7 @@ next: { href: "presets.html", label: "Presets" }
 
 ## Amplifiers {#amp}
 
-Five amp models, switchable live with <kbd>A</kbd> (or <kbd>↑</kbd>/<kbd>↓</kbd> on the selector row) — the cabinet state is preserved when you switch. Pick one to see its voicing and per-knob behaviour.
+Five amp models, switchable live with <kbd>A</kbd> — the cabinet state is preserved when you switch. Pick one to see its voicing and per-knob behaviour.
 
 <div class="selector" style="--c:var(--rust)" data-tabs>
   <div class="tiles" role="tablist" aria-label="Amplifier models">
@@ -135,7 +135,7 @@ The tube models also carry three deeper pieces of power- and preamp physics: **s
 
 Beyond the five built-in amps, on macOS you can load a third-party **Audio Unit amp sim** — for example a Marshall plugin — and use it *in place of* the built-in amp. Press <kbd>U</kbd> to browse the Audio Units installed on your system and load one.
 
-A loaded AU is an **amp-position override**: your pedal chain feeds into it. By default the AU is treated as a full **amp + cab** — it brings its own cabinet, so the built-in cab and any loaded IR are bypassed (the cabinet panel reads `PLUGIN CAB` and the mic knobs dim). The signal ribbon shows <code>AU: …</code> in place of the <code>AMP+CAB</code> stage, the tone-stack knobs and the AMP selector dim, and <kbd>Z</kbd> A/Bs the AU against the built-in amp live — no reload.
+A loaded AU is an **amp-position override**: your pedal chain feeds into it. By default the AU is treated as a full **amp + cab** — it brings its own cabinet, so the built-in cab and any loaded IR are bypassed (the cabinet panel reads `PLUGIN CAB` and the mic knobs dim). The signal ribbon shows <code>AU: …</code> in place of the <code>AMP+CAB</code> stage, the tone-stack knobs dim, and <kbd>Z</kbd> A/Bs the AU against the built-in amp live — no reload. Picking any built-in model from the <kbd>A</kbd> browser returns to the built-in amp.
 
 If your AU is **amp-only** (no built-in cabinet), press <kbd>C</kbd> in the AU browser to keep rusty-amp's cabinet in the chain: the AU's output is then run through the selected built-in cab (or your loaded IR), and the mic knobs come back to life. The AU's reported latency is shown in the modal, and while an AU is loaded the built-in amp path is delay-aligned to it so the <kbd>Z</kbd> A/B stays in time.
 
@@ -184,7 +184,7 @@ Three controls model a multi-mic'd 4×12 — the close mic's position, a blend f
 
 ## Cabinets {#cabs}
 
-Four multi-mic'd 4×12s, switchable live with <kbd>C</kbd>. Pick one to see its character and voiced frequency bands.
+Four multi-mic'd 4×12s, switchable live with <kbd>C</kbd> — the browser also lists a loaded external IR when one is installed. Pick one to see its character and voiced frequency bands.
 
 <div class="selector" style="--c:var(--teal)" data-tabs>
   <div class="tiles" role="tablist" aria-label="Cabinet models">
@@ -251,7 +251,7 @@ Each cabinet is rendered by **impulse-response convolution** rather than a plain
 
 Before the mics, the drive signal passes the **nonlinear speaker stage** — excursion-driven motor droop, cone breakup, thermal power compression and Doppler "growl", with its operating point calibrated to the levels the amps actually deliver so a cranked amp genuinely pushes back. It also picks up **neighbour-cone interference** derived from real 4×12 geometry: the close mic hears the three other cones arriving ~0.6–0.9 ms late, lowpassed above ~2 kHz and 13–23 dB down. Each neighbour is an extended source (a 12" cone, not a point), so its arrival is smeared across a short sub-tap cluster — the comb ripples the body by a couple of dB like a real echo scan instead of carving a notch through it. One octave up, **dust-cap & grille echoes** add the presence/air sheen a close capture picks up off the speaker's own front geometry: a ~0.13 ms round-trip reflection off the metal grille (highpassed — the lows diffract past the perforations, so only the treble is combed) and a ~45 µs ripple off the proud central dust cap. Both are highpassed and power-normalised so they comb only the 2–8 kHz band and never touch the body. After the mics, a genuinely tiny **mic/transformer saturation** squeezes only the hottest peaks.
 
-Cycle cabinets with <kbd>C</kbd> at any time. The **Mic** knob applies a ±6 dB high shelf at 5 kHz per channel after convolution, modelling on-axis vs off-axis placement. For the partitioned-FFT convolution engine, see [How it works](how-it-works.html#cabinet).
+Pick a cabinet with <kbd>C</kbd> at any time — picking a built-in returns from an external IR (which stays loaded for <kbd>X</kbd>). The **Mic** knob applies a ±6 dB high shelf at 5 kHz per channel after convolution, modelling on-axis vs off-axis placement. For the partitioned-FFT convolution engine, see [How it works](how-it-works.html#cabinet).
 
 ## External cabinet IRs <span class="muted">(<kbd>I</kbd> · <kbd>X</kbd>)</span> {#irs}
 

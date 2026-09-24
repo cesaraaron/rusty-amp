@@ -91,10 +91,10 @@ The app launches immediately with default values. Press <kbd>P</kbd> at any time
 | <kbd>1</kbd> / <kbd>2</kbd> / <kbd>3</kbd> / <kbd>4</kbd> | Focus the live order, amp &amp; cabinet, [practice timeline](tools.html#practice), or pedalboard — press again on the focused panel to hide it (`1` never hides) |
 | <kbd>Tab</kbd> / <kbd>Shift-Tab</kbd> | Jump to the next / previous panel (chain → amp → timeline → pedals) |
 | <kbd>←</kbd> / <kbd>→</kbd> | Move inside the focused panel — pick a stage on the ribbon, a knob on the amp/pedals (seeks on the timeline) |
-| <kbd>↑</kbd> / <kbd>+</kbd> / <kbd>=</kbd> | Increase focused knob by 5% — or cycle amp model forward on the selector row |
-| <kbd>↓</kbd> / <kbd>-</kbd> | Decrease focused knob by 5% — or cycle amp model backward on the selector row |
-| <kbd>A</kbd> | Cycle amp model forward (works from any section) |
-| <kbd>C</kbd> | Cycle cabinet model (Mesa V30 → Marshall Greenback → Orange PPC412) |
+| <kbd>↑</kbd> / <kbd>+</kbd> / <kbd>=</kbd> | Increase focused knob by 5% |
+| <kbd>↓</kbd> / <kbd>-</kbd> | Decrease focused knob by 5% |
+| <kbd>A</kbd> | Open the amp model browser (works from anywhere) |
+| <kbd>C</kbd> | Open the cabinet model browser (works from anywhere) |
 | <kbd>I</kbd> | Open the cabinet-IR browser to load/clear an external `.wav` IR ([see IRs](amps-cabs.html#irs)) |
 | <kbd>X</kbd> | A/B between a loaded external IR and the built-in cab (once an IR is loaded) |
 | <kbd>Space</kbd> | Bypass the ribbon's stage, the focused pedal, or the timeline transport — or open the **Add pedal** picker on the `+ ADD` tile |

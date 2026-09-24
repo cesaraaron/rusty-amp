@@ -74,7 +74,7 @@ pub(super) fn rendered_stages(order: &[u8; CHAIN_LEN], board: &[bool]) -> Vec<(u
 pub(super) fn panel_entry(panel: u8, board: &[bool], order: &[u8; CHAIN_LEN]) -> Option<usize> {
     match panel {
         1 => Some(CHAIN_TILE),
-        2 => None,
+        2 => Some(AMP_START),
         3 => Some(PRACTICE_TILE),
         _ => order
             .iter()
@@ -167,15 +167,14 @@ fn cycle(stops: &[Option<usize>], current: Option<usize>, dir: i32) -> Option<us
     stops[(((cur + dir) % n + n) % n) as usize]
 }
 
-/// Knob stops within one panel for `←`/`→`: panel 2 walks selectors → amp
-/// knobs → mic knobs; panel 4 walks on-board pedal knobs in chain order plus
+/// Knob stops within one panel for `←`/`→`: panel 2 walks amp knobs → mic
+/// knobs (wrapping); panel 4 walks on-board pedal knobs in chain order plus
 /// `+ADD`. Panels 1 and 3 own their arrows (stage cursor / seek), so they
 /// contribute no stops.
 fn panel_knob_stops(panel: u8, board: &[bool], order: &[u8; CHAIN_LEN]) -> Vec<Option<usize>> {
     let mut v = Vec::new();
     match panel {
         2 => {
-            v.push(None);
             v.extend((AMP_START..AMP_END).chain(MIC_START..MIC_END).map(Some));
         }
         4 => {
@@ -297,26 +296,66 @@ pub(super) fn nudge(params: &Params, idx: usize, delta: f32) {
     atom.store(new, Relaxed);
 }
 
-pub(super) fn cycle_amp(params: &Params, dir: i8) {
-    let current = AmpModel::from_u8(params.amp_model.load(Relaxed));
-    let next = if dir >= 0 {
-        current.next()
-    } else {
-        current.prev()
-    };
-    params.amp_model.store(next as u8, Relaxed);
+/// Apply an amp-modal pick: a built-in index selects that model and returns to
+/// built-in; the trailing index (present only when `au_loaded`) activates the
+/// loaded AU instead. Out-of-range picks are ignored.
+pub(super) fn select_amp(params: &Params, index: usize, au_loaded: bool) {
+    if index < AmpModel::ALL.len() {
+        params.amp_model.store(AmpModel::ALL[index] as u8, Relaxed);
+        params.amp_external_active.store(false, Relaxed);
+    } else if au_loaded && index == AmpModel::ALL.len() {
+        params.amp_external_active.store(true, Relaxed);
+    }
 }
 
-pub(super) fn cycle_cab(params: &Params) {
-    // While an external IR is the active cab, `C` returns to the built-in
-    // (simulated) cab rather than cycling the inert model selector. The IR stays
-    // loaded, so `X` can re-engage it.
-    if params.cab_external_active.load(Relaxed) {
+/// Apply a cab-modal pick: a built-in index selects that model and returns to
+/// built-in (the IR stays loaded, so `X` can re-engage it); the trailing index
+/// (present only when `ir_loaded`) activates the loaded IR instead.
+pub(super) fn select_cab(params: &Params, index: usize, ir_loaded: bool) {
+    if index < CabModel::ALL.len() {
+        params.cab_model.store(CabModel::ALL[index] as u8, Relaxed);
         params.cab_external_active.store(false, Relaxed);
-        return;
+    } else if ir_loaded && index == CabModel::ALL.len() {
+        params.cab_external_active.store(true, Relaxed);
     }
-    let current = CabModel::from_u8(params.cab_model.load(Relaxed));
-    params.cab_model.store(current.toggle() as u8, Relaxed);
+}
+
+/// Modal list lengths: built-ins plus one external row when loaded.
+pub(super) fn amp_choices(au_loaded: bool) -> usize {
+    AmpModel::ALL.len() + usize::from(au_loaded)
+}
+
+/// Modal list lengths: built-ins plus one external row when loaded.
+pub(super) fn cab_choices(ir_loaded: bool) -> usize {
+    CabModel::ALL.len() + usize::from(ir_loaded)
+}
+
+/// Cursor the amp modal opens with: the external row while an AU is active,
+/// else the current built-in model.
+pub(super) fn init_amp_cursor(params: &Params) -> usize {
+    if params.amp_external_active.load(Relaxed) && params.amp_external_loaded.load(Relaxed) {
+        AmpModel::ALL.len()
+    } else {
+        let current = params.amp_model.load(Relaxed);
+        AmpModel::ALL
+            .iter()
+            .position(|&m| m as u8 == current)
+            .unwrap_or(0)
+    }
+}
+
+/// Cursor the cab modal opens with: the external row while an IR is active,
+/// else the current built-in model.
+pub(super) fn init_cab_cursor(params: &Params) -> usize {
+    if params.cab_external_active.load(Relaxed) && params.cab_external_loaded.load(Relaxed) {
+        CabModel::ALL.len()
+    } else {
+        let current = params.cab_model.load(Relaxed);
+        CabModel::ALL
+            .iter()
+            .position(|&m| m as u8 == current)
+            .unwrap_or(0)
+    }
 }
 
 pub(super) fn toggle_pedal(params: &Params, knob_idx: usize) {
@@ -363,11 +402,11 @@ mod tests {
         let b = board(false);
         let p = Panels::all_visible();
         let o = order();
-        // Panel 1 (ribbon) → 2 (selectors) → 3 (timeline) → 4 (+ADD, empty
-        // board) → back to 1.
+        // Panel 1 (ribbon) → 2 (first amp knob) → 3 (timeline) → 4 (+ADD,
+        // empty board) → back to 1.
         let mut f = Some(CHAIN_TILE);
         f = next_panel_focus(f, &b, &p, &o);
-        assert_eq!(f, None, "Tab from ribbon must land on the selectors");
+        assert_eq!(f, Some(AMP_START), "Tab from ribbon must land on GAIN");
         f = next_panel_focus(f, &b, &p, &o);
         assert_eq!(f, Some(PRACTICE_TILE));
         f = next_panel_focus(f, &b, &p, &o);
@@ -447,21 +486,22 @@ mod tests {
     fn arrows_stay_inside_their_panel() {
         let b = board(true);
         let o = order();
-        // Panel 2: selectors → amp knobs → mic knobs, wrapping around.
-        assert_eq!(
-            step_knob_in_panel(None, &b, &o, 1),
-            Some(AMP_START),
-            "→ from selectors must enter the amp knobs"
-        );
+        // Panel 2: amp knobs → mic knobs, wrapping around (no selector stop).
         assert_eq!(
             step_knob_in_panel(Some(AMP_START), &b, &o, -1),
-            None,
-            "← from the first amp knob must return to the selectors"
+            Some(MIC_END - 1),
+            "← from the first amp knob must wrap to the last mic knob"
         );
         assert_eq!(
             step_knob_in_panel(Some(MIC_END - 1), &b, &o, 1),
-            None,
-            "→ from the last mic knob must wrap to the selectors"
+            Some(AMP_START),
+            "→ from the last mic knob must wrap to the first amp knob"
+        );
+        // A stale selector focus re-anchors into the amp knobs.
+        let stale = step_knob_in_panel(None, &b, &o, 1);
+        assert!(
+            matches!(stale, Some(k) if (AMP_START..MIC_END).contains(&k)),
+            "→ from a stale selector focus must enter the amp knobs: {stale:?}"
         );
         // Panel 4 never leaks into the amp: from +ADD, → wraps within the board.
         assert_eq!(
@@ -626,76 +666,87 @@ mod tests {
         }
     }
 
-    // ── amp / cab selectors ─────────────────────────────────────────────────────
+    // ── amp / cab modal picks ─────────────────────────────────────────────────
 
     #[test]
-    fn cycle_amp_forward_visits_every_model_and_returns() {
+    fn select_amp_stores_builtin_and_returns_to_builtin() {
         let p = Params::new();
-        p.amp_model.store(AmpModel::Marshall as u8, Relaxed);
-        cycle_amp(&p, 1);
-        assert_eq!(AmpModel::from_u8(p.amp_model.load(Relaxed)), AmpModel::Mesa);
-        cycle_amp(&p, 1);
-        assert_eq!(
-            AmpModel::from_u8(p.amp_model.load(Relaxed)),
-            AmpModel::Randall
-        );
-        cycle_amp(&p, 1);
+        p.amp_external_active.store(true, Relaxed);
+        p.amp_external_loaded.store(true, Relaxed);
+        select_amp(&p, 3, true); // Vox
         assert_eq!(AmpModel::from_u8(p.amp_model.load(Relaxed)), AmpModel::Vox);
-        cycle_amp(&p, 1);
-        assert_eq!(
-            AmpModel::from_u8(p.amp_model.load(Relaxed)),
-            AmpModel::Hiwatt
-        );
-        cycle_amp(&p, 1);
-        assert_eq!(
-            AmpModel::from_u8(p.amp_model.load(Relaxed)),
-            AmpModel::Marshall,
-            "amp selector must cycle back to the start"
+        assert!(
+            !p.amp_external_active.load(Relaxed),
+            "picking a built-in must return to the built-in amp"
         );
     }
 
     #[test]
-    fn cycle_amp_backward_is_the_inverse() {
+    fn select_amp_external_row_activates_the_loaded_au() {
         let p = Params::new();
-        p.amp_model.store(AmpModel::Marshall as u8, Relaxed);
-        cycle_amp(&p, -1);
+        p.amp_external_loaded.store(true, Relaxed);
+        select_amp(&p, AmpModel::ALL.len(), true);
+        assert!(p.amp_external_active.load(Relaxed));
+        // Without a loaded AU the trailing index is a no-op.
+        let q = Params::new();
+        select_amp(&q, AmpModel::ALL.len(), false);
+        assert!(!q.amp_external_active.load(Relaxed));
+        // Garbage indices never touch anything.
+        select_amp(&q, 99, true);
         assert_eq!(
-            AmpModel::from_u8(p.amp_model.load(Relaxed)),
-            AmpModel::Hiwatt
+            AmpModel::from_u8(q.amp_model.load(Relaxed)),
+            AmpModel::Mesa,
+            "default model must survive a garbage pick"
         );
     }
 
     #[test]
-    fn cycle_cab_toggles_through_every_built_in_model() {
+    fn select_cab_stores_builtin_and_returns_to_builtin() {
         let p = Params::new();
-        p.cab_external_active.store(false, Relaxed);
-        p.cab_model.store(CabModel::Mesa as u8, Relaxed);
-        cycle_cab(&p);
-        assert_eq!(
-            CabModel::from_u8(p.cab_model.load(Relaxed)),
-            CabModel::Marshall
-        );
-        cycle_cab(&p);
+        p.cab_external_active.store(true, Relaxed);
+        p.cab_external_loaded.store(true, Relaxed);
+        select_cab(&p, 2, true); // Orange
         assert_eq!(
             CabModel::from_u8(p.cab_model.load(Relaxed)),
             CabModel::Orange
         );
-        cycle_cab(&p);
-        assert_eq!(CabModel::from_u8(p.cab_model.load(Relaxed)), CabModel::Wem);
-        cycle_cab(&p);
-        assert_eq!(CabModel::from_u8(p.cab_model.load(Relaxed)), CabModel::Mesa);
+        assert!(
+            !p.cab_external_active.load(Relaxed),
+            "picking a built-in must return to the built-in cab"
+        );
     }
 
     #[test]
-    fn cycle_cab_returns_to_built_in_when_external_ir_is_active() {
+    fn select_cab_external_row_activates_the_loaded_ir() {
         let p = Params::new();
+        p.cab_external_loaded.store(true, Relaxed);
+        select_cab(&p, CabModel::ALL.len(), true);
+        assert!(p.cab_external_active.load(Relaxed));
+        let q = Params::new();
+        select_cab(&q, CabModel::ALL.len(), false);
+        assert!(!q.cab_external_active.load(Relaxed));
+        select_cab(&q, 99, true);
+        assert!(!q.cab_external_active.load(Relaxed));
+    }
+
+    #[test]
+    fn modal_cursors_preselect_the_current_pick() {
+        let p = Params::new();
+        p.amp_model.store(AmpModel::Vox as u8, Relaxed);
+        p.cab_model.store(CabModel::Wem as u8, Relaxed);
+        assert_eq!(init_amp_cursor(&p), 3);
+        assert_eq!(init_cab_cursor(&p), 3);
+        assert_eq!(amp_choices(false), 5);
+        assert_eq!(amp_choices(true), 6);
+        assert_eq!(cab_choices(false), 4);
+        assert_eq!(cab_choices(true), 5);
+        // Active externals point at their trailing rows.
+        p.amp_external_active.store(true, Relaxed);
+        p.amp_external_loaded.store(true, Relaxed);
         p.cab_external_active.store(true, Relaxed);
-        let model_before = p.cab_model.load(Relaxed);
-        cycle_cab(&p);
-        // First press only deactivates the external IR; it leaves the built-in
-        // model selector untouched so `X` can re-engage the same IR.
-        assert!(!p.cab_external_active.load(Relaxed));
-        assert_eq!(p.cab_model.load(Relaxed), model_before);
+        p.cab_external_loaded.store(true, Relaxed);
+        assert_eq!(init_amp_cursor(&p), 5);
+        assert_eq!(init_cab_cursor(&p), 4);
     }
 
     // ── board membership & toggles ──────────────────────────────────────────────
