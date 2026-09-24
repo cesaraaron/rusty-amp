@@ -135,7 +135,7 @@ The tube models also carry three deeper pieces of power- and preamp physics: **s
 
 Beyond the five built-in amps, on macOS you can load a third-party **Audio Unit amp sim** — for example a Marshall plugin — and use it *in place of* the built-in amp. Press <kbd>U</kbd> to browse the Audio Units installed on your system and load one.
 
-A loaded AU is an **amp-position override**: your pedal chain feeds into it. By default the AU is treated as a full **amp + cab** — it brings its own cabinet, so the built-in cab and any loaded IR are bypassed (the cabinet panel reads `PLUGIN CAB` and the mic knobs dim). The header shows <code>AU: …</code> in place of the amp model, the tone-stack knobs and the AMP selector dim, and <kbd>Z</kbd> A/Bs the AU against the built-in amp live — no reload.
+A loaded AU is an **amp-position override**: your pedal chain feeds into it. By default the AU is treated as a full **amp + cab** — it brings its own cabinet, so the built-in cab and any loaded IR are bypassed (the cabinet panel reads `PLUGIN CAB` and the mic knobs dim). The signal ribbon shows <code>AU: …</code> in place of the <code>AMP+CAB</code> stage, the tone-stack knobs and the AMP selector dim, and <kbd>Z</kbd> A/Bs the AU against the built-in amp live — no reload.
 
 If your AU is **amp-only** (no built-in cabinet), press <kbd>C</kbd> in the AU browser to keep rusty-amp's cabinet in the chain: the AU's output is then run through the selected built-in cab (or your loaded IR), and the mic knobs come back to life. The AU's reported latency is shown in the modal, and while an AU is loaded the built-in amp path is delay-aligned to it so the <kbd>Z</kbd> A/B stays in time.
 
@@ -282,7 +282,7 @@ Each location is searched **up to ~4 folders deep**, so a small pack with a coup
 | <kbd>X</kbd> | A/B between the loaded IR and the built-in cab |
 | <kbd>Esc</kbd> / <kbd>I</kbd> | Close the browser |
 
-The loaded IR's name appears in the header in place of the cabinet label (`IR: …`) while it is active. Outside the browser, <kbd>X</kbd> toggles the same A/B at any time. Loading and clearing take effect live — the audio stream is never interrupted (the IR is decoded and resampled off the audio thread, then swapped in on a lock-free handoff).
+The loaded IR's name appears on the signal ribbon (`AMP+IR: …`) while it is active. Outside the browser, <kbd>X</kbd> toggles the same A/B at any time. Loading and clearing take effect live — the audio stream is never interrupted (the IR is decoded and resampled off the audio thread, then swapped in on a lock-free handoff).
 
 On load the IR is rate-matched to your interface (windowed-sinc resampler), trimmed to ~8192 taps (~170 ms @ 48 kHz) with a raised-cosine tail fade, DC-removed, and energy-normalised so swapping IRs doesn't jump the level. Mono files feed both channels; stereo files keep their L/R.
 

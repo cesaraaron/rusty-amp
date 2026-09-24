@@ -348,7 +348,8 @@ impl PracticeUi {
         }
     }
 
-    /// Render the timeline pane. `focused` is true while the pane owns focus.
+    /// Render the timeline pane. `focused` is true while the pane owns focus;
+    /// `recording` drives the transport REC lamp (the header ON AIR row is gone).
     pub(super) fn render(
         &self,
         f: &mut Frame,
@@ -356,6 +357,7 @@ impl PracticeUi {
         practice: &Practice,
         focused: bool,
         blink: bool,
+        recording: bool,
     ) {
         if area.height < 2 || area.width < 4 {
             return;
@@ -391,19 +393,25 @@ impl PracticeUi {
             .split(inner);
 
         if !has_any {
-            f.render_widget(
-                Paragraph::new(Line::from(vec![
-                    Span::styled("  no track — press ", Style::default().fg(DIM)),
-                    Span::styled("B", Style::default().fg(AMBER)),
-                    Span::styled(" to load a backing track or take", Style::default().fg(DIM)),
-                    if self.loading {
-                        Span::styled("   (loading…)", Style::default().fg(HOT))
-                    } else {
-                        Span::raw("")
-                    },
-                ])),
-                rows[0],
-            );
+            let mut empty = vec![
+                if recording && blink {
+                    Span::styled(
+                        "●REC ",
+                        Style::default().fg(HOT).add_modifier(Modifier::BOLD),
+                    )
+                } else if recording {
+                    Span::styled("○REC ", Style::default().fg(HOT))
+                } else {
+                    Span::raw("  ")
+                },
+                Span::styled("no track — press ", Style::default().fg(DIM)),
+                Span::styled("B", Style::default().fg(AMBER)),
+                Span::styled(" to load a backing track or take", Style::default().fg(DIM)),
+            ];
+            if self.loading {
+                empty.push(Span::styled("   (loading…)", Style::default().fg(HOT)));
+            }
+            f.render_widget(Paragraph::new(Line::from(empty)), rows[0]);
             if let Some(msg) = &self.message {
                 f.render_widget(
                     Paragraph::new(Line::from(Span::styled(
@@ -435,6 +443,18 @@ impl PracticeUi {
         let mut transport = vec![
             Span::styled(cursor.to_owned(), Style::default().fg(ACCENT)),
             state,
+            // REC lamp (fixed width so the time readout never shifts): the dot
+            // blinks while a take records.
+            if recording && blink {
+                Span::styled(
+                    "●REC ",
+                    Style::default().fg(HOT).add_modifier(Modifier::BOLD),
+                )
+            } else if recording {
+                Span::styled("○REC ", Style::default().fg(HOT))
+            } else {
+                Span::raw("     ")
+            },
             Span::styled(
                 format!(
                     "{} / {}  ",

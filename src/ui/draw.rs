@@ -7,7 +7,7 @@ use ratatui::{
 };
 use std::sync::atomic::Ordering::Relaxed;
 
-use crate::dsp::{AmpModel, CabModel, Levels, Params};
+use crate::dsp::{AmpModel, CabModel, ChainStage, Levels, Params};
 use crate::practice::Practice;
 
 use super::config::{
@@ -47,7 +47,7 @@ pub(super) fn draw(
     // so a hidden panel simply contributes no constraint and no render call.
     let show_timeline = panels.timeline && timeline.is_some();
     let mut cons: Vec<Constraint> = vec![
-        Constraint::Length(3), // header
+        Constraint::Length(2), // signal-flow ribbon
         Constraint::Length(3), // meters
     ];
     if panels.amp {
@@ -89,7 +89,14 @@ pub(super) fn draw(
     }
     if show_timeline {
         if let Some((practice, ui)) = timeline {
-            ui.render(f, rows[i], practice, focus == Some(PRACTICE_TILE), blink);
+            ui.render(
+                f,
+                rows[i],
+                practice,
+                focus == Some(PRACTICE_TILE),
+                blink,
+                recording,
+            );
         }
         i += 1;
     }
@@ -105,8 +112,8 @@ fn render_header(
     f: &mut Frame,
     area: Rect,
     params: &Params,
-    recording: bool,
-    blink: bool,
+    _recording: bool,
+    _blink: bool,
     plugin: Option<&str>,
     ext_cab: Option<&str>,
     ext_amp: Option<&str>,
@@ -119,146 +126,77 @@ fn render_header(
     let inner = block.inner(area);
     f.render_widget(block, area);
 
-    let rows = Layout::default()
-        .direction(Direction::Vertical)
-        .constraints([Constraint::Length(1), Constraint::Length(1)])
-        .split(inner);
-
-    // An active external amp (hosted AU) replaces the built-in amp label in the header.
-    let amp_name = match ext_amp {
+    // The amp+cab block travels the chain as one unit. An active external amp
+    // (hosted AU) replaces the label; an active external IR is noted too.
+    let ampcab_label = match ext_amp {
         Some(name) => format!("AU: {}", name.to_uppercase()),
-        None => params.amp_model().name().to_uppercase(),
+        None => match ext_cab {
+            Some(name) => format!("AMP+IR: {}", name.to_uppercase()),
+            None => "AMP+CAB".to_owned(),
+        },
     };
-    // The cab label reflects the active cab: an AU supplying its own cab reads
-    // "PLUGIN CAB", else an active external IR reads "IR: …", else the built-in model.
-    let cab_name = if cab_bypassed_by_amp(params) {
-        "PLUGIN CAB".to_owned()
-    } else {
-        match ext_cab {
-            Some(name) => format!("IR: {}", name.to_uppercase()),
-            None => params.cab_model().name().to_uppercase(),
-        }
-    };
-
-    let mut title_spans = vec![
-        Span::styled(
-            "  R U S T Y  A M P  ",
-            Style::default().fg(ACCENT).add_modifier(Modifier::BOLD),
-        ),
-        Span::styled(
-            concat!("v", env!("CARGO_PKG_VERSION"), "  "),
-            Style::default().fg(DIM),
-        ),
-        Span::styled("▐", Style::default().fg(shade(ACCENT, 0.6))),
-        Span::styled(
-            format!("  {amp_name}  "),
-            Style::default().fg(CHROME).add_modifier(Modifier::BOLD),
-        ),
-        Span::styled("▐", Style::default().fg(shade(ACCENT, 0.6))),
-        Span::styled(
-            format!("  {cab_name}  "),
-            Style::default().fg(CHROME).add_modifier(Modifier::BOLD),
-        ),
-        Span::styled("▐", Style::default().fg(shade(ACCENT, 0.6))),
-    ];
-
-    // Loaded plugin insert (if any), between the cabinet and the power lamp.
-    if let Some(name) = plugin {
-        title_spans.push(Span::styled(
-            format!("  🔌 {name}  "),
-            Style::default().fg(AMBER).add_modifier(Modifier::BOLD),
-        ));
-        title_spans.push(Span::styled("▐", Style::default().fg(shade(ACCENT, 0.6))));
-    }
-
-    title_spans.push(Span::styled(
-        "  ● POWER ON  ",
-        Style::default().fg(SAFE).add_modifier(Modifier::BOLD),
-    ));
-    title_spans.push(Span::styled("▐", Style::default().fg(shade(ACCENT, 0.6))));
-    title_spans.push(if recording && blink {
-        Span::styled(
-            "  ● ON AIR  ",
-            Style::default().fg(HOT).add_modifier(Modifier::BOLD),
-        )
-    } else if recording {
-        Span::styled("  ○ ON AIR  ", Style::default().fg(HOT))
-    } else {
-        Span::styled("  ○ OFF AIR  ", Style::default().fg(OFF))
-    });
-
-    f.render_widget(Paragraph::new(Line::from(title_spans)), rows[0]);
-
-    let ng_on = params.ng_enabled.load(Relaxed);
-    let pitch_on = params.pitch_enabled.load(Relaxed);
-    let wah_on = params.wah_enabled.load(Relaxed);
-    let cmp_on = params.cmp_enabled.load(Relaxed);
-    let fz_on = params.fz_enabled.load(Relaxed);
-    let ts_on = params.ts_enabled.load(Relaxed);
-    let ds_on = params.ds_enabled.load(Relaxed);
-    let ml_on = params.ml_enabled.load(Relaxed);
-    let peq_on = params.peq_enabled.load(Relaxed);
-    let uv_on = params.uv_enabled.load(Relaxed);
-    let geq_on = params.geq_enabled.load(Relaxed);
-    let eq_on = params.eq_enabled.load(Relaxed);
-    let fl_on = params.fl_enabled.load(Relaxed);
-    let ch_on = params.ch_enabled.load(Relaxed);
-    let ph_on = params.ph_enabled.load(Relaxed);
-    let trem_on = params.trem_enabled.load(Relaxed);
-    let delay_on = params.delay_enabled.load(Relaxed);
-    let rev_on = params.rev_enabled.load(Relaxed);
 
     let arrow = Span::styled(" ──▶ ", Style::default().fg(DIM));
 
-    // The ribbon shows the live signal path: only pedals that are on appear, so it
-    // mirrors what is actually being heard. AMP and CAB are always in the path and
-    // anchor the pre-amp pedals to their post-cab counterparts.
-    let pre_pedals = [
-        ("GATE", ng_on),
-        ("WHAMMY", pitch_on),
-        ("WAH", wah_on),
-        ("COMP", cmp_on),
-        ("FUZZ", fz_on),
-        ("TS-808", ts_on),
-        ("DS-1", ds_on),
-        ("ML-2", ml_on),
-        ("PRE-EQ", peq_on),
-        ("VIBE", uv_on),
-    ];
-    let post_pedals = [
-        ("G-EQ", geq_on),
-        ("EQ", eq_on),
-        ("FLANGER", fl_on),
-        ("CHORUS", ch_on),
-        ("PHASER", ph_on),
-        ("TREM", trem_on),
-        ("DELAY", delay_on),
-        ("REVERB", rev_on),
-    ];
-
+    // The ribbon shows the live signal path in chain order: only stages that
+    // are on appear, so it mirrors what is actually being heard. Move stages
+    // with `[` / `]` and the ribbon (and the sound) follows.
     let mut chain: Vec<Span> = vec![Span::raw("  ")];
-    let push_stage = |chain: &mut Vec<Span>, label: &'static str, color: Color| {
+    let push_stage = |chain: &mut Vec<Span>, label: String, color: Color| {
         if chain.len() > 1 {
             chain.push(arrow.clone());
         }
         chain.push(Span::styled(label, Style::default().fg(color)));
     };
 
-    for (label, on) in pre_pedals {
+    for &raw in &params.chain_slots() {
+        let Some(stage) = ChainStage::from_u8(raw) else {
+            continue;
+        };
+        if stage == ChainStage::AmpCab {
+            push_stage(&mut chain, ampcab_label.clone(), AMBER);
+            continue;
+        }
+        let Some((label, on)) = pedal_stage_state(params, stage) else {
+            continue;
+        };
         if on {
-            push_stage(&mut chain, label, ACCENT);
+            push_stage(&mut chain, label.to_owned(), ACCENT);
         }
     }
-    push_stage(&mut chain, "AMP", AMBER);
-    push_stage(&mut chain, "CAB", AMBER);
-    for (label, on) in post_pedals {
-        if on {
-            push_stage(&mut chain, label, ACCENT);
-        }
+    // The hosted plugin insert (if any) runs post-rack, pre-master.
+    if let Some(name) = plugin {
+        push_stage(&mut chain, format!("🔌 {name}"), AMBER);
     }
-    push_stage(&mut chain, "OUTPUT", CHROME);
+    push_stage(&mut chain, "OUTPUT".to_owned(), CHROME);
 
-    f.render_widget(Paragraph::new(Line::from(chain)), rows[1]);
+    f.render_widget(Paragraph::new(Line::from(chain)), inner);
+}
+
+/// Ribbon label + live on/off for a pedal stage (`None` for the amp+cab block).
+fn pedal_stage_state(params: &Params, stage: ChainStage) -> Option<(&'static str, bool)> {
+    let on = |f: &std::sync::atomic::AtomicBool| f.load(Relaxed);
+    match stage {
+        ChainStage::Gate => Some(("GATE", on(&params.ng_enabled))),
+        ChainStage::Whammy => Some(("WHAMMY", on(&params.pitch_enabled))),
+        ChainStage::Wah => Some(("WAH", on(&params.wah_enabled))),
+        ChainStage::Comp => Some(("COMP", on(&params.cmp_enabled))),
+        ChainStage::Fuzz => Some(("FUZZ", on(&params.fz_enabled))),
+        ChainStage::Ts => Some(("TS-808", on(&params.ts_enabled))),
+        ChainStage::Ds => Some(("DS-1", on(&params.ds_enabled))),
+        ChainStage::Metal => Some(("ML-2", on(&params.ml_enabled))),
+        ChainStage::PreEq => Some(("PRE-EQ", on(&params.peq_enabled))),
+        ChainStage::Vibe => Some(("VIBE", on(&params.uv_enabled))),
+        ChainStage::Geq => Some(("G-EQ", on(&params.geq_enabled))),
+        ChainStage::Eq => Some(("EQ", on(&params.eq_enabled))),
+        ChainStage::Flanger => Some(("FLANGER", on(&params.fl_enabled))),
+        ChainStage::Chorus => Some(("CHORUS", on(&params.ch_enabled))),
+        ChainStage::Phaser => Some(("PHASER", on(&params.ph_enabled))),
+        ChainStage::Trem => Some(("TREM", on(&params.trem_enabled))),
+        ChainStage::Delay => Some(("DELAY", on(&params.delay_enabled))),
+        ChainStage::Reverb => Some(("REVERB", on(&params.rev_enabled))),
+        ChainStage::AmpCab => None,
+    }
 }
 
 fn render_meters(f: &mut Frame, area: Rect, levels: &Levels) {
@@ -688,10 +626,15 @@ fn render_rig(f: &mut Frame, area: Rect, params: &Params, board: &[bool], focus:
     let inner = block.inner(area);
     f.render_widget(block, area);
 
-    // Only on-board pedals get tiles; the last tile is always "+ ADD". `board`
-    // may be shorter than PEDALS (e.g. the device-setup screen passes an empty
-    // slice), so treat missing entries as off-board.
-    let on_board: Vec<usize> = (0..PEDALS.len())
+    // Only on-board pedals get tiles, in chain order so the grid mirrors the
+    // signal flow; the last tile is always "+ ADD". `board` may be shorter than
+    // PEDALS (e.g. the device-setup screen passes an empty slice), so treat
+    // missing entries as off-board.
+    let on_board: Vec<usize> = params
+        .chain_slots()
+        .iter()
+        .filter_map(|&raw| ChainStage::from_u8(raw))
+        .filter_map(|stage| stage.pedal_index())
         .filter(|&i| board.get(i).copied().unwrap_or(false))
         .collect();
     let tile_count = on_board.len() + 1;
@@ -979,9 +922,9 @@ fn render_pedal_detail(f: &mut Frame, area: Rect, params: &Params, focus: Option
         shade(pedal.color, 0.3)
     };
     let foot = if on {
-        "▐ ON ▌  ▗▄▄▄▄▄▄▄▖"
+        "▐ ON ▌  ▗▄▄▄▄▄▄▄▖   [ ] move in chain"
     } else {
-        "○ OFF   ▗▄▄▄▄▄▄▄▖"
+        "○ OFF   ▗▄▄▄▄▄▄▄▖   [ ] move in chain"
     };
     f.render_widget(
         Paragraph::new(Line::from(Span::styled(
@@ -1228,6 +1171,7 @@ pub(super) fn render_help_modal(f: &mut Frame) {
         row("  ←/→  ↑/↓  +/−", "  knob / adjust value"),
         row("  Space", "  toggle pedal (or transport on the timeline)"),
         row("  D", "  remove pedal from the board"),
+        row("  [ / ]", "  move pedal (or amp+cab) in the chain"),
         row("  A / C", "  next amp / cabinet"),
         row("  I / X", "  IR browser / IR bypass"),
         row("  O", "  change audio devices"),
@@ -1705,7 +1649,7 @@ mod tests {
     /// An active external amp (hosted AU) must be surfaced in the header in place of
     /// the built-in amp model — the visual counterpart to the external-IR "IR:" label.
     #[test]
-    fn external_amp_name_shows_in_header() {
+    fn external_amp_name_shows_in_ribbon() {
         let params = Params::new();
         params
             .amp_external_active
@@ -1937,7 +1881,7 @@ mod tests {
 
     /// Render the main screen with an (empty) practice timeline, for the given panel
     /// visibility, and return its glyphs.
-    fn render_with_practice(panels: Panels) -> String {
+    fn render_with_practice(panels: Panels, recording: bool) -> String {
         let params = Params::new();
         let levels = Levels::new();
         let practice = crate::practice::Practice::new();
@@ -1950,8 +1894,8 @@ mod tests {
                 &levels,
                 None,
                 &board_all(false),
-                false,
-                false,
+                recording,
+                true,
                 None,
                 None,
                 None,
@@ -1968,20 +1912,77 @@ mod tests {
     /// left out entirely when the panel is hidden with `3`.
     #[test]
     fn practice_pane_renders_and_hides() {
-        let shown = render_with_practice(Panels::all_visible());
+        let shown = render_with_practice(Panels::all_visible(), false);
         assert!(
             shown.contains("P R A C T I C E"),
             "practice pane missing when shown"
         );
         insta::assert_snapshot!("practice_pane", shown);
 
-        let hidden = render_with_practice(Panels {
-            timeline: false,
-            ..Panels::all_visible()
-        });
+        let hidden = render_with_practice(
+            Panels {
+                timeline: false,
+                ..Panels::all_visible()
+            },
+            false,
+        );
         assert!(
             !hidden.contains("P R A C T I C E"),
             "practice pane still drawn while hidden"
+        );
+    }
+
+    /// While recording, the practice transport shows the REC lamp (the header
+    /// ON AIR row is gone); silent otherwise.
+    #[test]
+    fn practice_pane_shows_rec_lamp_while_recording() {
+        let rec = render_with_practice(Panels::all_visible(), true);
+        assert!(
+            rec.contains("●REC") || rec.contains("○REC"),
+            "no REC lamp while recording"
+        );
+        let idle = render_with_practice(Panels::all_visible(), false);
+        assert!(
+            !idle.contains("●REC") && !idle.contains("○REC"),
+            "REC lamp shown while idle"
+        );
+    }
+
+    /// The ribbon mirrors the chain order: moving COMP after the amp+cab block
+    /// moves its ribbon stage after AMP+CAB too.
+    #[test]
+    fn ribbon_follows_chain_order() {
+        use std::sync::atomic::Ordering::Relaxed;
+        let params = Params::new();
+        params.cmp_enabled.store(true, Relaxed);
+        params.fz_enabled.store(true, Relaxed);
+        let board = board_all(true);
+
+        // First occurrences are the ribbon's (it renders above the tiles).
+        let text = render_with(&params, &board, None, |_| {});
+        let (comp, fuzz, ampcab) = (
+            text.find("COMP").expect("COMP in ribbon"),
+            text.find("FUZZ").expect("FUZZ in ribbon"),
+            text.find("AMP+CAB").expect("AMP+CAB in ribbon"),
+        );
+        assert!(
+            comp < fuzz && fuzz < ampcab,
+            "default ribbon order wrong: COMP@{comp} FUZZ@{fuzz} AMP+CAB@{ampcab}"
+        );
+
+        // Move COMP last: the ribbon must follow.
+        let mut v: Vec<u8> = ChainStage::default_order().into_iter().collect();
+        v.retain(|&x| x != ChainStage::Comp as u8);
+        v.push(ChainStage::Comp as u8);
+        params.set_chain_order(&v.try_into().unwrap());
+        let text = render_with(&params, &board, None, |_| {});
+        let (comp, ampcab) = (
+            text.find("COMP").expect("COMP in ribbon"),
+            text.find("AMP+CAB").expect("AMP+CAB in ribbon"),
+        );
+        assert!(
+            ampcab < comp,
+            "ribbon did not follow COMP move: AMP+CAB@{ampcab} COMP@{comp}"
         );
     }
 }

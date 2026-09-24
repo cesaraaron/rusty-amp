@@ -95,12 +95,12 @@
         secs = 0;
         recTime.textContent = "00:00";
         recFile.textContent = "";
-        recAir.textContent = "● ON AIR";
+        recAir.textContent = "●REC";
         recBtn.innerHTML = '<span class="dot">■</span>Stop';
         timer = setInterval(function () { secs++; recTime.textContent = fmt(secs); }, 1000);
       } else {
         clearInterval(timer);
-        recAir.textContent = "○ OFF AIR";
+        recAir.textContent = "○REC";
         recBtn.innerHTML = '<span class="dot">●</span>Record';
         var ts = Math.floor(Date.now() / 1000);
         recFile.innerHTML = "Saved <code>~/rusty-amp-" + ts + ".wav</code> · " + fmt(secs) + " · 32-bit float stereo";

@@ -40,6 +40,8 @@ next: { href: "https://github.com/danylokravchenko/rusty-amp/blob/main/CONTRIBUT
 
 Every block below is processed per sample. Bracketed stages are `[bypassable]` — remove or bypass them and they drop out of the path entirely.
 
+The order below is the shipped default, not a fixed circuit: focus any pedal and press <kbd>[</kbd> / <kbd>]</kbd> to move it earlier or later in the chain, or focus the amp knobs to move the whole amp+cab block (amp and cab always travel together). The ribbon at the top of the app always shows the live order. A mono pedal placed on a stereo signal sums to mono and duplicates back out; a stereo pedal placed before the amp+cab block promotes the signal to dual mono — so putting e.g. the compressor after the cabinet is fair game. Custom orders are saved into [presets](presets.html#chain).
+
 <div class="flow">
 
   <div class="flow__stage flow__stage--io" style="--c:var(--rust-light)">

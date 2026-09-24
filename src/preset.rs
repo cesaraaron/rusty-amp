@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
 use std::sync::atomic::Ordering::Relaxed;
 
-use crate::dsp::{AmpModel, CabModel, Params};
+use crate::dsp::{AmpModel, CabModel, ChainStage, Params, sanitize_chain_order};
 
 #[derive(Embed)]
 #[folder = "presets/"]
@@ -46,6 +46,9 @@ pub struct Preset {
     pub tremolo: Option<TremoloSection>,
     pub delay: Option<DelaySection>,
     pub reverb: ReverbSection,
+    /// Signal-chain order as stage names (`"gate"`, `"comp"`, `"ampcab"`,
+    /// `"delay"`…). Absent in older presets → the shipped default order.
+    pub chain: Option<ChainSection>,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -257,6 +260,15 @@ pub struct ReverbSection {
     pub room: f32,
     pub damp: f32,
     pub mix: f32,
+}
+
+/// Signal-chain order: stage names from input to output, e.g.
+/// `["gate", "comp", "fuzz", "ampcab", "delay", "reverb"]`. Unknown names are
+/// ignored and missing stages are appended in default order on apply, so a
+/// hand-edited or older file can never build a half chain.
+#[derive(Debug, Deserialize, Serialize)]
+pub struct ChainSection {
+    pub order: Vec<String>,
 }
 
 impl Preset {
@@ -480,6 +492,14 @@ impl Preset {
                 damp: params.rev_damp.load(Relaxed),
                 mix: params.rev_mix.load(Relaxed),
             },
+            chain: Some(ChainSection {
+                order: params
+                    .chain_slots()
+                    .iter()
+                    .filter_map(|&v| ChainStage::from_u8(v))
+                    .map(|s| s.name().to_owned())
+                    .collect(),
+            }),
         }
     }
 
@@ -721,6 +741,19 @@ impl Preset {
         params.rev_room.store(rev.room.clamp(0.0, 1.0), Relaxed);
         params.rev_damp.store(rev.damp.clamp(0.0, 1.0), Relaxed);
         params.rev_mix.store(rev.mix.clamp(0.0, 1.0), Relaxed);
+
+        if let Some(chain) = &self.chain {
+            let ids: Vec<u8> = chain
+                .order
+                .iter()
+                .filter_map(|n| ChainStage::from_name(n.trim().to_lowercase().as_str()))
+                .map(|s| s as u8)
+                .collect();
+            params.set_chain_order(&sanitize_chain_order(&ids));
+        } else {
+            // Older presets predate chain order: fall back to the shipped order.
+            params.set_chain_order(&ChainStage::default_order());
+        }
     }
 }
 
@@ -933,5 +966,67 @@ mod tests {
             expand_tilde(Path::new("/abs/x.toml")),
             PathBuf::from("/abs/x.toml")
         );
+    }
+
+    /// A preset carrying a custom chain order applies it; the order round-trips
+    /// through save/parse.
+    #[test]
+    fn preset_chain_order_applies_and_round_trips() {
+        let params = Params::new();
+        let mut moved: Vec<u8> = ChainStage::default_order().into_iter().collect();
+        moved.retain(|&v| v != ChainStage::Comp as u8);
+        moved.insert(12, ChainStage::Comp as u8); // comp after the amp+cab block
+        let moved: [u8; crate::dsp::CHAIN_LEN] = moved.try_into().unwrap();
+        params.set_chain_order(&moved);
+
+        let preset = Preset::from_params("Moved".to_string(), None, &params);
+        let names = &preset.chain.as_ref().expect("chain saved").order;
+        assert_eq!(names[8], "vibe");
+        assert_eq!(names[9], "ampcab");
+        assert_eq!(names[12], "comp");
+
+        // Apply onto fresh params and confirm the slots land.
+        let fresh = Params::new();
+        preset.apply(&fresh);
+        assert_eq!(fresh.chain_slots(), moved);
+
+        // And through TOML serialization.
+        let toml_str = toml::to_string_pretty(&preset).unwrap();
+        let back: Preset = toml::from_str(&toml_str).unwrap();
+        let fresher = Params::new();
+        back.apply(&fresher);
+        assert_eq!(fresher.chain_slots(), moved);
+    }
+
+    /// Presets without a chain (all existing files) fall back to the default
+    /// order; unknown names are dropped and missing stages appended.
+    #[test]
+    fn preset_chain_missing_or_invalid_falls_back() {
+        let params = Params::new();
+        params.set_chain_order(&[ChainStage::Reverb as u8; crate::dsp::CHAIN_LEN]);
+
+        // No chain section → default order.
+        let mut preset = Preset::from_params("X".to_string(), None, &params);
+        preset.chain = None;
+        preset.apply(&params);
+        assert_eq!(params.chain_slots(), ChainStage::default_order());
+
+        // Junk names dropped, dupes collapsed, missing stages appended.
+        preset.chain = Some(ChainSection {
+            order: vec![
+                "bogus".to_string(),
+                "delay".to_string(),
+                "delay".to_string(),
+            ],
+        });
+        preset.apply(&params);
+        let slots = params.chain_slots();
+        assert_eq!(slots[0], ChainStage::Delay as u8);
+        assert_eq!(slots.len(), crate::dsp::CHAIN_LEN);
+        let mut sorted = slots;
+        sorted.sort_unstable();
+        let mut want = ChainStage::default_order();
+        want.sort_unstable();
+        assert_eq!(sorted, want);
     }
 }

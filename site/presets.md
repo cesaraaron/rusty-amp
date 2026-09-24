@@ -290,6 +290,15 @@ enabled = true        # optional, defaults to true
 room = 0.55
 damp = 0.40
 mix  = 0.25
+
+# Signal-chain order, input to output. Optional — omit [chain] entirely and the
+# preset uses the shipped order (this is how all older presets behave).
+# Unknown names are ignored, duplicates collapsed, and any missing stage is
+# appended in default order, so a hand-edited list can't build a half chain.
+# Stage names: gate whammy wah comp fuzz ts ds metal preeq vibe ampcab
+#              geq eq flanger chorus phaser trem delay reverb
+[chain]
+order = ["gate", "whammy", "wah", "comp", "fuzz", "ts", "ds", "metal", "preeq", "vibe", "ampcab", "geq", "eq", "flanger", "chorus", "phaser", "trem", "delay", "reverb"]
 ```
 
 <div class="note">

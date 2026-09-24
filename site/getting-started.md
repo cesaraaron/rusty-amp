@@ -99,6 +99,7 @@ The app launches immediately with default values. Press <kbd>P</kbd> at any time
 | <kbd>Space</kbd> | Toggle (bypass) the focused pedal — or open the **Add pedal** picker on the `+ ADD` tile |
 | <kbd>Enter</kbd> | Open the **Add pedal** picker when the `+ ADD` tile is focused |
 | <kbd>D</kbd> | Remove the focused pedal from the board (bypassed and hidden — re-add it from `+ ADD`) |
+| <kbd>[</kbd> / <kbd>]</kbd> | Move the focused pedal earlier / later in the signal chain — from amp/mic focus this moves the whole amp+cab block (see [signal chain](how-it-works.html#chain)) |
 | <kbd>P</kbd> | Open the preset browser overlay |
 | <kbd>T</kbd> | Open the [tuner](tools.html#tuner) — bypasses the rig for a clean signal |
 | <kbd>M</kbd> | Open the [metronome](tools.html#metronome) — an adjustable click that plays along but stays out of recordings |

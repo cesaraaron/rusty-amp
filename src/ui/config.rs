@@ -10,7 +10,6 @@ use super::styles::{
     PEDAL_STEEL, PEDAL_TEAL, PEDAL_VIBE, PEDAL_YELLOW,
 };
 use crate::dsp::Params;
-
 pub(super) struct Knob {
     pub(super) label: &'static str,
     pub(super) param: fn(&Params) -> &Arc<AtomicF32>,
@@ -609,6 +608,7 @@ pub(super) fn pedal_of(knob: usize) -> Option<usize> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::dsp::ChainStage;
 
     // These tests pin the hand-maintained contract between the KNOBS array and
     // the PEDALS table (see the module comment): the ←/→ navigation walks KNOBS
@@ -698,5 +698,24 @@ mod tests {
         // the change is a conscious, reviewed edit rather than an accident.
         assert_eq!(PEDALS.len(), 18, "pedal count changed");
         assert_eq!(KNOBS.len(), 74, "knob count changed");
+    }
+
+    #[test]
+    fn chain_stage_pedal_index_matches_pedals_table() {
+        // The DSP chain order addresses pedals by PEDALS index: every pedal must
+        // own exactly one stage and round-trip through it, and the amp+cab block
+        // must own none. The `add-pedal` flow extends both sides together.
+        for (pi, p) in PEDALS.iter().enumerate() {
+            let stage =
+                ChainStage::from_pedal_index(pi).unwrap_or_else(|| panic!("{pi} has no stage"));
+            assert_eq!(
+                stage.pedal_index(),
+                Some(pi),
+                "{} maps to the wrong stage",
+                p.name
+            );
+        }
+        assert_eq!(ChainStage::AmpCab.pedal_index(), None);
+        assert_eq!(ChainStage::default_order().len(), PEDALS.len() + 1);
     }
 }

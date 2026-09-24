@@ -1,6 +1,6 @@
 use std::sync::atomic::Ordering::Relaxed;
 
-use crate::dsp::{AmpModel, CabModel, Params};
+use crate::dsp::{AmpModel, CHAIN_LEN, CabModel, ChainStage, Params};
 
 use super::config::{
     ADD_TILE, AMP_END, AMP_START, KNOBS, MIC_END, MIC_START, PEDALS, PRACTICE_TILE, Panels,
@@ -30,10 +30,10 @@ fn section_start_of(focus: Option<usize>) -> Option<usize> {
 }
 
 /// Tab stops, honouring hidden panels: selectors → amp → mic (if the amp panel
-/// is shown), on-board pedals → +ADD (if the pedalboard is shown), then the
-/// practice timeline (if shown). Always leaves at least one stop so navigation
-/// can never index an empty list.
-fn section_stops(board: &[bool], panels: &Panels) -> Vec<Option<usize>> {
+/// is shown), on-board pedals **in chain order** → +ADD (if the pedalboard is
+/// shown), then the practice timeline (if shown). Always leaves at least one
+/// stop so navigation can never index an empty list.
+fn section_stops(board: &[bool], panels: &Panels, order: &[u8; CHAIN_LEN]) -> Vec<Option<usize>> {
     let mut v = Vec::new();
     if panels.amp {
         v.push(None);
@@ -41,9 +41,12 @@ fn section_stops(board: &[bool], panels: &Panels) -> Vec<Option<usize>> {
         v.push(Some(MIC_START));
     }
     if panels.rig {
-        for (i, p) in PEDALS.iter().enumerate() {
-            if board.get(i).copied().unwrap_or(false) {
-                v.push(Some(p.start));
+        for &raw in order {
+            if let Some(stage) = ChainStage::from_u8(raw)
+                && let Some(pi) = stage.pedal_index()
+                && board.get(pi).copied().unwrap_or(false)
+            {
+                v.push(Some(PEDALS[pi].start));
             }
         }
         v.push(Some(ADD_TILE));
@@ -58,8 +61,8 @@ fn section_stops(board: &[bool], panels: &Panels) -> Vec<Option<usize>> {
 }
 
 /// Per-knob stops for ←/→: selectors → visible amp/mic knobs → visible pedal
-/// knobs → +ADD tile. Hidden panels contribute no stops.
-fn knob_stops(board: &[bool], panels: &Panels) -> Vec<Option<usize>> {
+/// knobs **in chain order** → +ADD tile. Hidden panels contribute no stops.
+fn knob_stops(board: &[bool], panels: &Panels, order: &[u8; CHAIN_LEN]) -> Vec<Option<usize>> {
     let mut v = Vec::new();
     if panels.amp {
         v.push(None);
@@ -70,11 +73,17 @@ fn knob_stops(board: &[bool], panels: &Panels) -> Vec<Option<usize>> {
         );
     }
     if panels.rig {
-        v.extend(
-            (0..KNOBS.len())
-                .filter(|&k| pedal_of(k).is_some() && knob_visible(k, board))
-                .map(Some),
-        );
+        for &raw in order {
+            if let Some(stage) = ChainStage::from_u8(raw)
+                && let Some(pi) = stage.pedal_index()
+            {
+                v.extend(
+                    (PEDALS[pi].start..PEDALS[pi].end)
+                        .filter(|&k| knob_visible(k, board))
+                        .map(Some),
+                );
+            }
+        }
         v.push(Some(ADD_TILE));
     }
     if v.is_empty() {
@@ -89,21 +98,40 @@ fn cycle(stops: &[Option<usize>], current: Option<usize>, dir: i32) -> Option<us
     stops[(((cur + dir) % n + n) % n) as usize]
 }
 
-pub(super) fn next_section(focus: Option<usize>, board: &[bool], panels: &Panels) -> Option<usize> {
-    cycle(&section_stops(board, panels), section_start_of(focus), 1)
+pub(super) fn next_section(
+    focus: Option<usize>,
+    board: &[bool],
+    panels: &Panels,
+    order: &[u8; CHAIN_LEN],
+) -> Option<usize> {
+    cycle(
+        &section_stops(board, panels, order),
+        section_start_of(focus),
+        1,
+    )
 }
 
-pub(super) fn prev_section(focus: Option<usize>, board: &[bool], panels: &Panels) -> Option<usize> {
-    cycle(&section_stops(board, panels), section_start_of(focus), -1)
+pub(super) fn prev_section(
+    focus: Option<usize>,
+    board: &[bool],
+    panels: &Panels,
+    order: &[u8; CHAIN_LEN],
+) -> Option<usize> {
+    cycle(
+        &section_stops(board, panels, order),
+        section_start_of(focus),
+        -1,
+    )
 }
 
 pub(super) fn nav_knob(
     focus: Option<usize>,
     board: &[bool],
     panels: &Panels,
+    order: &[u8; CHAIN_LEN],
     dir: i32,
 ) -> Option<usize> {
-    cycle(&knob_stops(board, panels), focus, dir)
+    cycle(&knob_stops(board, panels, order), focus, dir)
 }
 
 /// Keep `focus` on a visible section after a panel is hidden. When the focused
@@ -113,13 +141,44 @@ pub(super) fn ensure_focus_visible(
     focus: Option<usize>,
     board: &[bool],
     panels: &Panels,
+    order: &[u8; CHAIN_LEN],
 ) -> Option<usize> {
-    let stops = section_stops(board, panels);
+    let stops = section_stops(board, panels, order);
     if stops.contains(&section_start_of(focus)) {
         focus
     } else {
         stops[0]
     }
+}
+
+/// Resolve a focus to the chain stage it can move: pedal knobs → their pedal,
+/// amp/mic knobs → the amp+cab block. Selectors, +ADD and the timeline don't move.
+fn stage_of_focus(focus: Option<usize>) -> Option<ChainStage> {
+    match focus {
+        Some(i) if (AMP_START..MIC_END).contains(&i) => Some(ChainStage::AmpCab),
+        Some(i) => pedal_of(i).and_then(ChainStage::from_pedal_index),
+        None => None,
+    }
+}
+
+/// Move the focused stage one slot earlier (`dir < 0`, `[`) or later (`dir > 0`,
+/// `]`) in the chain order. Focus stays on the same knob; the chain (and the
+/// ribbon/tiles) reorder around it. Returns true when something moved.
+pub(super) fn move_stage(params: &Params, focus: Option<usize>, dir: i32) -> bool {
+    let Some(stage) = stage_of_focus(focus) else {
+        return false;
+    };
+    let mut order = params.chain_slots();
+    let Some(pos) = order.iter().position(|&v| v == stage as u8) else {
+        return false;
+    };
+    let other = pos as i32 + dir.signum();
+    if other < 0 || other >= order.len() as i32 {
+        return false;
+    }
+    order.swap(pos, other as usize);
+    params.set_chain_order(&order);
+    true
 }
 
 pub(super) fn nudge(params: &Params, idx: usize, delta: f32) {
@@ -179,6 +238,10 @@ mod tests {
         vec![on; PEDALS.len()]
     }
 
+    fn order() -> [u8; CHAIN_LEN] {
+        ChainStage::default_order()
+    }
+
     fn knob(params: &Params, idx: usize) -> f32 {
         (KNOBS[idx].param)(params).load(Relaxed)
     }
@@ -189,16 +252,17 @@ mod tests {
     fn tab_cycles_all_sections_when_board_empty() {
         let board = board(false);
         let p = Panels::all_visible();
+        let o = order();
         let mut f = None; // amp/cab selectors
-        f = next_section(f, &board, &p);
+        f = next_section(f, &board, &p, &o);
         assert_eq!(f, Some(AMP_START));
-        f = next_section(f, &board, &p);
+        f = next_section(f, &board, &p, &o);
         assert_eq!(f, Some(MIC_START));
-        f = next_section(f, &board, &p);
+        f = next_section(f, &board, &p, &o);
         assert_eq!(f, Some(ADD_TILE));
-        f = next_section(f, &board, &p);
+        f = next_section(f, &board, &p, &o);
         assert_eq!(f, Some(PRACTICE_TILE));
-        f = next_section(f, &board, &p);
+        f = next_section(f, &board, &p, &o);
         assert_eq!(f, None, "Tab must wrap back to the selectors");
     }
 
@@ -206,15 +270,16 @@ mod tests {
     fn shift_tab_is_the_inverse_of_tab() {
         let board = board(true);
         let p = Panels::all_visible();
+        let o = order();
         let mut f = None;
         // Walk forward through every stop, then back, and confirm we retrace it.
         let mut forward = vec![f];
         for _ in 0..PEDALS.len() + 6 {
-            f = next_section(f, &board, &p);
+            f = next_section(f, &board, &p, &o);
             forward.push(f);
         }
         for &expected in forward.iter().rev().skip(1) {
-            f = prev_section(f, &board, &p);
+            f = prev_section(f, &board, &p, &o);
             assert_eq!(f, expected, "BackTab did not retrace Tab");
         }
     }
@@ -223,7 +288,7 @@ mod tests {
     fn tab_visits_only_on_board_pedals() {
         let mut b = board(false);
         b[3] = true; // only the DELAY pedal is on the board
-        let stops = section_stops(&b, &Panels::all_visible());
+        let stops = section_stops(&b, &Panels::all_visible(), &order());
         assert!(stops.contains(&Some(PEDALS[3].start)));
         for (i, p) in PEDALS.iter().enumerate() {
             if i != 3 {
@@ -239,7 +304,7 @@ mod tests {
     #[test]
     fn arrow_nav_skips_knobs_of_off_board_pedals() {
         let b = board(false); // only amp + mic knobs are visible
-        let stops = knob_stops(&b, &Panels::all_visible());
+        let stops = knob_stops(&b, &Panels::all_visible(), &order());
         assert!(
             !stops.iter().flatten().any(|&k| pedal_of(k).is_some()),
             "a hidden pedal's knob is reachable with ←/→"
@@ -257,24 +322,49 @@ mod tests {
     fn arrow_nav_wraps_at_both_ends() {
         let b = board(false);
         let p = Panels::all_visible();
+        let o = order();
         // From the selectors, ← wraps to the last stop (the +ADD tile).
-        assert_eq!(nav_knob(None, &b, &p, -1), Some(ADD_TILE));
+        assert_eq!(nav_knob(None, &b, &p, &o, -1), Some(ADD_TILE));
         // From the +ADD tile, → wraps back to the selectors.
-        assert_eq!(nav_knob(Some(ADD_TILE), &b, &p, 1), None);
+        assert_eq!(nav_knob(Some(ADD_TILE), &b, &p, &o, 1), None);
+    }
+
+    #[test]
+    fn nav_follows_chain_order() {
+        // Reverse the chain: Tab/←→ must visit pedals in signal order, not table order.
+        let b = board(true);
+        let p = Panels::all_visible();
+        let mut rev: Vec<u8> = ChainStage::default_order().into_iter().collect();
+        rev.reverse();
+        let rev: [u8; CHAIN_LEN] = rev.try_into().unwrap();
+        let stops = section_stops(&b, &p, &rev);
+        let pedal_only: Vec<usize> = stops
+            .into_iter()
+            .flatten()
+            .filter(|&s| s != ADD_TILE && s != PRACTICE_TILE && s != AMP_START && s != MIC_START)
+            .collect();
+        let want: Vec<usize> = rev
+            .iter()
+            .filter_map(|&v| ChainStage::from_u8(v))
+            .filter_map(|s| s.pedal_index())
+            .map(|pi| PEDALS[pi].start)
+            .collect();
+        assert_eq!(pedal_only, want);
     }
 
     #[test]
     fn hidden_panels_are_skipped_by_navigation() {
         let b = board(true);
+        let o = order();
         // Hide the amp and the board: only the timeline remains a Tab stop.
         let hidden = Panels {
             amp: false,
             rig: false,
             timeline: true,
         };
-        assert_eq!(section_stops(&b, &hidden), vec![Some(PRACTICE_TILE)]);
+        assert_eq!(section_stops(&b, &hidden, &o), vec![Some(PRACTICE_TILE)]);
         assert_eq!(
-            knob_stops(&b, &hidden),
+            knob_stops(&b, &hidden, &o),
             vec![None],
             "no knobs remain reachable when both knob panels are hidden"
         );
@@ -284,7 +374,7 @@ mod tests {
             rig: false,
             timeline: false,
         };
-        assert_eq!(section_stops(&b, &none), vec![None]);
+        assert_eq!(section_stops(&b, &none, &o), vec![None]);
     }
 
     // ── knob edits ──────────────────────────────────────────────────────────────
@@ -432,5 +522,48 @@ mod tests {
             .map(|pd| (pd.enabled)(&p).load(Relaxed))
             .collect();
         assert_eq!(flags_before, flags_after);
+    }
+
+    // ── chain order moves ─────────────────────────────────────────────────────
+
+    #[test]
+    fn move_stage_swaps_pedal_with_its_neighbour() {
+        let p = Params::new();
+        // COMP is at slot 3 with FUZZ right after it.
+        assert!(move_stage(&p, Some(PEDALS[3].start), 1));
+        let order = p.chain_slots();
+        assert_eq!(order[3], ChainStage::Fuzz as u8);
+        assert_eq!(order[4], ChainStage::Comp as u8);
+        // …and back again.
+        assert!(move_stage(&p, Some(PEDALS[3].start), -1));
+        assert_eq!(p.chain_slots(), ChainStage::default_order());
+    }
+
+    #[test]
+    fn move_stage_moves_the_ampcab_block_from_amp_or_mic_focus() {
+        let p = Params::new();
+        // AmpCab sits at slot 10 with VIBE before it.
+        assert!(move_stage(&p, Some(AMP_START), -1));
+        let order = p.chain_slots();
+        assert_eq!(order[9], ChainStage::AmpCab as u8);
+        assert_eq!(order[10], ChainStage::Vibe as u8);
+        // Mic focus moves the same block.
+        assert!(move_stage(&p, Some(MIC_START), 1));
+        assert_eq!(p.chain_slots(), ChainStage::default_order());
+    }
+
+    #[test]
+    fn move_stage_refuses_the_ends_and_non_stages() {
+        let p = Params::new();
+        // GATE is first: nothing earlier.
+        assert!(!move_stage(&p, Some(PEDALS[0].start), -1));
+        assert_eq!(p.chain_slots(), ChainStage::default_order());
+        // REVERB is last: nothing later.
+        assert!(!move_stage(&p, Some(PEDALS[17].start), 1));
+        assert_eq!(p.chain_slots(), ChainStage::default_order());
+        // Selectors, +ADD and timeline have no stage to move.
+        assert!(!move_stage(&p, None, 1));
+        assert!(!move_stage(&p, Some(ADD_TILE), 1));
+        assert!(!move_stage(&p, Some(PRACTICE_TILE), 1));
     }
 }

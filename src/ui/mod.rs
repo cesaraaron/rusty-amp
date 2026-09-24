@@ -32,8 +32,8 @@ use crate::recording::{RecordingState, save_wav};
 use config::{ADD_TILE, PEDALS, PRACTICE_TILE, Panels, pedal_of};
 use draw::{draw, render_add_pedal_modal, render_help_modal};
 use input::{
-    add_pedal, cycle_amp, cycle_cab, ensure_focus_visible, nav_knob, next_section, nudge,
-    prev_section, remove_pedal, toggle_pedal,
+    add_pedal, cycle_amp, cycle_cab, ensure_focus_visible, move_stage, nav_knob, next_section,
+    nudge, prev_section, remove_pedal, toggle_pedal,
 };
 use practice::PracticeUi;
 use presets::{PathDialogKind, render_path_dialog, render_preset_modal, render_save_dialog};
@@ -651,15 +651,18 @@ pub fn run(
                         }
                         KeyCode::Char('1') => {
                             panels.rig = !panels.rig;
-                            focus = ensure_focus_visible(focus, &board, &panels);
+                            focus =
+                                ensure_focus_visible(focus, &board, &panels, &params.chain_slots());
                         }
                         KeyCode::Char('2') => {
                             panels.amp = !panels.amp;
-                            focus = ensure_focus_visible(focus, &board, &panels);
+                            focus =
+                                ensure_focus_visible(focus, &board, &panels, &params.chain_slots());
                         }
                         KeyCode::Char('3') => {
                             panels.timeline = !panels.timeline;
-                            focus = ensure_focus_visible(focus, &board, &panels);
+                            focus =
+                                ensure_focus_visible(focus, &board, &panels, &params.chain_slots());
                         }
                         KeyCode::Char('q') => break,
                         KeyCode::Char('k') | KeyCode::Char('K') => {
@@ -766,10 +769,18 @@ pub fn run(
                         KeyCode::Char('c') | KeyCode::Char('C') => {
                             cycle_cab(&params);
                         }
-                        KeyCode::Tab => focus = next_section(focus, &board, &panels),
-                        KeyCode::BackTab => focus = prev_section(focus, &board, &panels),
-                        KeyCode::Right => focus = nav_knob(focus, &board, &panels, 1),
-                        KeyCode::Left => focus = nav_knob(focus, &board, &panels, -1),
+                        KeyCode::Tab => {
+                            focus = next_section(focus, &board, &panels, &params.chain_slots());
+                        }
+                        KeyCode::BackTab => {
+                            focus = prev_section(focus, &board, &panels, &params.chain_slots());
+                        }
+                        KeyCode::Right => {
+                            focus = nav_knob(focus, &board, &panels, &params.chain_slots(), 1);
+                        }
+                        KeyCode::Left => {
+                            focus = nav_knob(focus, &board, &panels, &params.chain_slots(), -1);
+                        }
                         KeyCode::Up | KeyCode::Char('+') | KeyCode::Char('=') => match focus {
                             None => cycle_amp(&params, 1),
                             Some(ADD_TILE | PRACTICE_TILE) => {}
@@ -791,6 +802,16 @@ pub fn run(
                                 remove_pedal(&params, &mut board, pi);
                                 focus = Some(ADD_TILE);
                             }
+                        }
+                        // Reorder the chain: move the focused pedal (or the
+                        // amp+cab block, from amp/mic focus) one slot earlier /
+                        // later. The timeline's `[`/`]` arms above match first
+                        // while it owns focus, so there is no conflict.
+                        KeyCode::Char('[') => {
+                            move_stage(&params, focus, -1);
+                        }
+                        KeyCode::Char(']') => {
+                            move_stage(&params, focus, 1);
                         }
                         KeyCode::Char(' ') => match focus {
                             Some(ADD_TILE) => {

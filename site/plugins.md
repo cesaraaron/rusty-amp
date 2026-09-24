@@ -61,7 +61,7 @@ When a plugin with parameters is loaded you drop straight into the **parameter e
 | <kbd>Tab</kbd> | Return to the plugin list |
 | <kbd>Esc</kbd> / <kbd>V</kbd> | Close |
 
-The loaded plugin's name appears in the header (🔌) next to the amp and cabinet. Loading, clearing, and parameter edits all take effect live — the audio stream is never interrupted (swaps happen on a lock-free handoff, and the displaced plugin is freed off the audio thread).
+The loaded plugin's name appears on the signal ribbon (🔌) after the rack, before `OUTPUT` — that slot is fixed, only the pedal and amp+cab stages move. Loading, clearing, and parameter edits all take effect live — the audio stream is never interrupted (swaps happen on a lock-free handoff, and the displaced plugin is freed off the audio thread).
 
 ## CLAP limitations {#limits}
 
@@ -106,7 +106,7 @@ When an AU with parameters is loaded you drop straight into the **parameter edit
 
 Parameter values are shown the way the plugin describes them: **enum/switch** parameters read as their names (e.g. `Bright` / `Normal`), and unit-bearing parameters carry a suffix (`-6.0 dB`, `2.50 kHz`, `50 %`, `12.0 ms`, `On`/`Off`). Continuous params fall back to a plain number. Adjusting a switch/list param snaps one entry at a time.
 
-Loading an AU makes it the **active amp immediately**: the built-in amp is bypassed, the header shows `AU: NAME` in place of the amp model, and the built-in tone-stack knobs and AMP selector dim to signal they no longer affect the sound. Press <kbd>Z</kbd> to A/B between the loaded AU and the built-in amp live — no reload.
+Loading an AU makes it the **active amp immediately**: the built-in amp is bypassed, the signal ribbon shows `AU: NAME` in place of the `AMP+CAB` stage, and the built-in tone-stack knobs and AMP selector dim to signal they no longer affect the sound. Press <kbd>Z</kbd> to A/B between the loaded AU and the built-in amp live — no reload.
 
 ### Cab pairing <span class="muted">(<kbd>C</kbd>)</span>
 

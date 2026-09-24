@@ -87,10 +87,10 @@ Hidden panels are skipped by <kbd>Tab</kbd> and give their space back to the res
 
 ## Recording <span class="muted">(<kbd>R</kbd>)</span> {#recording}
 
-Press <kbd>R</kbd> to start recording. The header switches from `○ OFF AIR` to a blinking `● ON AIR` indicator next to `POWER ON`. Press <kbd>R</kbd> again to stop — the file is written immediately and the saved path is shown briefly in the footer.
+Press <kbd>R</kbd> to start recording. A blinking `●REC` lamp lights up on the practice timeline's transport line (next to `▶`). Press <kbd>R</kbd> again to stop — the file is written immediately and the saved path is shown briefly in the footer.
 
 <div class="widget rec" data-rec>
-  <div class="rec__header"><span class="led"></span> POWER ON <span class="rec__air">○ OFF AIR</span></div>
+  <div class="rec__header"><span>⏸</span><span class="rec__air">○REC</span><span>00:00 / 00:00</span></div>
   <div class="rec__wave"></div>
   <div class="rec__time">00:00</div>
   <div class="rec__controls"><button class="rec__btn"><span class="dot">●</span>Record</button></div>
