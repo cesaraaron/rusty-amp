@@ -11,9 +11,10 @@ use crate::dsp::{AmpModel, CabModel, ChainStage, Levels, Params};
 use crate::practice::Practice;
 
 use super::config::{
-    ADD_TILE, AMP_END, AMP_START, KNOBS, MIC_END, MIC_START, PEDALS, PRACTICE_TILE, Panels, Pedal,
-    PedalUi,
+    ADD_TILE, AMP_END, AMP_START, CHAIN_TILE, KNOBS, MIC_END, MIC_START, PEDALS, PRACTICE_TILE,
+    Panels, Pedal, PedalUi,
 };
+use super::input::rendered_stages;
 use super::practice::PracticeUi;
 use super::styles::*;
 
@@ -31,6 +32,7 @@ pub(super) fn draw(
     ext_cab: Option<&str>,
     ext_amp: Option<&str>,
     panels: Panels,
+    chain_cursor: ChainStage,
     timeline: Option<(&Practice, &PracticeUi)>,
 ) {
     let area = f.area();
@@ -76,7 +78,15 @@ pub(super) fn draw(
 
     let mut i = 0usize;
     render_header(
-        f, rows[i], params, recording, blink, plugin, ext_cab, ext_amp,
+        f,
+        rows[i],
+        params,
+        board,
+        plugin,
+        ext_cab,
+        ext_amp,
+        focus == Some(CHAIN_TILE),
+        chain_cursor,
     );
     i += 1;
     render_meters(f, rows[i], levels);
@@ -112,11 +122,12 @@ fn render_header(
     f: &mut Frame,
     area: Rect,
     params: &Params,
-    _recording: bool,
-    _blink: bool,
+    board: &[bool],
     plugin: Option<&str>,
     ext_cab: Option<&str>,
     ext_amp: Option<&str>,
+    focused: bool,
+    cursor: ChainStage,
 ) {
     let block = Block::default()
         .borders(Borders::BOTTOM)
@@ -138,37 +149,51 @@ fn render_header(
 
     let arrow = Span::styled(" ──▶ ", Style::default().fg(DIM));
 
-    // The ribbon shows the live signal path in chain order: only stages that
-    // are on appear, so it mirrors what is actually being heard. Move stages
-    // with `[` / `]` and the ribbon (and the sound) follows.
+    // The ribbon shows the live signal path in chain order. On-board pedals
+    // always appear — lit when engaged, dimmed when bypassed — so the cursor
+    // stays visible while toggling; off-board pedals stay hidden. With focus,
+    // `←`/`→` move the cursor, `[`/`]` move its stage, `Space` bypasses it.
     let mut chain: Vec<Span> = vec![Span::raw("  ")];
-    let push_stage = |chain: &mut Vec<Span>, label: String, color: Color| {
+    let push_stage = |chain: &mut Vec<Span>, label: String, style: Style| {
         if chain.len() > 1 {
             chain.push(arrow.clone());
         }
-        chain.push(Span::styled(label, Style::default().fg(color)));
+        chain.push(Span::styled(label, style));
+    };
+    // Reversed + bold, mirroring the selected amp-model chip.
+    let selected = |color: Color| {
+        Style::default()
+            .fg(color)
+            .add_modifier(Modifier::BOLD | Modifier::REVERSED)
     };
 
-    for &raw in &params.chain_slots() {
-        let Some(stage) = ChainStage::from_u8(raw) else {
-            continue;
-        };
-        if stage == ChainStage::AmpCab {
-            push_stage(&mut chain, ampcab_label.clone(), AMBER);
+    for &(_, slot_stage) in &rendered_stages(&params.chain_slots(), board) {
+        let selected_here = focused && cursor == slot_stage;
+        if slot_stage == ChainStage::AmpCab {
+            let style = if selected_here {
+                selected(AMBER)
+            } else {
+                Style::default().fg(AMBER)
+            };
+            push_stage(&mut chain, ampcab_label.clone(), style);
             continue;
         }
-        let Some((label, on)) = pedal_stage_state(params, stage) else {
+        let Some((label, on)) = pedal_stage_state(params, slot_stage) else {
             continue;
         };
-        if on {
-            push_stage(&mut chain, label.to_owned(), ACCENT);
-        }
+        let color = if on { ACCENT } else { DIM };
+        let style = if selected_here {
+            selected(color)
+        } else {
+            Style::default().fg(color)
+        };
+        push_stage(&mut chain, label.to_owned(), style);
     }
     // The hosted plugin insert (if any) runs post-rack, pre-master.
     if let Some(name) = plugin {
-        push_stage(&mut chain, format!("🔌 {name}"), AMBER);
+        push_stage(&mut chain, format!("🔌 {name}"), Style::default().fg(AMBER));
     }
-    push_stage(&mut chain, "OUTPUT".to_owned(), CHROME);
+    push_stage(&mut chain, "OUTPUT".to_owned(), Style::default().fg(CHROME));
 
     f.render_widget(Paragraph::new(Line::from(chain)), inner);
 }
@@ -630,12 +655,9 @@ fn render_rig(f: &mut Frame, area: Rect, params: &Params, board: &[bool], focus:
     // signal flow; the last tile is always "+ ADD". `board` may be shorter than
     // PEDALS (e.g. the device-setup screen passes an empty slice), so treat
     // missing entries as off-board.
-    let on_board: Vec<usize> = params
-        .chain_slots()
-        .iter()
-        .filter_map(|&raw| ChainStage::from_u8(raw))
-        .filter_map(|stage| stage.pedal_index())
-        .filter(|&i| board.get(i).copied().unwrap_or(false))
+    let on_board: Vec<usize> = rendered_stages(&params.chain_slots(), board)
+        .into_iter()
+        .filter_map(|(_, stage)| stage.pedal_index())
         .collect();
     let tile_count = on_board.len() + 1;
 
@@ -856,7 +878,7 @@ fn render_pedal_detail(f: &mut Frame, area: Rect, params: &Params, focus: Option
             Style::default().fg(AMBER),
         )),
         None => Line::from(Span::styled(
-            "┤ SELECT A PEDAL — Tab / ←→ ├",
+            "┤ SELECT A PEDAL — ←→ ├",
             Style::default().fg(DIM),
         )),
     };
@@ -874,7 +896,7 @@ fn render_pedal_detail(f: &mut Frame, area: Rect, params: &Params, focus: Option
         let hint = if adding {
             "Press Enter to add a pedal to the board."
         } else {
-            "Tab to a pedal to edit its controls."
+            "Press 4 for the pedalboard, 1 for the chain."
         };
         f.render_widget(
             Paragraph::new(Line::from(Span::styled(hint, Style::default().fg(DIM))))
@@ -922,9 +944,9 @@ fn render_pedal_detail(f: &mut Frame, area: Rect, params: &Params, focus: Option
         shade(pedal.color, 0.3)
     };
     let foot = if on {
-        "▐ ON ▌  ▗▄▄▄▄▄▄▄▖   [ ] move in chain"
+        "▐ ON ▌  ▗▄▄▄▄▄▄▄▖"
     } else {
-        "○ OFF   ▗▄▄▄▄▄▄▄▖   [ ] move in chain"
+        "○ OFF   ▗▄▄▄▄▄▄▄▖"
     };
     f.render_widget(
         Paragraph::new(Line::from(Span::styled(
@@ -1166,12 +1188,18 @@ pub(super) fn render_help_modal(f: &mut Frame) {
     let row = |k: &'static str, d: &'static str| Line::from(vec![key(k), desc(d)]);
 
     let mut lines: Vec<Line> = vec![
+        head("Panels & chain"),
+        row(
+            "  1 / 2 / 3 / 4",
+            "  focus chain, amp, timeline, pedals (again: hide)",
+        ),
+        row("  Tab / Shift-Tab", "  jump to next / previous panel"),
+        row("  ←/→", "  move inside the focused panel"),
+        row("  [ / ]", "  move the ribbon's stage earlier / later"),
+        row("  Space", "  bypass stage, pedal, or transport under focus"),
         head("Play & edit"),
-        row("  Tab / Shift-Tab", "  move between sections"),
-        row("  ←/→  ↑/↓  +/−", "  knob / adjust value"),
-        row("  Space", "  toggle pedal (or transport on the timeline)"),
+        row("  ↑/↓  +/−", "  knob / adjust value"),
         row("  D", "  remove pedal from the board"),
-        row("  [ / ]", "  move pedal (or amp+cab) in the chain"),
         row("  A / C", "  next amp / cabinet"),
         row("  I / X", "  IR browser / IR bypass"),
         row("  O", "  change audio devices"),
@@ -1193,9 +1221,8 @@ pub(super) fn render_help_modal(f: &mut Frame) {
             "  start / stop recording (take lands on the timeline)",
         ),
         row("  Q / Ctrl-C", "  quit"),
-        head("Practice & panels"),
+        head("Panels"),
         row("  B", "  practice-track browser (MP3 / WAV / FLAC)"),
-        row("  1 / 2 / 3", "  show / hide board, amp, timeline"),
         head("Preset browser"),
         row("  ↑/↓  Enter", "  navigate / apply (audio uninterrupted)"),
         row("  S / E / I", "  save / export / import"),
@@ -1500,6 +1527,7 @@ mod tests {
                 None,
                 None,
                 Panels::all_visible(),
+                ChainStage::AmpCab,
                 None,
             );
             overlay(f);
@@ -1572,6 +1600,7 @@ mod tests {
                     None,
                     None,
                     Panels::all_visible(),
+                    ChainStage::AmpCab,
                     None,
                 );
             })
@@ -1633,6 +1662,7 @@ mod tests {
                     None,
                     None,
                     Panels::all_visible(),
+                    ChainStage::AmpCab,
                     None,
                 );
             })
@@ -1670,6 +1700,7 @@ mod tests {
                 None,
                 Some("Silver Jubilee"),
                 Panels::all_visible(),
+                ChainStage::AmpCab,
                 None,
             );
         })
@@ -1715,6 +1746,7 @@ mod tests {
                     None,
                     None,
                     Panels::all_visible(),
+                    ChainStage::AmpCab,
                     None,
                 );
             })
@@ -1750,6 +1782,7 @@ mod tests {
                 None,
                 None,
                 Panels::all_visible(),
+                ChainStage::AmpCab,
                 None,
             );
             render_add_pedal_modal(f, &available, 0);
@@ -1901,6 +1934,7 @@ mod tests {
                 None,
                 None,
                 panels,
+                ChainStage::AmpCab,
                 Some((&practice, &ui)),
             );
         })

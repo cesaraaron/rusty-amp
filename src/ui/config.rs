@@ -570,9 +570,16 @@ pub(super) const ADD_TILE: usize = KNOBS.len();
 // a real knob index, so any code that indexes `KNOBS` must guard against it.
 pub(super) const PRACTICE_TILE: usize = KNOBS.len() + 1;
 
-/// Which top-level panels the user has chosen to show. Toggled live with the
-/// `1` / `2` / `3` keys. Hidden panels are skipped by focus navigation (like
-/// off-board pedals) and left out of the layout so their space is reclaimed.
+// Sentinel focus value for the live-order ribbon (panel 1). The ribbon owns
+// focus as a whole; the selected stage within it lives in session state
+// (`chain_cursor`), not in `focus`.
+pub(super) const CHAIN_TILE: usize = KNOBS.len() + 2;
+
+/// Which top-level panels the user has chosen to show. Panel 1 (the live-order
+/// ribbon) is always visible; panels 2–4 are toggled live with the `2` / `3` /
+/// `4` keys (`1` only focuses the ribbon). Hidden panels are skipped by focus
+/// navigation (like off-board pedals) and left out of the layout so their space
+/// is reclaimed.
 #[derive(Clone, Copy)]
 pub(super) struct Panels {
     /// Amp & cabinet panel (the selector row plus the amp/mic knob panel).

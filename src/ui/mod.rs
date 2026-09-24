@@ -24,16 +24,17 @@ use crossterm::{
     terminal::{EnterAlternateScreen, LeaveAlternateScreen, disable_raw_mode, enable_raw_mode},
 };
 
-use crate::dsp::{Levels, Metronome, Params, Tuner};
+use crate::dsp::{ChainStage, Levels, Metronome, Params, Tuner};
 use crate::practice::Practice;
 use crate::preset::Preset;
 use crate::recording::{RecordingState, save_wav};
 
-use config::{ADD_TILE, PEDALS, PRACTICE_TILE, Panels, pedal_of};
+use config::{ADD_TILE, CHAIN_TILE, PEDALS, PRACTICE_TILE, Panels, pedal_of};
 use draw::{draw, render_add_pedal_modal, render_help_modal};
 use input::{
-    add_pedal, cycle_amp, cycle_cab, ensure_focus_visible, move_stage, nav_knob, next_section,
-    nudge, prev_section, remove_pedal, toggle_pedal,
+    add_pedal, cycle_amp, cycle_cab, ensure_focus_visible, move_chain_cursor, move_selected_stage,
+    next_panel_focus, nudge, press_number, prev_panel_focus, remove_pedal, step_knob_in_panel,
+    toggle_pedal, toggle_stage,
 };
 use practice::PracticeUi;
 use presets::{PathDialogKind, render_path_dialog, render_preset_modal, render_save_dialog};
@@ -127,7 +128,10 @@ pub fn run(
     let mut terminal = ratatui::Terminal::new(backend)?;
 
     // ── Session state (persists across a device change) ───────────────────────
-    let mut focus: Option<usize> = None;
+    // Focus starts on the live-order ribbon (panel 1).
+    let mut focus: Option<usize> = Some(CHAIN_TILE);
+    // Selected stage within the ribbon; follows its stage through moves.
+    let mut chain_cursor: ChainStage = ChainStage::AmpCab;
     // Board membership: a pedal is on the board iff it is enabled. Off-board
     // pedals are bypassed in the DSP and hidden from the rig. Rebuilt with
     // `sync_board` whenever a preset rewrites the enabled flags.
@@ -299,6 +303,7 @@ pub fn run(
                     ext_cab_name,
                     ext_amp_name,
                     panels,
+                    chain_cursor,
                     Some((&practice, &practice_ui)),
                 );
                 if add_open {
@@ -546,8 +551,10 @@ pub fn run(
                             } else {
                                 presets[preset_cursor - 1].apply(&params);
                             }
-                            // The preset rewrote the enabled flags, so rebuild the
-                            // board and drop focus if it landed on a removed pedal.
+                            // The preset rewrote the enabled flags (and maybe the
+                            // chain order), so rebuild the board and repair
+                            // focus if it landed on a removed pedal or a
+                            // hidden panel.
                             board = sync_board(&params);
                             if let Some(i) = focus
                                 && let Some(pi) = pedal_of(i)
@@ -555,6 +562,8 @@ pub fn run(
                             {
                                 focus = None;
                             }
+                            focus =
+                                ensure_focus_visible(focus, &board, &panels, &params.chain_slots());
                             preset_open = false;
                         }
                         KeyCode::Char('s') | KeyCode::Char('S') => {
@@ -645,24 +654,26 @@ pub fn run(
                         KeyCode::Delete | KeyCode::Backspace if focus == Some(PRACTICE_TILE) => {
                             practice_ui.delete_selected(&mut engine, &practice);
                         }
-                        // ── Global: browser + panel visibility ─────────────────────
+                        // ── Panels: number keys focus first, show second, hide ──
+                        // `1` live order · `2` amp/cab · `3` timeline · `4` pedals.
                         KeyCode::Char('b') | KeyCode::Char('B') => {
                             practice_ui.open_browser();
                         }
                         KeyCode::Char('1') => {
-                            panels.rig = !panels.rig;
-                            focus =
-                                ensure_focus_visible(focus, &board, &panels, &params.chain_slots());
+                            (panels, focus) =
+                                press_number(1, focus, &board, &panels, &params.chain_slots());
                         }
                         KeyCode::Char('2') => {
-                            panels.amp = !panels.amp;
-                            focus =
-                                ensure_focus_visible(focus, &board, &panels, &params.chain_slots());
+                            (panels, focus) =
+                                press_number(2, focus, &board, &panels, &params.chain_slots());
                         }
                         KeyCode::Char('3') => {
-                            panels.timeline = !panels.timeline;
-                            focus =
-                                ensure_focus_visible(focus, &board, &panels, &params.chain_slots());
+                            (panels, focus) =
+                                press_number(3, focus, &board, &panels, &params.chain_slots());
+                        }
+                        KeyCode::Char('4') => {
+                            (panels, focus) =
+                                press_number(4, focus, &board, &panels, &params.chain_slots());
                         }
                         KeyCode::Char('q') => break,
                         KeyCode::Char('k') | KeyCode::Char('K') => {
@@ -770,25 +781,36 @@ pub fn run(
                             cycle_cab(&params);
                         }
                         KeyCode::Tab => {
-                            focus = next_section(focus, &board, &panels, &params.chain_slots());
+                            focus = next_panel_focus(focus, &board, &panels, &params.chain_slots());
                         }
                         KeyCode::BackTab => {
-                            focus = prev_section(focus, &board, &panels, &params.chain_slots());
+                            focus = prev_panel_focus(focus, &board, &panels, &params.chain_slots());
+                        }
+                        // ←/→ inside the focused panel: the ribbon moves its
+                        // stage cursor, panels 2/4 walk their knobs, and the
+                        // timeline's seek arms above already claimed it there.
+                        KeyCode::Right if focus == Some(CHAIN_TILE) => {
+                            chain_cursor =
+                                move_chain_cursor(&params.chain_slots(), &board, chain_cursor, 1);
+                        }
+                        KeyCode::Left if focus == Some(CHAIN_TILE) => {
+                            chain_cursor =
+                                move_chain_cursor(&params.chain_slots(), &board, chain_cursor, -1);
                         }
                         KeyCode::Right => {
-                            focus = nav_knob(focus, &board, &panels, &params.chain_slots(), 1);
+                            focus = step_knob_in_panel(focus, &board, &params.chain_slots(), 1);
                         }
                         KeyCode::Left => {
-                            focus = nav_knob(focus, &board, &panels, &params.chain_slots(), -1);
+                            focus = step_knob_in_panel(focus, &board, &params.chain_slots(), -1);
                         }
                         KeyCode::Up | KeyCode::Char('+') | KeyCode::Char('=') => match focus {
                             None => cycle_amp(&params, 1),
-                            Some(ADD_TILE | PRACTICE_TILE) => {}
+                            Some(ADD_TILE | PRACTICE_TILE | CHAIN_TILE) => {}
                             Some(i) => nudge(&params, i, 0.05),
                         },
                         KeyCode::Down | KeyCode::Char('-') => match focus {
                             None => cycle_amp(&params, -1),
-                            Some(ADD_TILE | PRACTICE_TILE) => {}
+                            Some(ADD_TILE | PRACTICE_TILE | CHAIN_TILE) => {}
                             Some(i) => nudge(&params, i, -0.05),
                         },
                         KeyCode::Enter if focus == Some(ADD_TILE) => {
@@ -803,15 +825,17 @@ pub fn run(
                                 focus = Some(ADD_TILE);
                             }
                         }
-                        // Reorder the chain: move the focused pedal (or the
-                        // amp+cab block, from amp/mic focus) one slot earlier /
-                        // later. The timeline's `[`/`]` arms above match first
-                        // while it owns focus, so there is no conflict.
-                        KeyCode::Char('[') => {
-                            move_stage(&params, focus, -1);
+                        // Reorder the chain from the ribbon: move the selected
+                        // stage one slot earlier / later. The timeline's `[`/`]`
+                        // arms above match first while it owns focus.
+                        KeyCode::Char('[') if focus == Some(CHAIN_TILE) => {
+                            move_selected_stage(&params, &board, chain_cursor, -1);
                         }
-                        KeyCode::Char(']') => {
-                            move_stage(&params, focus, 1);
+                        KeyCode::Char(']') if focus == Some(CHAIN_TILE) => {
+                            move_selected_stage(&params, &board, chain_cursor, 1);
+                        }
+                        KeyCode::Char(' ') if focus == Some(CHAIN_TILE) => {
+                            toggle_stage(&params, &board, chain_cursor);
                         }
                         KeyCode::Char(' ') => match focus {
                             Some(ADD_TILE) => {

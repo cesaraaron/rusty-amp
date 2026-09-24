@@ -88,18 +88,19 @@ The app launches immediately with default values. Press <kbd>P</kbd> at any time
 
 | Key | Action |
 | --- | ------ |
-| <kbd>Tab</kbd> / <kbd>Shift-Tab</kbd> | Jump between sections |
-| <kbd>←</kbd> / <kbd>→</kbd> | Move focus one knob at a time within the focused section |
+| <kbd>1</kbd> / <kbd>2</kbd> / <kbd>3</kbd> / <kbd>4</kbd> | Focus the live order, amp &amp; cabinet, [practice timeline](tools.html#practice), or pedalboard — press again on the focused panel to hide it (`1` never hides) |
+| <kbd>Tab</kbd> / <kbd>Shift-Tab</kbd> | Jump to the next / previous panel (chain → amp → timeline → pedals) |
+| <kbd>←</kbd> / <kbd>→</kbd> | Move inside the focused panel — pick a stage on the ribbon, a knob on the amp/pedals (seeks on the timeline) |
 | <kbd>↑</kbd> / <kbd>+</kbd> / <kbd>=</kbd> | Increase focused knob by 5% — or cycle amp model forward on the selector row |
 | <kbd>↓</kbd> / <kbd>-</kbd> | Decrease focused knob by 5% — or cycle amp model backward on the selector row |
 | <kbd>A</kbd> | Cycle amp model forward (works from any section) |
 | <kbd>C</kbd> | Cycle cabinet model (Mesa V30 → Marshall Greenback → Orange PPC412) |
 | <kbd>I</kbd> | Open the cabinet-IR browser to load/clear an external `.wav` IR ([see IRs](amps-cabs.html#irs)) |
 | <kbd>X</kbd> | A/B between a loaded external IR and the built-in cab (once an IR is loaded) |
-| <kbd>Space</kbd> | Toggle (bypass) the focused pedal — or open the **Add pedal** picker on the `+ ADD` tile |
+| <kbd>Space</kbd> | Bypass the ribbon's stage, the focused pedal, or the timeline transport — or open the **Add pedal** picker on the `+ ADD` tile |
 | <kbd>Enter</kbd> | Open the **Add pedal** picker when the `+ ADD` tile is focused |
 | <kbd>D</kbd> | Remove the focused pedal from the board (bypassed and hidden — re-add it from `+ ADD`) |
-| <kbd>[</kbd> / <kbd>]</kbd> | Move the focused pedal earlier / later in the signal chain — from amp/mic focus this moves the whole amp+cab block (see [signal chain](how-it-works.html#chain)) |
+| <kbd>[</kbd> / <kbd>]</kbd> | Move the ribbon's selected stage earlier / later in the signal chain (see [signal chain](how-it-works.html#chain)) |
 | <kbd>P</kbd> | Open the preset browser overlay |
 | <kbd>T</kbd> | Open the [tuner](tools.html#tuner) — bypasses the rig for a clean signal |
 | <kbd>M</kbd> | Open the [metronome](tools.html#metronome) — an adjustable click that plays along but stays out of recordings |
@@ -107,16 +108,13 @@ The app launches immediately with default values. Press <kbd>P</kbd> at any time
 | <kbd>S</kbd> | Save the current state as a new user preset |
 | <kbd>R</kbd> | Start / stop [recording](tools.html#recording) — saves a WAV file to your home directory and drops the take on the [practice timeline](tools.html#practice) when stopped |
 | <kbd>B</kbd> | Open the **Practice tracks** browser to load a backing track (MP3 / WAV / FLAC) or a take |
-| <kbd>1</kbd> | Show / hide the **pedalboard** |
-| <kbd>2</kbd> | Show / hide the **amp &amp; cabinet** panel |
-| <kbd>3</kbd> | Show / hide the **practice timeline** |
 | <kbd>O</kbd> | Change the audio input/output devices — reopens the device picker and restarts the engine |
 | <kbd>K</kbd> | Open the keybinding cheat-sheet (press <kbd>K</kbd> / <kbd>Esc</kbd> to close) |
 | <kbd>Q</kbd> / <kbd>Ctrl-C</kbd> | Quit |
 
 The footer only shows `K keybindings  Q quit` — the full list above lives in the <kbd>K</kbd> modal, including the preset-browser, timeline, and metronome keys.
 
-Focus starts on the **selector row** (amp + cabinet). <kbd>Tab</kbd> moves down through the amp, cabinet mics, each pedal on the board, the `+ ADD` tile, and the [practice timeline](tools.html#practice). See [the pedalboard](pedals.html#board) for add/remove details, and [Presets](presets.html) for the browser and save dialog.
+Focus starts on the **live-order ribbon**. <kbd>Tab</kbd> walks the panels in number order — chain → amp → [practice timeline](tools.html#practice) → pedals → back to the chain. See [the pedalboard](pedals.html#board) for add/remove details, and [Presets](presets.html) for the browser and save dialog.
 
 <div class="note note--info">
 Looking for the <b>chromatic tuner</b> (<kbd>T</kbd>), the <b>metronome</b> (<kbd>M</kbd>), or <b>one-key recording</b> (<kbd>R</kbd>)? They have their own page — see <a href="tools.html">Tools</a>.

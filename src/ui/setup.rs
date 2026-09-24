@@ -70,6 +70,7 @@ pub fn run(
                 None,
                 None,
                 super::config::Panels::all_visible(),
+                crate::dsp::ChainStage::AmpCab,
                 None,
             );
             match step_ref {

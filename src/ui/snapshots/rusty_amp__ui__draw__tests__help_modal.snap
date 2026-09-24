@@ -10,29 +10,30 @@ expression: text
 ║         -60        -48        -36        -24        -12       -6     0 dB    0W  -120.0 dB                                                                             ║
 ║┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓║
 ║┃  AMP  [ JCM800 ]  ◀ DUAL RECT ▶  [ RANDALL ]  [ AC30 ]  [ DR103 ]  ↑/↓  A           CAB  ◀ MESA V30 ▶  [ MARSH GB ]  [ ORANGE ]  [ WEM FANE ]  C to toggle           ┃║
-║┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛║
-║┏┤ MESA DUAL RECTIFIER ├━━━━━━━━━━━━━╔ K E Y B I N D I N G S ════════════════════════════════════════════════════════════════════╗━━━━━━━━━━━━━━━━━━━━━━━┤ 🎙 MESA V30 ├┓║
-║┃          ···                    ···║Play & edit                                                                                ║           ◇··       ···       ···   ┃║
-║┃         · ● ◇                  · ● ║  Tab / Shift-Tab  move between sections                                                   ║          · ● ·     · ● ·     · ● ·  ┃║
-║┃          · ·                    · ◇║  ←/→  ↑/↓  +/−  knob / adjust value                                                       ║           · ·       ◇ ·       ◇ ·   ┃║
-║┃       GAIN 7.5               BASS 1║  Space  toggle pedal (or transport on the timeline)                                       ║         MIC 4.0  BLEND 0.0 ROOM 0.0 ┃║
-║┃▚▞▚▞▚▞▚▞▚▞▚▞▚▞▚▞▚▞▚▞▚▞▚▞▚▞▚▞▚▞▚▞▚▞▚▞║  D  remove pedal from the board                                                           ║▞▚▞▚▞▚▞▚▞▚▞▚▞▚▞▚▞▚▞▚▞▚▞▚▞▚▞▚▞▚▞▚▞▚▞▚▞┃║
-║┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━║  [ / ]  move pedal (or amp+cab) in the chain                                              ║━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛║
-║┌ GUITAR RIG ────────────────────────║  A / C  next amp / cabinet                                                                ║─────────────────────────────────────┐║
-║│╔ NOISE GATE ◉ ═════════════════════║  I / X  IR browser / IR bypass                                                            ║ADD ════════════════════════════════╗│║
-║│║                2.0  3.0           ║  O  change audio devices                                                                  ║               ＋                    ║│║
-║│║                ▗▄▄▄▄▄▄▄▖          ║  Z / U  amp-plugin bypass / browser                                                       ║                                    ║│║
-║│╚═══════════════════════════════════║Tools                                                                                      ║════════════════════════════════════╝│║
-║│┏┤ SELECT A PEDAL — Tab / ←→ ├━━━━━━║  P  preset browser                                                                        ║━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓│║
+║┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╔ K E Y B I N D I N G S ════════════════════════════════════════════════════════════════════╗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛║
+║┏┤ MESA DUAL RECTIFIER ├━━━━━━━━━━━━━║Panels & chain                                                                             ║━━━━━━━━━━━━━━━━━━━━━━━┤ 🎙 MESA V30 ├┓║
+║┃          ···                    ···║  1 / 2 / 3 / 4  focus chain, amp, timeline, pedals (again: hide)                          ║           ◇··       ···       ···   ┃║
+║┃         · ● ◇                  · ● ║  Tab / Shift-Tab  jump to next / previous panel                                           ║          · ● ·     · ● ·     · ● ·  ┃║
+║┃          · ·                    · ◇║  ←/→  move inside the focused panel                                                       ║           · ·       ◇ ·       ◇ ·   ┃║
+║┃       GAIN 7.5               BASS 1║  [ / ]  move the ribbon's stage earlier / later                                           ║         MIC 4.0  BLEND 0.0 ROOM 0.0 ┃║
+║┃▚▞▚▞▚▞▚▞▚▞▚▞▚▞▚▞▚▞▚▞▚▞▚▞▚▞▚▞▚▞▚▞▚▞▚▞║  Space  bypass stage, pedal, or transport under focus                                     ║▞▚▞▚▞▚▞▚▞▚▞▚▞▚▞▚▞▚▞▚▞▚▞▚▞▚▞▚▞▚▞▚▞▚▞▚▞┃║
+║┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━║Play & edit                                                                                ║━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛║
+║┌ GUITAR RIG ────────────────────────║  ↑/↓  +/−  knob / adjust value                                                            ║─────────────────────────────────────┐║
+║│╔ NOISE GATE ◉ ═════════════════════║  D  remove pedal from the board                                                           ║ADD ════════════════════════════════╗│║
+║│║                2.0  3.0           ║  A / C  next amp / cabinet                                                                ║               ＋                    ║│║
+║│║                ▗▄▄▄▄▄▄▄▖          ║  I / X  IR browser / IR bypass                                                            ║                                    ║│║
+║│╚═══════════════════════════════════║  O  change audio devices                                                                  ║════════════════════════════════════╝│║
+║│┏┤ SELECT A PEDAL — ←→ ├━━━━━━━━━━━━║  Z / U  amp-plugin bypass / browser                                                       ║━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓│║
+║│┃                                   ║Tools                                                                                      ║                                    ┃│║
+║│┃                                   ║  P  preset browser                                                                        ║                                    ┃│║
 ║│┃                                   ║  S  save current rig as preset                                                            ║                                    ┃│║
 ║│┃                                   ║  T  chromatic tuner                                                                       ║                                    ┃│║
 ║│┃                                   ║  M  practice metronome (+/− tempo, Space on/off)                                          ║                                    ┃│║
-║│┃                                   ║  V  plugin browser                                                                        ║                                    ┃│║
-║│┃                                   ║  R  start / stop recording (take lands on the timeline)                                   ║                                    ┃│║
-║│┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━║  Q / Ctrl-C  quit                                                                         ║━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛│║
-║└────────────────────────────────────║Practice & panels                                                                          ║─────────────────────────────────────┘║
+║│┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━║  V  plugin browser                                                                        ║━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛│║
+║└────────────────────────────────────║  R  start / stop recording (take lands on the timeline)                                   ║─────────────────────────────────────┘║
+║                                     ║  Q / Ctrl-C  quit                                                                         ║                                      ║
+║                                     ║Panels                                                                                     ║                                      ║
 ║                                     ║  B  practice-track browser (MP3 / WAV / FLAC)                                             ║                                      ║
-║                                     ║  1 / 2 / 3  show / hide board, amp, timeline                                              ║                                      ║
 ║                                     ║Preset browser                                                                             ║                                      ║
 ║                                     ║  ↑/↓  Enter  navigate / apply (audio uninterrupted)                                       ║                                      ║
 ║                                     ║  S / E / I  save / export / import                                                        ║                                      ║
@@ -47,7 +48,6 @@ expression: text
 ║                                     ║                                                                                           ║                                      ║
 ║                                     ║                                       Esc / K close                                       ║                                      ║
 ║                                     ╚═══════════════════════════════════════════════════════════════════════════════════════════╝                                      ║
-║                                                                                                                                                                        ║
 ║                                                                                                                                                                        ║
 ║                                                                                                                                                                        ║
 ║                                                                                                                                                                        ║
