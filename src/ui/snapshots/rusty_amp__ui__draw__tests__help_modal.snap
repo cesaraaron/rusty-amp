@@ -30,30 +30,30 @@ expression: text
 ║│┃                                   ║  V  plugin browser                                                                        ║                                    ┃│║
 ║│┃                                   ║  R  start / stop recording (take lands on the timeline)                                   ║                                    ┃│║
 ║│┃                                   ║  Q / Ctrl-C  quit                                                                         ║                                    ┃│║
-║│┃                                   ║Practice & panels                                                                          ║                                    ┃│║
-║│┃                                   ║  B  practice-track browser (MP3 / WAV / FLAC)                                             ║                                    ┃│║
-║│┃                                   ║  1 / 2 / 3  show / hide board, amp, timeline                                              ║                                    ┃│║
-║│┃                                   ║Preset browser                                                                             ║                                    ┃│║
-║│┃                                   ║  ↑/↓  Enter  navigate / apply (audio uninterrupted)                                       ║                                    ┃│║
-║│┃                                   ║  S / E / I  save / export / import                                                        ║                                    ┃│║
-║│┃                                   ║  D  delete (user presets only)                                                            ║                                    ┃│║
-║│┃                                   ║Timeline (focused)                                                                         ║                                    ┃│║
-║│┃                                   ║  Space  play / pause, or mute the selected track                                          ║                                    ┃│║
-║│┃                                   ║  ↑/↓  ←/→  select line / seek ±5 s                                                        ║                                    ┃│║
-║│┃                                   ║  [ / ]  L  loop in-point / out-point, toggle loop                                         ║                                    ┃│║
-║│┃                                   ║  Del  delete selected track                                                               ║                                    ┃│║
-║│┃                                   ║                                                                                           ║                                    ┃│║
-║│┃                                   ║                                                                                           ║                                    ┃│║
-║│┃                                   ║                                                                                           ║                                    ┃│║
-║│┃                                   ║                                       Esc / K close                                       ║                                    ┃│║
-║│┃                                   ╚═══════════════════════════════════════════════════════════════════════════════════════════╝                                    ┃│║
-║│┃                                                                                                                                                                    ┃│║
-║│┃                                                                                                                                                                    ┃│║
-║│┃                                                                                                                                                                    ┃│║
-║│┃                                                                                                                                                                    ┃│║
-║│┃                                                                                                                                                                    ┃│║
-║│┃                                                                                                                                                                    ┃│║
-║│┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛│║
-║└──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘║
-║                                                                          K keybindings  Q quit                                                                         ║
+║│┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━║Practice & panels                                                                          ║━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛│║
+║└────────────────────────────────────║  B  practice-track browser (MP3 / WAV / FLAC)                                             ║─────────────────────────────────────┘║
+║                                     ║  1 / 2 / 3  show / hide board, amp, timeline                                              ║                                      ║
+║                                     ║Preset browser                                                                             ║                                      ║
+║                                     ║  ↑/↓  Enter  navigate / apply (audio uninterrupted)                                       ║                                      ║
+║                                     ║  S / E / I  save / export / import                                                        ║                                      ║
+║                                     ║  D  delete (user presets only)                                                            ║                                      ║
+║                                     ║Timeline (focused)                                                                         ║                                      ║
+║                                     ║  Space  play / pause, or mute the selected track                                          ║                                      ║
+║                                     ║  ↑/↓  ←/→  select line / seek ±5 s                                                        ║                                      ║
+║                                     ║  [ / ]  L  loop in-point / out-point, toggle loop                                         ║                                      ║
+║                                     ║  Del  delete selected track                                                               ║                                      ║
+║                                     ║                                                                                           ║                                      ║
+║                                     ║                                                                                           ║                                      ║
+║                                     ║                                                                                           ║                                      ║
+║                                     ║                                       Esc / K close                                       ║                                      ║
+║                                     ╚═══════════════════════════════════════════════════════════════════════════════════════════╝                                      ║
+║                                                                                                                                                                        ║
+║                                                                                                                                                                        ║
+║                                                                                                                                                                        ║
+║                                                                                                                                                                        ║
+║                                                                                                                                                                        ║
+║                                                                                                                                                                        ║
+║                                                                                                                                                                        ║
+║                                                                                                                                                                        ║
+║                                                                                                                                                                        ║
 ╚════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════╝

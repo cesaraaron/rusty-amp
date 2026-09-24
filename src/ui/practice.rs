@@ -1,8 +1,8 @@
 //! Practice / jam-along timeline pane and backing-track browser.
 //!
-//! The pane is a compact horizontal strip under the amp panel: a transport line
-//! and one line per track (backing + recorded take) with a mini waveform, the
-//! playhead and a shaded loop region. The browser modal loads a backing file
+//! The pane is a fixed 10-row strip under the amp panel: a transport line
+//! and three rows per track (backing + recorded take) with a tall waveform,
+//! the playhead and a shaded loop region. The browser modal loads a backing file
 //! (MP3 / WAV / FLAC) via [`crate::practice::decode_track`], decoding on a worker
 //! thread so the 30 ms UI loop never stalls.
 
@@ -384,9 +384,9 @@ impl PracticeUi {
             .direction(Direction::Vertical)
             .constraints([
                 Constraint::Length(1), // transport
-                Constraint::Length(1), // backing
-                Constraint::Length(1), // take
-                Constraint::Min(0),    // hint/message
+                Constraint::Length(3), // backing (3-row waveform)
+                Constraint::Length(3), // take (3-row waveform)
+                Constraint::Min(1),    // hint/message (absorbs leftover)
             ])
             .split(inner);
 
@@ -471,10 +471,10 @@ impl PracticeUi {
         }
         f.render_widget(Paragraph::new(Line::from(transport)), rows[0]);
 
-        // ── track lines ────────────────────────────────────────────────────────
+        // ── track blocks (3 rows each so the 10-row pane is all waveform) ────
         let width = inner.width as usize;
         f.render_widget(
-            Paragraph::new(self.track_line(
+            Paragraph::new(self.track_rows(
                 "BACK",
                 self.backing_name.as_deref(),
                 &self.backing_peaks,
@@ -486,11 +486,12 @@ impl PracticeUi {
                 position,
                 total,
                 width,
+                rows[1].height as usize,
             )),
             rows[1],
         );
         f.render_widget(
-            Paragraph::new(self.track_line(
+            Paragraph::new(self.track_rows(
                 "TAKE",
                 self.record_name.as_deref(),
                 &self.record_peaks,
@@ -502,6 +503,7 @@ impl PracticeUi {
                 position,
                 total,
                 width,
+                rows[2].height as usize,
             )),
             rows[2],
         );
@@ -535,12 +537,14 @@ impl PracticeUi {
         f.render_widget(Paragraph::new(hint).alignment(Alignment::Left), rows[3]);
     }
 
-    /// Build one track's line: focus cursor, mute LED, name, then a mini waveform
+    /// Build one track's rows: focus cursor, mute LED, name, then a tall waveform
     /// with the playhead and loop shading. `track_frames` is the track's own length
     /// and `start` its timeline offset (0 for backing, the captured playhead for a
-    /// take), so both align on the shared cursor.
+    /// take), so both align on the shared cursor. `height` is the rows available
+    /// (3 in the 10-row pane); the first row carries the label and the wave cells
+    /// repeat below it so the waveform reads tall instead of single-line.
     #[allow(clippy::too_many_arguments)]
-    fn track_line<'a>(
+    fn track_rows<'a>(
         &self,
         tag: &str,
         name: Option<&str>,
@@ -553,7 +557,8 @@ impl PracticeUi {
         position: usize,
         total: usize,
         width: usize,
-    ) -> Line<'a> {
+        height: usize,
+    ) -> Vec<Line<'a>> {
         let loaded = name.is_some() && track_frames > 0;
         let led = if muted {
             Span::styled("○ ", Style::default().fg(DIM))
@@ -565,7 +570,7 @@ impl PracticeUi {
         let name = name.unwrap_or("empty");
         let label = format!("{tag:<4} ");
         let name_w = 16usize;
-        let mut spans = vec![
+        let mut first = vec![
             Span::styled(
                 if focused { "▌" } else { " " }.to_owned(),
                 Style::default().fg(ACCENT),
@@ -584,8 +589,13 @@ impl PracticeUi {
 
         let used = 1 + 2 + label.len() + name_w + 1;
         let wave_w = width.saturating_sub(used);
+        let height = height.max(1);
         if !loaded || wave_w == 0 || total == 0 || peaks.is_empty() || track_frames == 0 {
-            return Line::from(spans);
+            let mut out = vec![Line::from(first)];
+            while out.len() < height {
+                out.push(Line::from(Span::raw("")));
+            }
+            return out;
         }
 
         let loop_on = practice.loop_enabled.load(Relaxed);
@@ -595,11 +605,13 @@ impl PracticeUi {
         );
         let pos_col = position * (wave_w.saturating_sub(1)) / total;
         let bars = [' ', '▁', '▂', '▃', '▄', '▅', '▆', '▇', '█'];
+        // One styled cell per waveform column, shared by all rows.
+        let mut cells: Vec<Span<'a>> = Vec::with_capacity(wave_w);
         for col in 0..wave_w {
             let frame = col * total / wave_w.max(1);
             let in_loop = loop_on && lb > la && frame >= la && frame < lb;
             if col == pos_col {
-                spans.push(Span::styled(
+                cells.push(Span::styled(
                     "│",
                     Style::default().fg(HOT).add_modifier(Modifier::BOLD),
                 ));
@@ -619,9 +631,19 @@ impl PracticeUi {
                 bars[level.min(bars.len() - 1)]
             };
             let color = if in_loop { HOT } else { CHROME };
-            spans.push(Span::styled(ch.to_string(), Style::default().fg(color)));
+            cells.push(Span::styled(ch.to_string(), Style::default().fg(color)));
         }
-        Line::from(spans)
+        first.extend(cells.iter().cloned());
+        let mut out = vec![Line::from(first)];
+        // Continuation rows: blank label gutter so the wave aligns under row 0,
+        // same cells so the playhead reads as a vertical line.
+        let gutter = Span::raw(" ".repeat(used));
+        while out.len() < height {
+            let mut spans = vec![gutter.clone()];
+            spans.extend(cells.iter().cloned());
+            out.push(Line::from(spans));
+        }
+        out
     }
 
     /// Render the backing/track browser modal.

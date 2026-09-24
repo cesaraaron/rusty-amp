@@ -55,15 +55,17 @@ pub(super) fn draw(
         cons.push(Constraint::Length(7)); // amplifier + cabinet/mic
     }
     if show_timeline {
-        // Compact when the board is also shown; grows to fill when it is hidden.
-        cons.push(if panels.rig {
-            Constraint::Length(6)
-        } else {
-            Constraint::Min(6)
-        });
+        // Fixed 10-row strip (transport + two 3-row tracks + hint); any leftover
+        // terminal space flows here via Min, never into the pedal knobs.
+        cons.push(Constraint::Min(10));
     }
     if panels.rig {
-        cons.push(Constraint::Min(0)); // guitar rig
+        // Fixed height like the amp panel: rig border (2) + tile grid + a
+        // 7-row detail editor. Leftover space stays in the timeline / empty.
+        cons.push(Constraint::Length(rig_outer_height(
+            area.width.saturating_sub(4),
+            board,
+        )));
     }
     cons.push(Constraint::Length(1)); // help (K for keybindings)
 
@@ -646,8 +648,27 @@ fn render_grille(f: &mut Frame, area: Rect, color: Color) {
 
 // ── Guitar rig (pedalboard) ───────────────────────────────────────────────────
 // Master–detail layout: a compact tile per pedal (name + LED + values) across
-// the top, and a full-size dial editor for the focused pedal below. Screen cost
-// is flat in pedal count — adding pedals grows the tile grid, not the editor.
+// the top, and a fixed amp-height dial editor for the focused pedal below.
+// The editor mirrors the amp panel (7 rows outer: 4 rows of controls + foot
+// row + borders), so extra terminal space flows to the timeline, never into
+// bigger knobs. Screen cost is flat in pedal count — adding pedals grows the
+// tile grid, not the editor.
+/// Outer height of the detail editor, matching the amp panel (`Length(7)`).
+const RIG_DETAIL_H: u16 = 7;
+const RIG_TILE_H: u16 = 4;
+
+/// Full outer height of the rig panel for the root layout: rig border (2) +
+/// tile grid + fixed detail editor. Mirrors the `render_rig` split so the
+/// root `Length` matches what the panel actually draws.
+fn rig_outer_height(rig_inner_width: u16, board: &[bool]) -> u16 {
+    let on_board = (0..PEDALS.len())
+        .filter(|&i| board.get(i).copied().unwrap_or(false))
+        .count();
+    let tile_count = on_board + 1;
+    let cols = ((rig_inner_width / 16).max(1) as usize).min(tile_count);
+    let tile_rows = tile_count.div_ceil(cols);
+    2 + tile_rows as u16 * RIG_TILE_H + RIG_DETAIL_H
+}
 fn render_rig(f: &mut Frame, area: Rect, params: &Params, board: &[bool], focus: Option<usize>) {
     // The rig is "active" whenever focus is on one of its pedals (or the + ADD
     // tile); otherwise it recedes with the other inactive panels.
@@ -675,15 +696,15 @@ fn render_rig(f: &mut Frame, area: Rect, params: &Params, board: &[bool], focus:
         .collect();
     let tile_count = on_board.len() + 1;
 
-    // Tiles up top (fixed height), full-size editor below (takes the rest).
-    const TILE_H: u16 = 4;
+    // Tiles up top (fixed height), amp-height editor below (fixed, like the amp).
+    const TILE_H: u16 = RIG_TILE_H;
     let cols = ((inner.width / 16).max(1) as usize).min(tile_count);
     let tile_rows = tile_count.div_ceil(cols);
     let parts = Layout::default()
         .direction(Direction::Vertical)
         .constraints([
             Constraint::Length(tile_rows as u16 * TILE_H),
-            Constraint::Min(0),
+            Constraint::Length(RIG_DETAIL_H),
         ])
         .split(inner);
 
@@ -921,9 +942,11 @@ fn render_pedal_detail(f: &mut Frame, area: Rect, params: &Params, focus: Option
     };
 
     let on = (pedal.enabled)(params).load(Relaxed);
+    // Fixed amp-like geometry: 4 rows of controls + 1 footswitch row inside the
+    // 7-row editor (2 borders). Extra space never stretches the knobs.
     let parts = Layout::default()
         .direction(Direction::Vertical)
-        .constraints([Constraint::Min(3), Constraint::Length(1)])
+        .constraints([Constraint::Length(4), Constraint::Length(1)])
         .split(inner);
 
     let count = pedal.end - pedal.start;
@@ -1081,10 +1104,9 @@ fn render_compact_fader(
         OFF
     };
 
-    // Fill the whole editor height: a full-height track gives every fader the same
-    // size (so the bank reads evenly) and many more handle positions, so the value
-    // moves smoothly instead of snapping in coarse ~2-unit jumps.
-    let track_h = (rows[0].height as usize).max(2);
+    // Fixed editor height: cap the track like the dial so extra space (e.g. a
+    // short terminal squeezing the layout) never stretches the faders.
+    let track_h = (rows[0].height as usize).clamp(2, 4);
     let art: Vec<Line> = build_fader(value, track_h)
         .into_iter()
         .map(|l| {
