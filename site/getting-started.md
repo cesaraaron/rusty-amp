@@ -57,13 +57,19 @@ which selects the OS audio backend automatically (CoreAudio, WASAPI/ASIO, or ALS
 
 Runs on **macOS, Windows, and Linux**. Requires **Rust 1.95+** (`rustup` recommended).
 
+On **Linux**, install the ALSA and PipeWire development headers first (the PipeWire host is used when available, and builds in by default):
+
+```bash
+sudo apt install libasound2-dev libpipewire-0.3-dev   # Debian/Ubuntu
+```
+
 ```bash
 cargo run --release
 # or after building:
 ./target/release/rusty-amp
 ```
 
-CLAP plugin hosting is on by default. For a minimal amp with no plugin dependencies, build with `cargo run --release --no-default-features` — see [Plugins](plugins.html).
+CLAP plugin hosting is on by default. For a minimal amp with no plugin dependencies and an ALSA-only audio backend, build with `cargo run --release --no-default-features` — see [Plugins](plugins.html).
 
 ## Startup flow {#startup}
 
@@ -73,7 +79,7 @@ CLAP plugin hosting is on by default. For a minimal amp with no plugin dependenc
 <li><b>Select output device</b> — pick your speakers or headphones.</li>
 </ol>
 
-The list is filtered: ALSA's `null` sink and duplicate entries are hidden. On **Linux with PipeWire**, choose the **PipeWire Sound Server** (or **Default ALSA Output**) entry rather than the raw interface — PipeWire keeps the hardware busy, so opening the raw device fails.
+The list is filtered: the `null` sink and duplicate entries are hidden. On **Linux** the app talks to **PipeWire** directly when it is running, so the list shows PipeWire's nodes — pick your interface (e.g. *Scarlett Solo 4th Gen*) for **both input and output**; there is no need to route through a separate "PipeWire Sound Server" entry. Without PipeWire the engine falls back to ALSA.
 
 Your selection is remembered in `~/.config/rusty-amp/audio.conf`, so later launches skip the picker and start straight into the rig. To change devices at any time, press <kbd>O</kbd> in the rig — it reopens the picker and restarts the audio engine with the new devices. Delete that file, or launch with `RUSTY_AMP_DEVICE_PROMPT=1`, to be prompted on the next launch.
 

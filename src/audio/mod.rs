@@ -461,30 +461,47 @@ fn negotiate_configs(
     let in_sr = in_sup.sample_rate();
     let in_fmt = in_sup.sample_format();
 
-    // ALSA advertises a config range per channel count and the first match is
-    // often mono, which would silently collapse the rig's stereo image. Prefer
-    // the device's default channel count (usually stereo) at the input's rate,
-    // then the widest config that supports it.
-    let preferred_channels = output.default_output_config().map(|c| c.channels()).ok();
-    let out_sup = match output
-        .supported_output_configs()?
-        .filter(|r| r.min_sample_rate() <= in_sr && r.max_sample_rate() >= in_sr)
-        .max_by_key(|r| (Some(r.channels()) == preferred_channels, r.channels()))
-    {
-        Some(range) => range.with_sample_rate(in_sr),
-        None => {
-            let default = output.default_output_config().map_err(|e| {
-                anyhow!(
-                    "output has no supported config for {in_sr} Hz and its default config is unavailable: {e}"
-                )
-            })?;
-            let fallback_sr = default.sample_rate();
-            let msg = format!(
-                "Audio: output does not support {in_sr} Hz; falling back to its default {fallback_sr} Hz"
-            );
-            eprintln!("{msg}");
-            log_line(&msg);
-            default
+    // Prefer the output's *default* config when it runs at the input's rate: it is
+    // the format the device (or its host) actually wants — e.g. f32 through
+    // PipeWire, or native i32 on a raw ALSA `hw` PCM. Falling through to the
+    // supported-range list and picking by channel count alone can otherwise land
+    // on an exotic format like f64, forcing an expensive plug-layer conversion.
+    let out_default = output.default_output_config().ok();
+    let preferred_channels = out_default.as_ref().map(|c| c.channels());
+    let out_sup = match out_default {
+        Some(d) if d.sample_rate() == in_sr => d,
+        _ => {
+            // ALSA advertises a config range per channel count and the first match
+            // is often mono, which would silently collapse the rig's stereo image.
+            // Prefer the default channel count at the input's rate, then a
+            // widely-supported sample format, then the widest config.
+            let chosen = output
+                .supported_output_configs()?
+                .filter(|r| r.min_sample_rate() <= in_sr && r.max_sample_rate() >= in_sr)
+                .max_by_key(|r| {
+                    (
+                        Some(r.channels()) == preferred_channels,
+                        format_rank(r.sample_format()),
+                        r.channels(),
+                    )
+                });
+            match chosen {
+                Some(range) => range.with_sample_rate(in_sr),
+                None => {
+                    let default = output.default_output_config().map_err(|e| {
+                        anyhow!(
+                            "output has no supported config for {in_sr} Hz and its default config is unavailable: {e}"
+                        )
+                    })?;
+                    let fallback_sr = default.sample_rate();
+                    let msg = format!(
+                        "Audio: output does not support {in_sr} Hz; falling back to its default {fallback_sr} Hz"
+                    );
+                    eprintln!("{msg}");
+                    log_line(&msg);
+                    default
+                }
+            }
         }
     };
     let out_fmt = out_sup.sample_format();
@@ -496,6 +513,20 @@ fn negotiate_configs(
     let out_cfg: StreamConfig = out_sup.into();
 
     Ok((in_cfg, out_cfg, in_sr as f32, in_fmt, out_fmt))
+}
+
+/// Rank sample formats by how cheaply and universally they convert: prefer native
+/// integer and f32 formats over f64 (which forces an ALSA plug-layer conversion).
+fn format_rank(f: cpal::SampleFormat) -> u8 {
+    match f {
+        cpal::SampleFormat::F32 => 5,
+        cpal::SampleFormat::I32 => 4,
+        cpal::SampleFormat::I16 => 3,
+        cpal::SampleFormat::U16 => 2,
+        cpal::SampleFormat::I24 => 1,
+        cpal::SampleFormat::U24 => 1,
+        _ => 0,
+    }
 }
 
 /// Returns a copy of `cfg` with its requested buffer size replaced.
@@ -863,9 +894,11 @@ fn build_engine(
         cpal::SampleFormat::F64 => build_in!(f64),
         cpal::SampleFormat::I8 => build_in!(i8),
         cpal::SampleFormat::I16 => build_in!(i16),
+        cpal::SampleFormat::I24 => build_in!(cpal::I24),
         cpal::SampleFormat::I32 => build_in!(i32),
         cpal::SampleFormat::U8 => build_in!(u8),
         cpal::SampleFormat::U16 => build_in!(u16),
+        cpal::SampleFormat::U24 => build_in!(cpal::U24),
         cpal::SampleFormat::U32 => build_in!(u32),
         other => return Err(anyhow!("input sample format {other} is not supported")),
     };
@@ -880,9 +913,11 @@ fn build_engine(
         cpal::SampleFormat::F64 => build_out!(f64),
         cpal::SampleFormat::I8 => build_out!(i8),
         cpal::SampleFormat::I16 => build_out!(i16),
+        cpal::SampleFormat::I24 => build_out!(cpal::I24),
         cpal::SampleFormat::I32 => build_out!(i32),
         cpal::SampleFormat::U8 => build_out!(u8),
         cpal::SampleFormat::U16 => build_out!(u16),
+        cpal::SampleFormat::U24 => build_out!(cpal::U24),
         cpal::SampleFormat::U32 => build_out!(u32),
         other => return Err(anyhow!("output sample format {other} is not supported")),
     };

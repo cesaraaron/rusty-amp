@@ -30,9 +30,9 @@ jobs:
         with:
           targets: ${{ matrix.target }}
 
-      - name: Install ALSA dev libraries (Linux)
+      - name: Install ALSA/Audio dev libraries (Linux)
         if: runner.os == 'Linux'
-        run: sudo apt-get update && sudo apt-get install -y libasound2-dev
+        run: sudo apt-get update && sudo apt-get install -y libasound2-dev libpipewire-0.3-dev
 
       - name: Cache cargo registry
         uses: actions/cache@v4

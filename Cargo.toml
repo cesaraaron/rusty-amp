@@ -50,12 +50,18 @@ coreaudio-sys = { version = "0.2.18", optional = true }
 # Plugin hosting is on by default so it works out of the box (and ships in the
 # release binaries). Build with `--no-default-features` for a minimal amp with no
 # CLAP dependencies / no plugin-loading FFI.
-default = ["clap", "au"]
+default = ["clap", "au", "pipewire"]
 # Host third-party CLAP effect plugins as a stereo insert in the signal chain.
 clap = ["dep:clack-host", "dep:clack-extensions"]
 # Host macOS Audio Unit plugins as an amp-position override. A no-op on non-macOS
 # targets (the dependencies are gated to macOS), so it's safe to leave in `default`.
 au = ["dep:coreaudio-sys"]
+# Prefer the PipeWire host on Linux. PipeWire owns the audio devices and schedules
+# the graph properly, avoiding the constant overruns ("buffer underrun or
+# overrun") and sample-format/plug-layer pitfalls of grabbing raw ALSA `hw`
+# devices while PipeWire is running. Requires libpipewire-0.3 at build time on
+# Linux; a no-op on other platforms. Drop it for a minimal ALSA-only build.
+pipewire = ["cpal/pipewire"]
 
 [dev-dependencies]
 # Golden-snapshot testing for the terminal UI: render to an in-memory buffer and
