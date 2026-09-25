@@ -1,11 +1,11 @@
 ---
 name: add-bundled-preset
-description: Add a new pre-built (bundled) preset to rusty-amp. Use when asked to create, add, or contribute a bundled/artist/factory preset — a .toml tone shipped with the repo. Covers writing the preset file AND updating the docs site so the two never drift.
+description: Add a new pre-built (bundled) preset to rusty-riff. Use when asked to create, add, or contribute a bundled/artist/factory preset — a .toml tone shipped with the repo.
 ---
 
-# Add a bundled preset to rusty-amp
+# Add a bundled preset to rusty-riff
 
-A bundled preset is a read-only `.toml` tone shipped with the repo in `presets/`. Adding one is **two coordinated changes**: the preset file itself, and the documentation site. Both must land in the same change — a preset that isn't documented is treated as incomplete.
+A bundled preset is a read-only `.toml` tone shipped with the repo in `presets/`. Bundled presets cannot be deleted by users, so only add tones that are genuinely useful and well-tuned.
 
 ## Steps
 
@@ -13,54 +13,34 @@ A bundled preset is a read-only `.toml` tone shipped with the repo in `presets/`
 
 Create `presets/<name>.toml`. Use a short, lowercase, filesystem-safe file name (e.g. `pantera_floods.toml`); the file stem is what appears in the preset browser list.
 
-- Study an existing preset in `presets/` (e.g. `presets/metallica.toml`) as a template — match its structure and its habit of a one-line `#` comment above each section explaining *why* the values are what they are.
-- Only `name`, `description`, and the always-present sections are required; every other section is optional (see the schema below). Omitting a section leaves that effect's current state unchanged.
+- Study an existing preset in `presets/` (e.g. `presets/van_halen_brown_sound.toml`) as a template — match its structure and its habit of a one-line `#` comment above each section explaining *why* the values are what they are.
+- **Required:** `name`, `[tube_screamer]`, `[amp]`, and `[reverb]`.
+- All other sections are optional. An omitted optional effect section turns that effect **off** on apply (knob values are retained but bypassed). Two sections are exceptions that retain their current state when omitted: `[noise_gate]` and `[cabinet]`. An omitted `[chain]` resets the order to the shipped default.
 - All knob values are normalised `0.0`–`1.0`.
 - `name` is the display name (can be long/descriptive); `description` is the one-line blurb shown in the browser.
 
-See [full schema](../../../site/presets.md) for the TOML structure and optional sections.
+> `src/preset.rs` is the source of truth for what deserializes and exactly how `Preset::apply` treats omitted sections.
 
-> Confirm the exact set of required sections and any new fields (e.g. amp `presence`) against `src/preset.rs`, which is the source of truth for what deserializes. The site docs can lag behind the code.
-
-### 2. Test it in the app
+### 2. Test it
 
 ```bash
-cargo test --package rusty-amp --lib -- preset::tests
-```
-Bundled presets can't be deleted by users, so only add tones that are genuinely useful and well-tuned.
-
-### 3. Update the documentation site (required, same change)
-
-The user-facing docs live in `site/`. The **bundled presets table** in [`site/presets.md`](../../../site/presets.md) lists every shipped preset and must include the new one. Add a row under the `## Bundled presets {#bundled}` table:
-
-```
-| `<name>.toml` | <Amp label> | <Cabinet label> | <one-line description> |
+cargo test --package rusty-riff --lib -- preset::tests
 ```
 
-- Keep the columns consistent with existing rows: file name in backticks, human-readable amp and cabinet names (e.g. "Marshall JCM800", "Mesa V30"), and a short description.
-- If the new preset would appear in the illustrative **preset browser mock-up** higher in `site/presets.md` (the `<div class="plist">` block), you generally leave that alone — it's a representative example, not an exhaustive list. Only touch it if explicitly asked.
+Then run the app and press `P` to confirm the preset loads and sounds as intended.
 
-Then verify the site builds:
+## Verify
 
 ```bash
-cd site && npm run build   # or: npm run dev  to preview locally
-```
-
-Confirm the new row renders in the bundled-presets table.
-
-### 4. Ship both together
-
-The preset `.toml` and the `site/presets.md` table row belong in the **same PR**. See `CONTRIBUTING.md` → "Adding a bundled preset". Run the usual checks before opening the PR:
-
-```bash
-cargo fmt && cargo clippy --all-targets -- -D warnings
+cargo fmt
+cargo clippy --all-targets --all-features -- -D warnings
+cargo test --all-features
 ```
 
 ## Checklist
 
 - [ ] `presets/<name>.toml` created, with per-section *why* comments
-- [ ] Required sections present; values normalised `0.0`–`1.0`
-- [ ] Tested via cargo test
-- [ ] Row added to the bundled presets table in `site/presets.md`
-- [ ] `npm run build` in `site/` succeeds and the row renders
-- [ ] Preset + docs in the same PR
+- [ ] Required sections present (`name`, `[tube_screamer]`, `[amp]`, `[reverb]`); values normalised `0.0`–`1.0`
+- [ ] Deterministic: loading it after any other bundled preset gives the same rig (explicitly set any state the preset relies on)
+- [ ] Tested via `cargo test` and by loading it in the app
+- [ ] `cargo fmt` / `clippy` / `test` pass
