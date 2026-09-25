@@ -213,6 +213,8 @@ pub fn run(
     // Surfaced atop the picker when audio fails to start, so the user learns why it
     // reopened and can choose a working device instead of being dropped out.
     let mut start_error: Option<String> = None;
+    // Show the recovery prompt once per launch, after the first engine starts.
+    let mut recovery_prompted = false;
     'session: loop {
         let selection = match select_devices(
             &mut terminal,
@@ -281,6 +283,16 @@ pub fn run(
         // ── Timeline: reset the transport, keep the session, re-install tracks ─────
         practice.reset();
         practice_ui.attach(&mut engine);
+
+        // Offer recovery of abandoned dry takes once, after the first engine start.
+        if !recovery_prompted {
+            recovery_prompted = true;
+            if !crate::project::list_recovery().is_empty() {
+                session_browser.open();
+                session_browser.message =
+                    Some("Recoverable takes found — Enter restore · D discard".to_owned());
+            }
+        }
 
         // ── Main UI loop ──────────────────────────────────────────────────────────
         let mut change_device = false;
@@ -534,6 +546,15 @@ pub fn run(
                                     session_browser.message = Some(format!("Delete failed: {e}"));
                                 }
                             }
+                            session_browser.refresh();
+                        }
+                        SessionAction::Restore(take) => {
+                            practice_ui.restore_recovery(&take);
+                            session_browser.open = false;
+                        }
+                        SessionAction::Discard(take) => {
+                            crate::project::discard_recovery_file(&take.wav);
+                            session_browser.message = Some(format!("Discarded {}", take.label()));
                             session_browser.refresh();
                         }
                     }

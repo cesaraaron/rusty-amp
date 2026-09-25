@@ -203,6 +203,119 @@ pub fn write_session(dir: &Path, manifest: &Manifest, assets: &[AssetCopy]) -> R
     Ok(())
 }
 
+/// Metadata written next to a finalized dry capture so an abandoned take can be
+/// discovered and restored on a later launch.
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub struct RecoveryMeta {
+    pub version: u32,
+    pub id: u64,
+    pub name: String,
+    /// Timeline start in project ticks.
+    pub start_ticks: u64,
+    pub project_sample_rate: u32,
+    pub source_sample_rate: u32,
+    pub frames: u64,
+    pub overflowed: bool,
+}
+
+/// Version of the recovery sidecar schema.
+pub const RECOVERY_META_VERSION: u32 = 1;
+
+/// A recoverable dry take found under the recovery root.
+#[derive(Clone, Debug)]
+pub struct RecoveryTake {
+    pub wav: PathBuf,
+    /// Folder containing the take.
+    pub dir: PathBuf,
+    pub meta: RecoveryMeta,
+}
+
+impl RecoveryTake {
+    pub fn label(&self) -> &str {
+        &self.meta.name
+    }
+}
+
+/// Write the metadata sidecar for `wav` (same stem, `.toml` extension).
+pub fn write_recovery_meta(wav: &Path, meta: &RecoveryMeta) -> Result<()> {
+    let path = wav.with_extension("toml");
+    let text = toml::to_string_pretty(meta).context("serializing recovery metadata")?;
+    std::fs::write(&path, text).with_context(|| format!("writing {}", path.display()))?;
+    Ok(())
+}
+
+/// Scan the recovery root for dry takes. A WAV without a sidecar is still
+/// surfaced (with a default record) so a crash mid-finalize is recoverable.
+pub fn list_recovery() -> Vec<RecoveryTake> {
+    let Some(root) = recovery_root() else {
+        return Vec::new();
+    };
+    let Ok(dirs) = std::fs::read_dir(&root) else {
+        return Vec::new();
+    };
+    let mut out = Vec::new();
+    for dir in dirs.flatten() {
+        let dir_path = dir.path();
+        if !dir_path.is_dir() {
+            continue;
+        }
+        let Ok(files) = std::fs::read_dir(&dir_path) else {
+            continue;
+        };
+        for file in files.flatten() {
+            let wav = file.path();
+            if !wav.is_file() || wav.extension().and_then(|e| e.to_str()) != Some("wav") {
+                continue;
+            }
+            let meta = std::fs::read_to_string(wav.with_extension("toml"))
+                .ok()
+                .and_then(|text| toml::from_str::<RecoveryMeta>(&text).ok())
+                .unwrap_or_else(|| RecoveryMeta {
+                    version: RECOVERY_META_VERSION,
+                    id: 0,
+                    name: wav
+                        .file_stem()
+                        .and_then(|s| s.to_str())
+                        .unwrap_or("Recovered take")
+                        .to_owned(),
+                    start_ticks: 0,
+                    project_sample_rate: 0,
+                    source_sample_rate: 0,
+                    frames: 0,
+                    overflowed: true,
+                });
+            out.push(RecoveryTake {
+                wav,
+                dir: dir_path.clone(),
+                meta,
+            });
+        }
+    }
+    out.sort_by(|a, b| a.wav.cmp(&b.wav));
+    out
+}
+
+/// Delete a recovery WAV and its sidecar, then remove the folder if it is empty.
+pub fn discard_recovery_file(wav: &Path) {
+    let _ = std::fs::remove_file(wav);
+    let _ = std::fs::remove_file(wav.with_extension("toml"));
+    if let Some(dir) = wav.parent()
+        && dir
+            .read_dir()
+            .map(|mut it| it.next().is_none())
+            .unwrap_or(false)
+    {
+        let _ = std::fs::remove_dir(dir);
+    }
+}
+
+/// True when `path` lives under the recovery root (used to GC incorporated takes).
+pub fn is_recovery_asset(path: &Path) -> bool {
+    recovery_root()
+        .map(|root| path.starts_with(root))
+        .unwrap_or(false)
+}
+
 /// A saved session discovered under the default root.
 pub struct SessionEntry {
     pub dir: PathBuf,
@@ -443,6 +556,35 @@ mod tests {
             after, payload,
             "in-place resave must not truncate the asset"
         );
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn recovery_sidecar_round_trips_and_discards() {
+        let dir = tmp_dir("recovery");
+        std::fs::create_dir_all(&dir).expect("mkdir");
+        let wav = dir.join("take-3.wav");
+        std::fs::write(&wav, b"partial").expect("write wav");
+        let meta = RecoveryMeta {
+            version: RECOVERY_META_VERSION,
+            id: 3,
+            name: "Take 3".into(),
+            start_ticks: 960,
+            project_sample_rate: 48_000,
+            source_sample_rate: 48_000,
+            frames: 5,
+            overflowed: false,
+        };
+        write_recovery_meta(&wav, &meta).expect("write meta");
+
+        let text = std::fs::read_to_string(wav.with_extension("toml")).expect("read meta");
+        let parsed: RecoveryMeta = toml::from_str(&text).expect("parse meta");
+        assert_eq!(parsed.start_ticks, 960);
+        assert_eq!(parsed.name, "Take 3");
+
+        discard_recovery_file(&wav);
+        assert!(!wav.exists());
+        assert!(!wav.with_extension("toml").exists());
         let _ = std::fs::remove_dir_all(&dir);
     }
 

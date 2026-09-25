@@ -98,7 +98,6 @@ pub struct CaptureResult {
     pub generation: u64,
     pub path: PathBuf,
     pub frames: usize,
-    pub start_frame: u64,
     pub overflowed: bool,
     pub peaks: Vec<(f32, f32)>,
     /// `None` when the take was empty, aborted, or failed.
@@ -158,7 +157,6 @@ fn run_capture(
         generation,
         path: path.clone(),
         frames: 0,
-        start_frame: 0,
         overflowed: false,
         peaks: Vec::new(),
         track: None,

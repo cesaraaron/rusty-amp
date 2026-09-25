@@ -1,5 +1,6 @@
 //! Session (project) browser modal: New / Save / Save As / Load / Delete for
-//! portable session folders under `~/.config/rusty-amp/sessions/`.
+//! portable session folders under `~/.config/rusty-amp/sessions/`, plus
+//! recovery of dry takes abandoned in `~/.config/rusty-amp/recovery/`.
 
 use std::path::PathBuf;
 
@@ -12,16 +13,28 @@ use ratatui::{
     widgets::{Block, BorderType, Borders, Clear, Paragraph},
 };
 
-use super::styles::{ACCENT, AMBER, CHROME, DIM, HOT, SAFE};
-use crate::project::{self, SessionEntry};
+use super::styles::{ACCENT, AMBER, CHROME, DIM, HOT, SAFE, WARN};
+use crate::project::{self, RecoveryTake, SessionEntry};
 
 /// Which page is showing.
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum View {
-    /// Pick a saved session or an action.
+    /// Pick a saved session, a recoverable take, or an action.
     List,
     /// Type a name for Save As.
     NameInput,
+}
+
+/// One selectable row: either a saved session or a recoverable take.
+enum RowKind {
+    Session(PathBuf),
+    Recovery(RecoveryTake),
+}
+
+struct Row {
+    label: String,
+    detail: String,
+    kind: RowKind,
 }
 
 /// What the UI loop should do in response to a keypress.
@@ -34,6 +47,10 @@ pub(super) enum Action {
     SaveAs(String),
     Load(PathBuf),
     Delete(PathBuf),
+    /// Bring an abandoned take into the current session.
+    Restore(RecoveryTake),
+    /// Delete an abandoned take.
+    Discard(RecoveryTake),
 }
 
 /// Session-browser state, kept on the UI thread.
@@ -41,7 +58,7 @@ pub(super) struct SessionBrowser {
     pub open: bool,
     view: View,
     cursor: usize,
-    entries: Vec<SessionEntry>,
+    rows: Vec<Row>,
     name_input: String,
     pub message: Option<String>,
 }
@@ -52,20 +69,34 @@ impl SessionBrowser {
             open: false,
             view: View::List,
             cursor: 0,
-            entries: Vec::new(),
+            rows: Vec::new(),
             name_input: String::new(),
             message: None,
         }
     }
 
-    /// Open the modal, rescanning the saved sessions.
+    /// Open the modal, rescanning saved sessions and recoverable takes.
     pub(super) fn open(&mut self) {
-        self.entries = project::list_sessions();
+        self.reload();
         self.cursor = 0;
         self.view = View::List;
         self.name_input.clear();
         self.message = None;
         self.open = true;
+    }
+
+    /// Rebuild the row list from disk, keeping the cursor in range.
+    pub(super) fn refresh(&mut self) {
+        let sessions = project::list_sessions();
+        let recovery = project::list_recovery();
+        self.rows = build_rows(sessions, recovery);
+        self.cursor = self.cursor.min(self.rows.len().saturating_sub(1));
+    }
+
+    fn reload(&mut self) {
+        let sessions = project::list_sessions();
+        let recovery = project::list_recovery();
+        self.rows = build_rows(sessions, recovery);
     }
 
     /// Switch to the name prompt for Save As (or Save without a folder).
@@ -77,12 +108,6 @@ impl SessionBrowser {
     /// Return to the session list view.
     pub(super) fn view_list(&mut self) {
         self.view = View::List;
-    }
-
-    /// Rescan after a save/delete.
-    pub(super) fn refresh(&mut self) {
-        self.entries = project::list_sessions();
-        self.cursor = self.cursor.min(self.entries.len().saturating_sub(1));
     }
 
     pub(super) fn handle_key(&mut self, code: KeyCode) -> Action {
@@ -99,15 +124,14 @@ impl SessionBrowser {
                 Action::None
             }
             KeyCode::Down => {
-                self.cursor = (self.cursor + 1).min(self.entries.len().saturating_sub(1));
+                self.cursor = (self.cursor + 1).min(self.rows.len().saturating_sub(1));
                 Action::None
             }
-            KeyCode::Enter => {
-                if let Some(entry) = self.entries.get(self.cursor) {
-                    return Action::Load(entry.dir.clone());
-                }
-                Action::None
-            }
+            KeyCode::Enter => match self.rows.get(self.cursor).map(|r| &r.kind) {
+                Some(RowKind::Session(dir)) => Action::Load(dir.clone()),
+                Some(RowKind::Recovery(take)) => Action::Restore(take.clone()),
+                None => Action::None,
+            },
             KeyCode::Char('n') | KeyCode::Char('N') => Action::New,
             KeyCode::Char('s') | KeyCode::Char('S') => Action::Save,
             KeyCode::Char('a') | KeyCode::Char('A') => {
@@ -115,10 +139,10 @@ impl SessionBrowser {
                 Action::None
             }
             KeyCode::Char('d') | KeyCode::Char('D') => {
-                if let Some(entry) = self.entries.get(self.cursor) {
-                    Action::Delete(entry.dir.clone())
-                } else {
-                    Action::None
+                match self.rows.get(self.cursor).map(|r| &r.kind) {
+                    Some(RowKind::Session(dir)) => Action::Delete(dir.clone()),
+                    Some(RowKind::Recovery(take)) => Action::Discard(take.clone()),
+                    None => Action::None,
                 }
             }
             KeyCode::Esc | KeyCode::Char('j') | KeyCode::Char('J') => {
@@ -158,7 +182,7 @@ impl SessionBrowser {
 
     /// Render the modal.
     pub(super) fn render(&self, f: &mut Frame) {
-        let area = centered_rect(60, f.area());
+        let area = centered_rect(64, f.area());
         f.render_widget(Clear, area);
         let title = match self.view {
             View::List => " S E S S I O N S ",
@@ -188,14 +212,25 @@ impl SessionBrowser {
             .constraints([Constraint::Min(1), Constraint::Length(2)])
             .split(area);
 
-        let mut lines: Vec<Line> = Vec::with_capacity(self.entries.len() + 1);
-        if self.entries.is_empty() {
+        let mut lines: Vec<Line> = Vec::with_capacity(self.rows.len() + 1);
+        if self.rows.is_empty() {
             lines.push(Line::from(Span::styled(
-                "  (no saved sessions yet — press S to save the current one)",
+                "  (no saved sessions — press S to save the current one)",
                 Style::default().fg(DIM),
             )));
         }
-        for (i, e) in self.entries.iter().enumerate() {
+        let visible = rows[0].height as usize;
+        let offset = self.cursor.saturating_sub(visible.saturating_sub(1));
+        let mut last_recovery = false;
+        for (i, row) in self.rows.iter().enumerate() {
+            let recovery = matches!(row.kind, RowKind::Recovery(_));
+            if recovery && !last_recovery {
+                lines.push(Line::from(Span::styled(
+                    "  ── recoverable takes ──",
+                    Style::default().fg(WARN).add_modifier(Modifier::BOLD),
+                )));
+            }
+            last_recovery = recovery;
             let selected = i == self.cursor;
             let (prefix, style) = if selected {
                 (
@@ -209,18 +244,12 @@ impl SessionBrowser {
             };
             lines.push(Line::from(vec![
                 Span::styled(prefix.to_owned(), Style::default().fg(ACCENT)),
-                Span::styled(format!("{:<24}", e.name), style),
-                Span::styled(
-                    format!(
-                        "  {} track{}",
-                        e.tracks,
-                        if e.tracks == 1 { "" } else { "s" }
-                    ),
-                    Style::default().fg(DIM),
-                ),
+                Span::styled(format!("{:<26}", row.label), style),
+                Span::styled(format!("  {}", row.detail), Style::default().fg(DIM)),
             ]));
         }
-        f.render_widget(Paragraph::new(lines), rows[0]);
+        let visible_lines: Vec<Line> = lines.into_iter().skip(offset).take(visible).collect();
+        f.render_widget(Paragraph::new(visible_lines), rows[0]);
 
         let footer = Layout::default()
             .direction(Direction::Vertical)
@@ -231,7 +260,7 @@ impl SessionBrowser {
                 Span::styled("↑/↓", Style::default().fg(AMBER)),
                 Span::styled(" navigate  ", Style::default().fg(DIM)),
                 Span::styled("Enter", Style::default().fg(AMBER)),
-                Span::styled(" load  ", Style::default().fg(DIM)),
+                Span::styled(" load/restore  ", Style::default().fg(DIM)),
                 Span::styled("N", Style::default().fg(AMBER)),
                 Span::styled(" new  ", Style::default().fg(DIM)),
                 Span::styled("S", Style::default().fg(AMBER)),
@@ -239,7 +268,7 @@ impl SessionBrowser {
                 Span::styled("A", Style::default().fg(AMBER)),
                 Span::styled(" save as  ", Style::default().fg(DIM)),
                 Span::styled("D", Style::default().fg(HOT)),
-                Span::styled(" delete  ", Style::default().fg(DIM)),
+                Span::styled(" delete/discard  ", Style::default().fg(DIM)),
                 Span::styled("Esc / J", Style::default().fg(AMBER)),
                 Span::styled(" close", Style::default().fg(DIM)),
             ]))
@@ -304,6 +333,35 @@ impl SessionBrowser {
             rows[3],
         );
     }
+}
+
+fn build_rows(sessions: Vec<SessionEntry>, recovery: Vec<RecoveryTake>) -> Vec<Row> {
+    let mut rows = Vec::with_capacity(sessions.len() + recovery.len());
+    for s in sessions {
+        rows.push(Row {
+            label: s.name,
+            detail: format!("{} tracks", s.tracks),
+            kind: RowKind::Session(s.dir),
+        });
+    }
+    for take in recovery {
+        let secs = if take.meta.source_sample_rate > 0 {
+            take.meta.frames as f64 / f64::from(take.meta.source_sample_rate)
+        } else {
+            0.0
+        };
+        let state = if take.meta.overflowed {
+            "incomplete"
+        } else {
+            "ready"
+        };
+        rows.push(Row {
+            label: take.meta.name.clone(),
+            detail: format!("{secs:.1}s · {state} · Enter to restore"),
+            kind: RowKind::Recovery(take),
+        });
+    }
+    rows
 }
 
 fn centered_rect(percent_x: u16, area: ratatui::layout::Rect) -> ratatui::layout::Rect {

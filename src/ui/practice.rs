@@ -227,7 +227,7 @@ impl PracticeUi {
     ) -> bool {
         let mut touched = false;
         touched |= self.poll_decodes(engine);
-        touched |= self.poll_capture(engine);
+        touched |= self.poll_capture(engine, capture);
         touched |= self.poll_acks(engine);
         // Auto-stopped at a loop out-point: finalize on the UI side.
         if self.recording_id.is_some()
@@ -329,7 +329,7 @@ impl PracticeUi {
         touched
     }
 
-    fn poll_capture(&mut self, engine: &mut AudioEngine) -> bool {
+    fn poll_capture(&mut self, engine: &mut AudioEngine, capture: &CaptureState) -> bool {
         let Some(rx) = &self.capture_result else {
             return false;
         };
@@ -354,15 +354,19 @@ impl PracticeUi {
             return touched;
         };
         let frames = player_track.frames();
-        let start_ticks = self
-            .session
-            .frames_to_ticks(result.start_frame as usize, self.sample_rate);
+        // The audio thread records the exact project frame of the first captured
+        // sample; fall back to the arm-time playhead only if that latch is unset.
+        let start_frame = capture.start_frame.load(Relaxed) as usize;
+        let start_ticks = self.session.frames_to_ticks(start_frame, self.sample_rate);
         let length_ticks = self.session.frames_to_ticks(frames, self.sample_rate);
         let generation = self.generation();
-        let (gain, muted) = self
+        let (gain, muted, name) = self
             .session
             .track(result.generation)
-            .map_or((1.0, false), |t| (t.gain, t.muted));
+            .map_or((1.0, false, "Take".to_owned()), |t| {
+                (t.gain, t.muted, t.name.clone())
+            });
+        let take_path = result.path.clone();
         if let Some(track) = self.session.track_mut(result.generation) {
             track.asset = Some(AssetRef {
                 path: result.path,
@@ -387,12 +391,27 @@ impl PracticeUi {
             return touched;
         }
         touched = true;
+        // Record enough metadata that an unsaved take is recoverable next launch.
+        let meta = project::RecoveryMeta {
+            version: project::RECOVERY_META_VERSION,
+            id: result.generation,
+            name,
+            start_ticks,
+            project_sample_rate: self.session.project_sample_rate(),
+            source_sample_rate: self.sample_rate as u32,
+            frames: frames as u64,
+            overflowed: result.overflowed,
+        };
+        let meta_note = match project::write_recovery_meta(&take_path, &meta) {
+            Ok(()) => "",
+            Err(_) => " (recovery metadata failed)",
+        };
         let note = if result.overflowed {
             " (incomplete: capture overflowed)"
         } else {
             ""
         };
-        self.message = Some(format!("Take ready{note}"));
+        self.message = Some(format!("Take ready{note}{meta_note}"));
         touched
     }
 
@@ -679,6 +698,7 @@ impl PracticeUi {
         let mut sections = Vec::with_capacity(self.session.len());
         let mut assets = Vec::new();
         let mut written: Vec<(TrackId, String)> = Vec::new();
+        let mut gc: Vec<PathBuf> = Vec::new();
         let mut skipped = 0usize;
         for track in self.session.tracks() {
             let rel = match (&track.asset, track.is_ready()) {
@@ -693,6 +713,9 @@ impl PracticeUi {
                         source: asset.path.clone(),
                         rel: rel.clone(),
                     });
+                    if project::is_recovery_asset(&asset.path) {
+                        gc.push(asset.path.clone());
+                    }
                     written.push((track.id, rel.clone()));
                     Some(rel)
                 }
@@ -767,6 +790,10 @@ impl PracticeUi {
             {
                 asset.path = ctx.dir.join(rel);
             }
+        }
+        // Verified incorporation: the recovery copies are now redundant.
+        for wav in gc {
+            project::discard_recovery_file(&wav);
         }
         self.session.set_saved_dir(Some(ctx.dir.to_path_buf()));
         Ok(skipped)
@@ -873,6 +900,48 @@ impl PracticeUi {
             notes.join(" · ")
         });
         Ok(())
+    }
+
+    /// Bring an abandoned recovery take into the current session as a new raw-take
+    /// row, decoding it off-thread. It is not deleted until a session save
+    /// incorporates it (verified incorporation).
+    pub(super) fn restore_recovery(&mut self, take: &project::RecoveryTake) {
+        if self
+            .session
+            .tracks()
+            .iter()
+            .any(|t| t.asset.as_ref().is_some_and(|a| a.path == take.wav))
+        {
+            self.message = Some("That take is already in the session".to_owned());
+            return;
+        }
+        let ready = self
+            .session
+            .tracks()
+            .iter()
+            .filter(|t| t.is_ready())
+            .count();
+        if ready >= MAX_TRACKS {
+            self.message = Some(format!("Timeline is full ({MAX_TRACKS} tracks)"));
+            return;
+        }
+        let id = self.session.alloc_id();
+        self.session.push(
+            id,
+            take.meta.name.clone(),
+            TrackKind::RawTake,
+            Some(AssetRef {
+                path: take.wav.clone(),
+                source_sample_rate: take.meta.source_sample_rate,
+                source_channels: 1,
+            }),
+            take.meta.start_ticks,
+            0,
+            TrackLifecycle::Loading,
+        );
+        self.selection = Selection::Track(id);
+        self.start_decode(id, TrackKind::RawTake, take.wav.clone());
+        self.message = Some(format!("Restoring {}", take.label()));
     }
 
     // ── Browser / gain modal input ──────────────────────────────────────────────

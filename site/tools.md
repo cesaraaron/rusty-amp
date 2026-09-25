@@ -114,8 +114,10 @@ A **session** is a portable project folder, not a rig snapshot. Press <kbd>J</kb
 - <kbd>N</kbd> — **new** empty session.
 - <kbd>S</kbd> — **save** to the current session folder (prompts for a name the first time).
 - <kbd>A</kbd> — **save as** a typed name.
-- <kbd>Enter</kbd> — **load** the highlighted session.
-- <kbd>D</kbd> — **delete** the highlighted session folder.
+- <kbd>Enter</kbd> — **load** the highlighted session (or **restore** a recoverable take).
+- <kbd>D</kbd> — **delete** the highlighted session folder (or **discard** a recoverable take).
+
+Unsaved dry takes are kept in a recovery cache. If any remain from a previous run, the browser opens on launch with a **recoverable takes** section — press <kbd>Enter</kbd> to bring one into the current session, or <kbd>D</kbd> to discard it. A take is removed from recovery once a session save has copied it in.
 
 Sessions are stored under `~/.config/rusty-amp/sessions/<name>/` and bundle the timeline (tracks, positions, gains, mutes), the playhead/loop and seek step, the metronome, and the built-in rig. Imported originals and your dry raw takes are copied into the project's `audio/` folder, and the active external IR into `irs/`, so the folder is self-contained.
 

@@ -252,7 +252,16 @@ offline export and plugin-state parity remain follow-ups (sections 6–8).
   into `audio/`, the active IR into `irs/`. AU/CLAP identity is recorded but not
   restored (reported on load).
 
-**Deferred — later increments:** recovery indexing/prompt for abandoned takes,
-and offline export with plugin-state parity (sections 6–8). Plugin-state capture
-is the remaining piece needed for a faithful offline render; live take-bus
-mirroring is in place.
+**Done — increment 4 (recovery):**
+
+- Each finalized dry capture writes `recovery/<session-temp-id>/take-<id>.toml`
+  metadata (start tick, rates, frames, overflow).
+- `project::list_recovery` / `discard_recovery_file` / `is_recovery_asset`.
+- The `J` browser lists recoverable takes; `Enter` restores one into the current
+  session, `D` discards. A save that incorporates a take deletes its recovery
+  copy. The prompt opens automatically on first launch when takes are found.
+
+**Deferred — later increments:** offline export with plugin-state parity
+(sections 6). Plugin-state capture (`get_state`/`set_state` in
+`src/host/{clap_host,au}.rs`) is the remaining piece needed for a faithful
+offline render; live take-bus mirroring is in place.
