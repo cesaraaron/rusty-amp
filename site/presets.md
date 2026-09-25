@@ -114,21 +114,21 @@ Share tones as plain `.toml` files — the same format described in [Writing you
 
 | File | Amp | Cabinet | Description |
 | ---- | --- | ------- | ----------- |
-| `acdc_back_in_black.toml` | Marshall Plexi | Marshall Greenback | Back in Black rhythm — guitar straight into a cranked Plexi, no pedals, tight and dry |
+| `acdc_back_in_black.toml` | Marshall Plexi | Marshall Greenback | Back in Black rhythm — guitar straight into a cranked Plexi, no drive pedals; light EQ and room, tight and dry |
 | `acdc_highway_to_hell.toml` | Marshall Plexi | Marshall Greenback | Highway to Hell — edge-of-breakup Plexi, jangly chords that bite when you dig in |
 | `eagles_hotel_california_clean.toml` | Fender Twin Reverb | Fender 2×12 (Jensen) | Hotel California clean intro — glassy Twin, onboard spring reverb, lush chorus |
 | `eagles_hotel_california_solo.toml` | Marshall Plexi | Marshall Greenback | Hotel California solo — TS boost, vocal mids, singing sustain, delay + hall |
-| `led_zeppelin_stairway_solo.toml` | Marshall Plexi | Marshall Greenback | Stairway solo — cranked-amp crunch, bright mids, Echoplex slap |
+| `led_zeppelin_stairway_solo.toml` | Marshall Plexi | Marshall Greenback | Stairway solo — Plexi crunch with a TS boost, bright mids, short slap delay |
 | `led_zeppelin_whole_lotta_love.toml` | Marshall Plexi | Marshall Greenback | Whole Lotta Love — Tone Bender MkII fuzz into a cranked Plexi, thick and greasy |
-| `pink_floyd_another_brick_pt2.toml` | Hiwatt DR103 | WEM (Fane) | Another Brick in the Wall Pt. 2 solo — Big Muff, slow Phase 90, tape echo |
-| `pink_floyd_comfortably_numb_solo_1.toml` | Hiwatt DR103 | WEM (Fane) | Comfortably Numb first solo — light Big Muff, Dyna-Comp, Mistress shimmer, long Echorec |
-| `pink_floyd_comfortably_numb_solo_2.toml` | Hiwatt DR103 | WEM (Fane) | Comfortably Numb outro — thick Big Muff, Electric Mistress swirl, big hall |
-| `pink_floyd_money.toml` | Hiwatt DR103 | WEM (Fane) | Money — Fuzz Face into a Hiwatt with the wah rocking, Echorec-style tape echo |
+| `pink_floyd_another_brick_pt2.toml` | Hiwatt DR103 | WEM (Fane) | Another Brick in the Wall Pt. 2 solo — Big Muff, slow Phase 90-style phaser, tape echo |
+| `pink_floyd_comfortably_numb_solo_1.toml` | Hiwatt DR103 | WEM (Fane) | Comfortably Numb first solo — light Big Muff, Dyna-Comp, Mistress-style flanger, long Echorec-style tape echo |
+| `pink_floyd_comfortably_numb_solo_2.toml` | Hiwatt DR103 | WEM (Fane) | Comfortably Numb outro — thick Big Muff, Mistress-style flanger swirl, big hall |
+| `pink_floyd_money.toml` | Hiwatt DR103 | WEM (Fane) | Money — Fuzz Face into a Hiwatt with the wah auto-sweeping, Echorec-style tape echo |
 | `pink_floyd_shine_on_crazy_diamond.toml` | Hiwatt DR103 | WEM (Fane) | Shine On You Crazy Diamond — Ram's-Head Big Muff, Uni-Vibe swirl, long tape echo |
-| `pink_floyd_time_chorus.toml` | Hiwatt DR103 | WEM (Fane) | Dark Side "Time" intro/verse/chorus — clean, dry Hiwatt, whisper of Uni-Vibe, low dotted-eighth Echorec (no fuzz or compression) |
-| `pink_floyd_time_solo.toml` | Hiwatt DR103 | WEM (Fane) | Dark Side "Time" solo — Fuzz Face bite, Uni-Vibe swirl, Echorec delay |
-| `van_halen_aint_talkin_bout_love.toml` | Marshall Plexi | Marshall Greenback | Ain't Talkin' 'bout Love — dimed Plexi, Phase 90 swirl, MXR-style flange, tape slap |
-| `van_halen_brown_sound.toml` | Marshall Plexi | Marshall Greenback | Brown sound lead — dimed Plexi, gentle Phase 90, Echoplex slapback |
+| `pink_floyd_time_chorus.toml` | Hiwatt DR103 | WEM (Fane) | Dark Side "Time" intro/verse/chorus — clean, dry Hiwatt, whisper of Uni-Vibe, low dotted-eighth tape echo (no fuzz or compression) |
+| `pink_floyd_time_solo.toml` | Hiwatt DR103 | WEM (Fane) | Dark Side "Time" solo — Fuzz Face bite, Uni-Vibe swirl, Echorec-style tape echo |
+| `van_halen_aint_talkin_bout_love.toml` | Marshall Plexi | Marshall Greenback | Ain't Talkin' 'bout Love — dimed Plexi + TS boost, Phase 90-style phaser, MXR-style flange, tape slap |
+| `van_halen_brown_sound.toml` | Marshall Plexi | Marshall Greenback | Brown sound lead — dimed Plexi + TS, gentle Phase 90-style phaser, Echoplex-style slapback |
 
 ## Writing your own preset {#write}
 

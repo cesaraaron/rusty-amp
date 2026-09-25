@@ -1,5 +1,5 @@
 name        = "Pink Floyd — Another Brick in the Wall, Pt. 2"
-description = "The Wall solo: a Big Muff into a Hiwatt with a slow Phase 90 sweep and a trailing tape echo — biting, nasal and spacious."
+description = "The Wall solo: a Big Muff into a Hiwatt with a slow Phase 90-style phaser sweep and a trailing tape echo — biting, nasal and spacious."
 
 [noise_gate]
 enabled   = true
@@ -85,7 +85,7 @@ feedback = 0.20
 mix      = 0.0
 
 # ── Phaser ────────────────────────────────────────────────────────────────────
-# A slow Phase 90 sweep moving under the solo.
+# A slow Phase 90-style phaser sweep moving under the solo.
 [phaser]
 enabled  = true
 rate     = 0.22

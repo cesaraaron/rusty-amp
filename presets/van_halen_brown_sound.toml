@@ -1,5 +1,5 @@
 name        = "Van Halen — Brown Sound"
-description = "The 'brown' lead voice: a dimed Plexi with a Phase 90 and Echoplex slapback — saturated, harmonically rich and warm, the sound of the first album's leads."
+description = "The 'brown' lead voice: a dimed Plexi with a Tube Screamer, a Phase 90-style phaser and Echoplex-style slapback — saturated, harmonically rich and warm, the sound of the first album's leads."
 
 [noise_gate]
 enabled   = true
@@ -88,7 +88,7 @@ feedback = 0.20
 mix      = 0.0
 
 # ── Phaser ────────────────────────────────────────────────────────────────────
-# A gentle Phase 90 movement under the lead.
+# A gentle Phase 90-style phaser movement under the lead.
 [phaser]
 enabled  = true
 rate     = 0.26

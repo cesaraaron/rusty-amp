@@ -1,5 +1,5 @@
 name        = "Pink Floyd — Comfortably Numb (Solo 1)"
-description = "The first solo on the real rig: a mild Ram's-Head Big Muff into a Hiwatt DR103 and Fane-loaded WEM 4×12, Dyna-Comp squeeze, a hint of Electric Mistress and a long Echorec repeat. Bright and vocal, never a fuzz wall."
+description = "The first solo on the real rig: a mild Ram's-Head Big Muff into a Hiwatt DR103 and Fane-loaded WEM 4×12, Dyna-Comp squeeze, a hint of Electric Mistress-style flanger and a long Echorec-style tape echo. Bright and vocal, never a fuzz wall."
 
 # ── Noise Gate ────────────────────────────────────────────────────────────────
 # Light and slow: the Muff's hiss is real, but a fading bend has to ring out.
@@ -49,7 +49,7 @@ low  = 0.42
 mid  = 0.60
 high = 0.54
 
-# Uni-Vibe off — the Numb solo uses the Electric Mistress, not the vibe.
+# Uni-Vibe off — the Numb solo uses the Mistress-style flanger, not the vibe.
 [uni_vibe]
 enabled = false
 rate    = 0.24
@@ -104,8 +104,8 @@ feedback = 0.20
 mix      = 0.20
 
 # ── Delay ─────────────────────────────────────────────────────────────────────
-# Echorec repeat: a long ~440 ms echo sitting behind the phrase. Low feedback and
-# mix keep it a dimension, not a fog.
+# Echorec-style tape repeat: a long ~440 ms echo sitting behind the phrase. Low
+# feedback and mix keep it a dimension, not a fog.
 [delay]
 type     = 1.0   # tape (Echorec-style drum echo approximates as tape)
 enabled  = true

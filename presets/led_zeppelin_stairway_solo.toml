@@ -1,5 +1,5 @@
 name        = "Led Zeppelin — Stairway to Heaven (Solo)"
-description = "Page's solo: a cranked small-amp crunch — bright, mid-forward and singing, with a touch of room. Not high gain; the pick bite and the bend are the point."
+description = "Page's solo: a cranked Plexi and Greenbacks with a Tube Screamer and compressor pushing the front end — bright, mid-forward and singing, with a short delay and a touch of room. Not high gain; the pick bite and the bend are the point."
 
 # ── Noise Gate ────────────────────────────────────────────────────────────────
 # Light — a medium-gain crunch, and the solo's quiet pickup-roll runs must not be
@@ -25,7 +25,7 @@ tone  = 0.50
 level = 0.60
 
 # ── Tube Screamer ─────────────────────────────────────────────────────────────
-# A light boost standing in for a small amp pushed hard: more gain and mid push,
+# A light boost pushing the Plexi's front end: more gain and mid push,
 # not more distortion.
 [tube_screamer]
 enabled = true
@@ -86,10 +86,13 @@ mid  = 0.58
 high = 0.56
 
 # ── Delay ─────────────────────────────────────────────────────────────────────
-# A short Echoplex-style slap (~130 ms), barely there — it thickens the single
-# note without turning into an audible echo.
+# A short slap (~130 ms), barely there — it thickens the single note without
+# turning into an audible echo. `type` is pinned to the digital ping-pong the
+# preset has always resolved to; a tape/EP-3 voicing is a possible later change
+# once a source confirms the session echo (see docs/fidelity-references.md).
 [delay]
 enabled  = true
+type     = 0.0
 time     = 0.26
 feedback = 0.18
 mix      = 0.14

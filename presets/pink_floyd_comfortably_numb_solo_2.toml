@@ -1,5 +1,5 @@
 name        = "Pink Floyd — Comfortably Numb (Outro Solo)"
-description = "The famous outro on the real rig: a thick Ram's-Head Big Muff into a Hiwatt DR103 and Fane-loaded WEM 4×12, an Electric Mistress swirl, long Echorec repeats and a big hall. Huge and vocal — lows kept tight so it never turns to mud."
+description = "The famous outro on the real rig: a thick Ram's-Head Big Muff into a Hiwatt DR103 and Fane-loaded WEM 4×12, an Electric Mistress-style flanger swirl, long Echorec-style tape repeats and a big hall. Huge and vocal — lows kept tight so it never turns to mud."
 
 # ── Noise Gate ────────────────────────────────────────────────────────────────
 # Slow release so the long, held bends and their delay/reverb tails ring out.
@@ -48,7 +48,7 @@ low  = 0.40
 mid  = 0.62
 high = 0.54
 
-# Uni-Vibe off — the outro swirl is the Electric Mistress flanger.
+# Uni-Vibe off — the outro swirl is the Mistress-style flanger.
 [uni_vibe]
 enabled = false
 rate    = 0.24
@@ -103,8 +103,8 @@ feedback = 0.25
 mix      = 0.26
 
 # ── Delay ─────────────────────────────────────────────────────────────────────
-# A long ~450 ms Echorec repeat blooming behind each phrase — the outro's sense
-# of space. Feedback/mix held below the point of turning to fog.
+# A long ~450 ms Echorec-style tape repeat blooming behind each phrase — the
+# outro's sense of space. Feedback/mix held below the point of turning to fog.
 [delay]
 type     = 1.0   # tape (Echorec-style drum echo approximates as tape)
 enabled  = true

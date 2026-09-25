@@ -1,5 +1,5 @@
 name        = "Pink Floyd — Time (Intro / Verse / Chorus)"
-description = "Clean, dry Dark Side rhythm for the intro riff, verses and chorus: a clean Hiwatt DR103 and Fane WEM 4×12, a whisper of Uni-Vibe and a low dotted-eighth Echorec — bright, dynamic and open, with no fuzz or compression."
+description = "Clean, dry Dark Side rhythm for the intro riff, verses and chorus: a clean Hiwatt DR103 and Fane WEM 4×12, a whisper of Uni-Vibe and a low dotted-eighth Echorec-style tape echo — bright, dynamic and open, with no fuzz or compression."
 
 # ── Noise Gate ────────────────────────────────────────────────────────────────
 # Light and slow: the delayed repeats and the vibe tail have to ring out.
@@ -102,8 +102,8 @@ feedback = 0.20
 mix      = 0.0
 
 # ── Delay ─────────────────────────────────────────────────────────────────────
-# The dotted-eighth Echorec figure (~375 ms) that defines the intro and verses —
-# low in the mix so it reads as a rhythmic echo, not a wash.
+# The dotted-eighth Echorec-style tape figure (~375 ms) that defines the intro and
+# verses — low in the mix so it reads as a rhythmic echo, not a wash.
 [delay]
 type     = 1.0   # tape (Echorec-style drum echo approximates as tape)
 enabled  = true

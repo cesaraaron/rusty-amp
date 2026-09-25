@@ -1,5 +1,5 @@
 name        = "AC/DC — Highway to Hell"
-description = "The cleaner end of the Young tone: a Plexi at edge-of-breakup with Greenbacks — jangly chords that bite when you dig in, no pedals in the way."
+description = "The cleaner end of the Young tone: a Plexi at edge-of-breakup with Greenbacks — jangly chords that bite when you dig in, no drive pedals in the way (just a light EQ and room)."
 
 [noise_gate]
 enabled   = true

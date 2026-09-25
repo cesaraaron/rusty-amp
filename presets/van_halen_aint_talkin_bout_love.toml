@@ -1,5 +1,5 @@
 name        = "Van Halen — Ain't Talkin' 'bout Love"
-description = "Eddie's first-album tone: a dimed Plexi with the Phase 90 swirl, MXR-style flange and Echoplex slapback — bright, aggressive and wide, with the amp's power section doing the dirty work."
+description = "Eddie's first-album tone: a dimed Plexi with a Tube Screamer pushing the front end, a Phase 90-style phaser swirl, MXR-style flange and Echoplex-style slapback — bright, aggressive and wide, the power section still doing the heavy lifting."
 
 # ── Noise Gate ────────────────────────────────────────────────────────────────
 # Medium and quick — the tone is very high-gain, so the gate keeps the silent
@@ -96,7 +96,7 @@ feedback = 0.35
 mix      = 0.35
 
 # ── Phaser ────────────────────────────────────────────────────────────────────
-# A slow Phase 90 swirl under the riff — shallow, not a whoosh.
+# A slow Phase 90-style phaser swirl under the riff — shallow, not a whoosh.
 [phaser]
 enabled  = true
 rate     = 0.24

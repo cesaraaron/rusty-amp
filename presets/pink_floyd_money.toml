@@ -1,5 +1,5 @@
 name        = "Pink Floyd — Money"
-description = "The Dark Side wah-and-fuzz voice: a Fuzz Face into a Hiwatt with the wah cocked and rocking, Fane-loaded WEM bite, and a snaking tape echo. Greasy, vocal and mean."
+description = "The Dark Side wah-and-fuzz voice: a Fuzz Face into a Hiwatt with the wah sweeping ahead of it (the auto-wah stands in for a rocked treadle), Fane-loaded WEM bite, and a snaking tape echo. Greasy, vocal and mean."
 
 # ── Noise Gate ────────────────────────────────────────────────────────────────
 # Medium — the fuzz is noisy and the riff is full of rests.
@@ -25,7 +25,8 @@ tone    = 0.58
 level   = 0.55
 
 # ── Wah ───────────────────────────────────────────────────────────────────────
-# The parked-then-rocking wah that defines the riff, ahead of the fuzz.
+# The parked-then-sweeping wah that defines the riff, ahead of the fuzz. This is
+# an auto-wah (it follows your attack); a manually rocked treadle is not modelled.
 [wah]
 enabled = true
 freq = 0.55
