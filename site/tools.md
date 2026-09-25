@@ -67,11 +67,12 @@ Play along with one or more backing tracks and loop the hard bits. Press <kbd>B<
 
 The **timeline** is the scrollable pane that shows a transport line followed by one row per track, each with its name, type, mute LED, gain, a mini waveform and the shared playhead:
 
-- **Transport** — press <kbd>3</kbd> to focus the timeline, then <kbd>Space</kbd> on the transport row to play/pause.
+- **Transport** — press <kbd>3</kbd> to focus the timeline, then <kbd>Space</kbd> to play/pause from **any row** (the selected row does not matter).
 - **Select a row** — <kbd>↑</kbd>/<kbd>↓</kbd> walks the transport and the tracks.
+- **Go to start** — <kbd>Enter</kbd> jumps to the root of the timeline, or to the loop in-point when a loop is enabled.
 - **Seek** — <kbd>←</kbd>/<kbd>→</kbd> moves by the current step; <kbd>+</kbd>/<kbd>−</kbd> cycle the step through **1 / 5 / 10 / 30&nbsp;s**.
 - **Loop a section** — park the playhead and press <kbd>[</kbd> for the in-point and <kbd>]</kbd> for the out-point; <kbd>L</kbd> toggles looping. The loop region is shaded on the timeline.
-- **Mute a track** — select its row and press <kbd>Space</kbd> (the LED turns hollow).
+- **Mute a track** — select its row and press <kbd>M</kbd> (the LED turns hollow).
 - **Track gain** — select a row and press <kbd>G</kbd>; on an import this is the **monitor volume**, on a raw take it is the **pre-rig level** (it changes how the amp reacts, not just how loud the result is).
 - **Move a clip** — select a row and press <kbd>H</kbd> to nudge its timeline start: <kbd>←</kbd>/<kbd>→</kbd> by 0.1&nbsp;s, <kbd>↑</kbd>/<kbd>↓</kbd> by the seek step, <kbd>R</kbd> back to the top. Moving is non-destructive and needs no re-decode.
 - **Remove a track** — select it and press <kbd>Delete</kbd>/<kbd>Backspace</kbd>. Source files on disk are left alone.
@@ -88,7 +89,7 @@ Hidden panels give their space back to the rest of the rig, and the number keys 
 
 ## Raw takes <span class="muted">(<kbd>R</kbd>)</span> {#recording}
 
-Press <kbd>R</kbd> to arm a **new raw take**. A blinking `●REC` lamp lights up on the timeline's transport line, transport starts automatically if it was paused, and the **dry selected input channel** is captured from the current playhead — *before* the gate, pedals, amp, cab and output limiter. Press <kbd>R</kbd> again (or let a loop reach its out-point) to stop; the take is placed on the timeline as its own row.
+Press <kbd>R</kbd> to arm a **new raw take**. A blinking `●REC` lamp lights up on the timeline's transport line, transport starts automatically if it was paused, and the **dry selected input channel** is captured from the current playhead — *before* the gate, pedals, amp, cab and output limiter. Press <kbd>R</kbd> again (or let a loop reach its out-point) to stop — the transport **pauses** where you stopped, and the take is placed on the timeline as its own row.
 
 Raw takes are **non-destructive and re-ampable**: the timeline stores the dry guitar, and the currently selected pedals, amp and cabinet render it live. Change a knob or switch amp model and the same take changes with it. Each take is a new row — recording again never overwrites the previous one.
 

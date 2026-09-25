@@ -1066,11 +1066,13 @@ pub fn run(
                     match key.code {
                         // ── Timeline (when the pane owns focus) ────────────────────
                         KeyCode::Char(' ') if focus == Some(PRACTICE_TILE) => {
-                            if practice_ui.on_transport() {
-                                practice_ui.toggle_play(&practice);
-                            } else {
-                                practice_ui.toggle_selected_mute(&mut engine, &practice);
-                            }
+                            practice_ui.toggle_play(&practice);
+                        }
+                        KeyCode::Char('m') | KeyCode::Char('M') if focus == Some(PRACTICE_TILE) => {
+                            practice_ui.toggle_selected_mute(&mut engine);
+                        }
+                        KeyCode::Enter if focus == Some(PRACTICE_TILE) => {
+                            practice_ui.go_to_start(&practice);
                         }
                         KeyCode::Up if focus == Some(PRACTICE_TILE) => {
                             practice_ui.move_selection(false);

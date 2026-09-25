@@ -97,6 +97,12 @@ Unmuted raw takes, positioned/gained ───> fresh matching DspChain ──> 
 | Timeline focus | `E` | Open **guitar-only final WAV export** path/options and show worker progress. `E` inside the preset browser remains *preset export*. |
 | Anywhere outside a modal | Proposed `J` | Session browser: New / Save / Save As / Load / recovery. Existing `S` and `P` remain preset save/browser. |
 
+**As-built key map (supersedes the proposal above).** `Space` is play/pause from
+**any** row in the focused timeline; `M` mutes the selected track; `Enter` jumps
+to the loop in-point when a loop is enabled, else to frame 0; `H` opens the clip
+move modal; `G` gain; `E` export; `[`/`]`/`L` loop; `Del` remove; `R` arms/stops a
+take (stopping pauses the transport).
+
 Replace the fixed 10-row, two-track pane in `src/ui/practice.rs` and its `Constraint::Min(10)` allocation in `src/ui/draw.rs` with a scrollable/virtualized view. Show compact row name, type, mute, gain, start/end, waveform, playhead, and active recording progress; scale waveform display to the shared timeline extent. Keep small-terminal behavior intentional (minimum readable height, selected row visible, no panel overlap) and preserve accessible status/errors. Build min/max peaks off the audio thread from decoded/imported or recovering-take data; redraw from cached peaks.
 
 ## 6. Final-audio export contract
@@ -310,9 +316,14 @@ offline export and plugin-state parity remain follow-ups (sections 6–8).
 **Deferred:** AU opaque ClassInfo state (parameters only). Hardware acceptance
 passes (`cargo run --release`) still recommended.
 
+**Done — increment 10 (timeline transport ergonomics):** `Space` now
+plays/pauses from any timeline row; `M` mutes the selected track; `Enter` jumps
+to the loop in-point (or frame 0) ; and stopping a take with `R` (or at the loop
+out-point) now **pauses** the transport.
+
 **Verification (increment 9):** `cargo fmt --check`,
 `cargo clippy --all-targets --all-features -- -D warnings`, `cargo test`
-(289 passing), `cargo build --release`, `cargo check --no-default-features`, and
+(292 passing), `cargo build --release`, `cargo check --no-default-features`, and
 `npm run build` in `site/` are all green. Added regression tests for clip move
 (`PlayerVoice::set_start`) and export placement/filtering. The hardware-only
 acceptance items in §9 remain to be run on a real interface.

@@ -237,8 +237,7 @@ impl PracticeUi {
             && capture.auto_stop.load(Relaxed)
             && capture.active.load(Relaxed)
         {
-            self.finalize_capture(capture);
-            let _ = practice;
+            self.finalize_capture(capture, practice);
         }
         touched
     }
@@ -507,8 +506,7 @@ impl PracticeUi {
         practice.loop_enabled.store(true, Relaxed);
     }
 
-    pub(super) fn toggle_selected_mute(&mut self, engine: &mut AudioEngine, practice: &Practice) {
-        let _ = practice;
+    pub(super) fn toggle_selected_mute(&mut self, engine: &mut AudioEngine) {
         let Some(id) = self.selected_track() else {
             return;
         };
@@ -546,9 +544,13 @@ impl PracticeUi {
         }
     }
 
-    /// True while the transport row (not a track) owns the cursor.
-    pub(super) fn on_transport(&self) -> bool {
-        matches!(self.selection, Selection::Transport)
+    /// Jump to the loop in-point when a valid loop is enabled, otherwise to the
+    /// root of the timeline (frame 0).
+    pub(super) fn go_to_start(&self, practice: &Practice) {
+        let a = practice.loop_start.load(Relaxed) as usize;
+        let b = practice.loop_end.load(Relaxed) as usize;
+        let looping = practice.loop_enabled.load(Relaxed) && b > a;
+        practice.request_seek(if looping { a } else { 0 });
     }
 
     // ── Capture lifecycle ───────────────────────────────────────────────────────
@@ -562,8 +564,9 @@ impl PracticeUi {
     ) {
         let _ = engine;
         if self.recording_id.is_some() {
-            // Stop: silence the callback, ask the writer to finalize.
-            self.finalize_capture(capture);
+            // Stop: silence the callback, ask the writer to finalize, and park the
+            // transport where the take ended.
+            self.finalize_capture(capture, practice);
             return;
         }
         self.arm(capture, practice);
@@ -634,11 +637,13 @@ impl PracticeUi {
         self.message = Some("Recording…".to_owned());
     }
 
-    fn finalize_capture(&mut self, capture: &CaptureState) {
+    fn finalize_capture(&mut self, capture: &CaptureState, practice: &Practice) {
         capture.disarm();
         if let Some(tx) = &self.capture_cmd {
             let _ = tx.send(CaptureCommand::End);
         }
+        // Stopping a take pauses the timeline so the playhead stays on the take.
+        practice.playing.store(false, Relaxed);
         self.message = Some("Finalizing take…".to_owned());
     }
 
@@ -1412,21 +1417,25 @@ impl PracticeUi {
         let hint = if focused {
             Line::from(vec![
                 Span::styled("Space", Style::default().fg(AMBER)),
-                Span::styled(" play/mute  ", Style::default().fg(DIM)),
+                Span::styled(" play/pause  ", Style::default().fg(DIM)),
+                Span::styled("M", Style::default().fg(AMBER)),
+                Span::styled(" mute  ", Style::default().fg(DIM)),
+                Span::styled("Enter", Style::default().fg(AMBER)),
+                Span::styled(" start  ", Style::default().fg(DIM)),
                 Span::styled("←/→", Style::default().fg(AMBER)),
                 Span::styled(" seek  ", Style::default().fg(DIM)),
                 Span::styled("+/-", Style::default().fg(AMBER)),
                 Span::styled(" step  ", Style::default().fg(DIM)),
                 Span::styled("G", Style::default().fg(AMBER)),
                 Span::styled(" gain  ", Style::default().fg(DIM)),
+                Span::styled("H", Style::default().fg(AMBER)),
+                Span::styled(" move  ", Style::default().fg(DIM)),
                 Span::styled("[ ] L", Style::default().fg(AMBER)),
                 Span::styled(" loop  ", Style::default().fg(DIM)),
                 Span::styled("Del", Style::default().fg(AMBER)),
                 Span::styled(" remove  ", Style::default().fg(DIM)),
                 Span::styled("R", Style::default().fg(AMBER)),
-                Span::styled(" rec  ", Style::default().fg(DIM)),
-                Span::styled("B", Style::default().fg(AMBER)),
-                Span::styled(" import", Style::default().fg(DIM)),
+                Span::styled(" rec", Style::default().fg(DIM)),
             ])
         } else {
             Line::from(vec![
@@ -1903,5 +1912,41 @@ mod tests {
             .err()
             .expect("empty session must not produce a job");
         assert!(err.contains("No unmuted"), "{err}");
+    }
+
+    #[test]
+    fn go_to_start_uses_loop_in_point_when_enabled() {
+        let ui = PracticeUi::new();
+        let practice = Practice::new();
+        practice.loop_enabled.store(true, Relaxed);
+        practice.loop_start.store(4_800, Relaxed);
+        practice.loop_end.store(9_600, Relaxed);
+        ui.go_to_start(&practice);
+        assert_eq!(practice.snapshot().seek, Some(4_800));
+    }
+
+    #[test]
+    fn go_to_start_falls_back_to_zero() {
+        let ui = PracticeUi::new();
+        let practice = Practice::new();
+        // No loop region.
+        ui.go_to_start(&practice);
+        assert_eq!(practice.snapshot().seek, Some(0));
+        // A degenerate (empty) loop region also goes to the root.
+        practice.loop_enabled.store(true, Relaxed);
+        practice.loop_start.store(100, Relaxed);
+        practice.loop_end.store(100, Relaxed);
+        ui.go_to_start(&practice);
+        assert_eq!(practice.snapshot().seek, Some(0));
+    }
+
+    #[test]
+    fn finalize_pauses_the_transport() {
+        let mut ui = PracticeUi::new();
+        let practice = Practice::new();
+        let capture = CaptureState::new();
+        practice.playing.store(true, Relaxed);
+        ui.finalize_capture(&capture, &practice);
+        assert!(!practice.playing.load(Relaxed), "stop must pause");
     }
 }

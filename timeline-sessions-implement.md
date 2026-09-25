@@ -216,7 +216,7 @@ Abandoned dry takes are now discoverable and restorable (§7):
 
 | Check | Status |
 | --- | --- |
-| `cargo fmt --check` / `clippy -D warnings` / `cargo test` (289 tests) | green |
+| `cargo fmt --check` / `clippy -D warnings` / `cargo test` (292 tests) | green |
 | `cargo build --release` (macOS, `clap`+`au`+`pipewire`) | green |
 | `cargo check --no-default-features` | green |
 | `npm run build` (`site/`) | green |
@@ -243,8 +243,10 @@ Abandoned dry takes are now discoverable and restorable (§7):
 ### Open review questions (from the plan §10)
 
 - **Q1 shared take bus vs per-take rig:** decided **shared bus** (implemented).
-- **Q2 transport after stop / loop end:** implemented as proposed (manual stop
-  keeps transport running; loop-end pauses capture and auto-places the row).
+- **Q2 transport after stop / loop end:** **decided** — stopping a take (manual
+  `R` or loop end) finalizes it and **pauses** the transport, parking the playhead
+  on the take. `Space` plays/pauses from any timeline row; `M` mutes; `Enter`
+  jumps to the loop in-point or frame 0.
 - **Q3 export range/format/tail cap:** **decided** — tick 0 → last unmuted take
   + capped tail (12 s cap, 250 ms silence hold), stereo 32-bit float at the
   project rate. Implemented.
