@@ -81,6 +81,58 @@ impl AmpBrowser {
         self.loaded.as_ref().map(|p| p.live.name.as_str())
     }
 
+    /// Restore an AU saved in a session: re-instantiate it on both chains, apply
+    /// its parameter snapshot, publish the routing/latency flags, and adopt it.
+    pub(super) fn restore(
+        &mut self,
+        spec: crate::project::AuSpec,
+        engine: &mut AudioEngine,
+        params: &Params,
+    ) {
+        let discovered =
+            DiscoveredAu::from_parts(spec.name, spec.type_code, spec.subtype, spec.manufacturer);
+        match au::load(&discovered, self.sample_rate, self.max_block) {
+            Ok((mut live, insert)) => {
+                live.apply_param_snapshot(&spec.params);
+                let _ = engine.set_external_amp(Some(insert));
+                let take = au::load(&discovered, self.sample_rate, self.max_block)
+                    .ok()
+                    .map(|(mut t, ti)| {
+                        t.apply_param_snapshot(&spec.params);
+                        let _ = engine.set_external_amp_take(Some(ti));
+                        t
+                    });
+                params.amp_external_loaded.store(true, Relaxed);
+                params.amp_external_active.store(true, Relaxed);
+                params.amp_external_amp_only.store(spec.amp_only, Relaxed);
+                params
+                    .amp_external_latency
+                    .store(live.latency_frames, Relaxed);
+                self.loaded = Some(AmpPair {
+                    spec: discovered,
+                    live,
+                    take,
+                });
+                self.view = View::Browse;
+                self.message = Some("Restored from session".to_owned());
+            }
+            Err(e) => self.message = Some(format!("Amp not restored: {e:#}")),
+        }
+    }
+
+    /// Capture the AU identity + parameter snapshot for session save.
+    pub(super) fn export_spec(&self, params: &Params) -> Option<crate::project::AuSpec> {
+        let pair = self.loaded.as_ref()?;
+        Some(crate::project::AuSpec {
+            name: pair.spec.name.clone(),
+            type_code: pair.spec.type_code(),
+            subtype: pair.spec.subtype_code(),
+            manufacturer: pair.spec.manufacturer_code(),
+            amp_only: params.amp_external_amp_only.load(Relaxed),
+            params: pair.live.param_snapshot(),
+        })
+    }
+
     /// Capture the AU identity + parameter snapshot and return a builder that
     /// re-instantiates it on the export worker. (AU state is captured as
     /// parameters, not an opaque blob.)

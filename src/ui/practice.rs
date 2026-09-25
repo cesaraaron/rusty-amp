@@ -749,6 +749,44 @@ impl PracticeUi {
             None => None,
         };
 
+        // External plugins: write identity + state sidecars.
+        let mut blobs: Vec<project::AssetBytes> = Vec::new();
+        let clap_insert = ctx.clap.as_ref().map(|spec| {
+            let rel = "plugins/insert.state".to_owned();
+            blobs.push(project::AssetBytes {
+                rel: rel.clone(),
+                bytes: spec.state.clone(),
+            });
+            project::ClapInsertSection {
+                path: spec.path.to_string_lossy().into_owned(),
+                id: spec.id.clone(),
+                name: spec.name.clone(),
+                state: Some(rel),
+            }
+        });
+        let au_amp = ctx.au.as_ref().map(|spec| {
+            let rel = "plugins/amp.params".to_owned();
+            let list: Vec<project::AuParamState> = spec
+                .params
+                .iter()
+                .map(|&(id, value)| project::AuParamState { id, value })
+                .collect();
+            if let Ok(text) = toml::to_string(&project::AuParamsFile { params: list }) {
+                blobs.push(project::AssetBytes {
+                    rel: rel.clone(),
+                    bytes: text.into_bytes(),
+                });
+            }
+            project::AuAmpSection {
+                name: spec.name.clone(),
+                type_code: spec.type_code,
+                subtype: spec.subtype,
+                manufacturer: spec.manufacturer,
+                amp_only: spec.amp_only,
+                params: Some(rel),
+            }
+        });
+
         let transport = TransportSection {
             playhead: self
                 .session
@@ -777,11 +815,11 @@ impl PracticeUi {
             rig,
             external_ir,
             ctx.external_ir_active,
-            ctx.au_amp_name,
-            ctx.clap_insert_name,
+            clap_insert,
+            au_amp,
             sections,
         )?;
-        project::write_session(ctx.dir, &manifest, &assets)?;
+        project::write_session(ctx.dir, &manifest, &assets, &blobs)?;
         // Retarget each track at its copy inside the project folder, so the
         // running session and later saves reference the portable asset.
         for (id, rel) in written {
@@ -809,9 +847,10 @@ impl PracticeUi {
         practice: &Practice,
         metronome: &Metronome,
         capture: &CaptureState,
-    ) -> anyhow::Result<()> {
+    ) -> anyhow::Result<Option<project::SessionExternal>> {
         let manifest = project::read_manifest(dir)?;
         let new_session = manifest.into_session(dir)?;
+        let external = manifest.load_external(dir);
 
         if self.recording_id.is_some() {
             self.abort_capture(capture);
@@ -884,22 +923,11 @@ impl PracticeUi {
         metronome.set_bpm(manifest.metronome.bpm);
         metronome.active.store(manifest.metronome.enabled, Relaxed);
 
-        let mut notes = Vec::new();
-        if let Some(n) = &ir_error {
-            notes.push(n.clone());
-        }
-        if let Some(n) = &manifest.au_amp_name {
-            notes.push(format!("AU amp '{n}' not restored"));
-        }
-        if let Some(n) = &manifest.clap_insert_name {
-            notes.push(format!("CLAP insert '{n}' not restored"));
-        }
-        self.message = Some(if notes.is_empty() {
-            format!("Loaded {}", self.session.name())
-        } else {
-            notes.join(" · ")
+        self.message = Some(match ir_error {
+            Some(note) => format!("Loaded {} · {note}", self.session.name()),
+            None => format!("Loaded {}", self.session.name()),
         });
-        Ok(())
+        Ok(Some(external))
     }
 
     /// Bring an abandoned recovery take into the current session as a new raw-take
@@ -1538,8 +1566,8 @@ pub(super) struct SaveContext<'a> {
     pub metronome: &'a Metronome,
     pub external_ir: Option<&'a Path>,
     pub external_ir_active: bool,
-    pub au_amp_name: Option<String>,
-    pub clap_insert_name: Option<String>,
+    pub clap: Option<project::ClapSpec>,
+    pub au: Option<project::AuSpec>,
 }
 
 fn file_entry(file: &TrackFile, selected: bool) -> Line<'static> {

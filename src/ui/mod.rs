@@ -127,8 +127,8 @@ fn save_current_session(
     practice: &Practice,
     metronome: &Metronome,
     ir_browser: &ir_browser::IrBrowser,
-    au_amp_name: Option<&str>,
-    clap_insert_name: Option<&str>,
+    clap: Option<crate::project::ClapSpec>,
+    au: Option<crate::project::AuSpec>,
 ) -> Option<String> {
     let ctx = SaveContext {
         dir,
@@ -139,8 +139,8 @@ fn save_current_session(
         external_ir_active: params
             .cab_external_active
             .load(std::sync::atomic::Ordering::Relaxed),
-        au_amp_name: au_amp_name.map(str::to_owned),
-        clap_insert_name: clap_insert_name.map(str::to_owned),
+        clap,
+        au,
     };
     match practice_ui.save_session(ctx) {
         Ok(0) => Some(format!("Saved {}", dir.display())),
@@ -639,6 +639,22 @@ pub fn run(
                 }
 
                 if session_browser.open {
+                    // Capture external-plugin identity/state for a save.
+                    #[allow(unused_mut)]
+                    let mut clap_spec: Option<crate::project::ClapSpec> = None;
+                    #[allow(unused_mut)]
+                    let mut au_spec: Option<crate::project::AuSpec> = None;
+                    #[cfg(feature = "clap")]
+                    if browser.loaded_name().is_some() {
+                        clap_spec = browser.export_spec();
+                    }
+                    #[cfg(all(feature = "au", target_os = "macos"))]
+                    if params
+                        .amp_external_loaded
+                        .load(std::sync::atomic::Ordering::Relaxed)
+                    {
+                        au_spec = amp_browser.export_spec(&params);
+                    }
                     let action = session_browser.handle_key(key.code);
                     match action {
                         SessionAction::None => {}
@@ -656,8 +672,8 @@ pub fn run(
                                     &practice,
                                     &metronome,
                                     &ir_browser,
-                                    ext_amp_name,
-                                    plugin_name,
+                                    clap_spec,
+                                    au_spec,
                                 );
                                 session_browser.message = msg;
                                 session_browser.refresh();
@@ -677,8 +693,8 @@ pub fn run(
                                 &practice,
                                 &metronome,
                                 &ir_browser,
-                                ext_amp_name,
-                                plugin_name,
+                                clap_spec,
+                                au_spec,
                             );
                             session_browser.message = msg;
                             session_browser.refresh();
@@ -693,7 +709,23 @@ pub fn run(
                                 &metronome,
                                 &capture,
                             ) {
-                                Ok(()) => {}
+                                Ok(external) => {
+                                    if let Some(ext) = external {
+                                        #[cfg(feature = "clap")]
+                                        if let Some(spec) = ext.clap {
+                                            browser.restore(spec, &mut engine);
+                                        }
+                                        #[cfg(all(feature = "au", target_os = "macos"))]
+                                        if let Some(spec) = ext.au {
+                                            amp_browser.restore(spec, &mut engine, &params);
+                                        }
+                                        #[cfg(not(any(
+                                            feature = "clap",
+                                            all(feature = "au", target_os = "macos")
+                                        )))]
+                                        let _ = ext;
+                                    }
+                                }
                                 Err(e) => {
                                     practice_ui.set_message(format!("Load failed: {e:#}"));
                                 }

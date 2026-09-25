@@ -77,6 +77,47 @@ impl PluginBrowser {
         self.loaded.as_ref().map(|p| p.live.name.as_str())
     }
 
+    /// Restore a plugin saved in a session: re-instantiate it from its captured
+    /// opaque state on both chains and adopt it as the live insert.
+    pub(super) fn restore(&mut self, spec: crate::project::ClapSpec, engine: &mut AudioEngine) {
+        let discovered = DiscoveredPlugin {
+            path: spec.path,
+            id: spec.id,
+            name: spec.name,
+        };
+        let sample_rate = engine.sample_rate();
+        let max_block = self.max_block;
+        match host::load_with_state(&discovered, sample_rate, max_block, Some(&spec.state)) {
+            Ok((live, insert)) => {
+                let _ = engine.set_plugin_insert(Some(insert));
+                let take =
+                    host::load_with_state(&discovered, sample_rate, max_block, Some(&spec.state))
+                        .ok()
+                        .map(|(take_loaded, take_insert)| {
+                            let _ = engine.set_plugin_insert_take(Some(take_insert));
+                            take_loaded
+                        });
+                self.loaded = Some(PluginPair { live, take });
+                self.param_cursor = 0;
+                self.view = View::Browse;
+                self.message = Some("Restored from session".to_owned());
+            }
+            Err(e) => self.message = Some(format!("Plugin not restored: {e:#}")),
+        }
+    }
+
+    /// Capture the live plugin's identity + opaque state for session save.
+    pub(super) fn export_spec(&mut self) -> Option<crate::project::ClapSpec> {
+        let loaded = self.loaded.as_mut()?;
+        let state = loaded.live.save_state().ok()?;
+        Some(crate::project::ClapSpec {
+            path: loaded.live.path.clone(),
+            id: loaded.live.id.clone(),
+            name: loaded.live.name.clone(),
+            state,
+        })
+    }
+
     /// Capture the live plugin's identity + opaque state and return a builder
     /// that re-instantiates it on the export worker.
     pub(super) fn build_export_processor(

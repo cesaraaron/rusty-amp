@@ -139,13 +139,13 @@ metronome are monitor-only.
 
 ## 4. Known limitations / warnings
 
-1. **Plugin state is captured for export, not yet for sessions.** Export
-   re-instantiates the live AU/CLAP with captured state (CLAP opaque state via
-   the state extension; AU parameter snapshot + routing). Sessions still only
-   store the plugin's *name* (`au_amp_name`, `clap_insert_name`), so loading a
-   session does not restore external plugins and export from a reloaded session
-   will not include them. Persisting identity+state and restoring is the next
-   step. AU opaque state (ClassInfo) is not captured — parameters only.
+1. **Plugin state is captured (CLAP opaque, AU parameters).** Sessions save the
+   loaded CLAP insert (`plugins/insert.state`) and AU amp
+   (`plugins/amp.params` + routing) and restore them on load into both chains and
+   the browser. AU opaque `ClassInfo` state is **not** captured — only exposed
+   parameters — so AUs with non-parameter state may not restore exactly. Plugin
+   binaries are not portable: a missing/renamed bundle degrades to the built-in
+   rig with a message.
 2. **Offline export exists, but external processors block it.** `src/export.rs`
    renders takes through the built-in rig + external IR only. An AU amp or CLAP
    insert causes a visible refusal (no state capture yet). Export range is tick 0

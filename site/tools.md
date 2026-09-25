@@ -127,7 +127,7 @@ Sessions are stored under `~/.config/rusty-amp/sessions/<name>/` and bundle the 
 </div>
 
 <div class="note note--info">
-<b>External plugins.</b> The built-in rig, the external IR, and all timeline/transport state are restored. Third‑party AU/CLAP binaries can't be made portable by copying files, so a session records which one was loaded but restores the built-in rig instead and tells you what wasn't restored; reload it manually.
+<b>External plugins.</b> The built-in rig, external IR, and all timeline/transport state are restored. A loaded CLAP insert's <b>opaque state</b> and a loaded AU amp's <b>parameter snapshot</b> (plus its amp-only/cab routing and latency) are saved to the session's <code>plugins/</code> folder and restored on load. A third-party binary can't be made portable by copying files, so on a machine where the plugin is installed elsewhere the session says so and falls back to the built-in rig; the plugin is never silently dropped.
 </div>
 
 ## Export <span class="muted">(<kbd>E</kbd>)</span> {#export}

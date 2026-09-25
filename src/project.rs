@@ -48,14 +48,84 @@ pub struct Manifest {
     /// Whether the external IR was the active cab at save time.
     #[serde(default)]
     pub external_ir_active: bool,
-    /// Recorded identity of a loaded AU amp / CLAP insert. These cannot be made
-    /// portable, so they are stored for information and reported as unrestored.
+    /// Loaded CLAP insert identity + opaque state sidecar.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub au_amp_name: Option<String>,
+    pub clap_insert: Option<ClapInsertSection>,
+    /// Loaded AU amp identity + parameter sidecar.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub clap_insert_name: Option<String>,
+    pub au_amp: Option<AuAmpSection>,
     #[serde(default)]
     pub tracks: Vec<TrackSection>,
+}
+
+/// Persisted identity/state of a loaded CLAP insert.
+#[derive(Debug, Deserialize, Serialize)]
+pub struct ClapInsertSection {
+    /// Bundle path (not portable, restored best-effort on the same machine).
+    pub path: String,
+    pub id: String,
+    pub name: String,
+    /// Session-relative opaque state sidecar, when the plugin exposes one.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub state: Option<String>,
+}
+
+/// Persisted identity/state of a loaded AU amp.
+#[derive(Debug, Deserialize, Serialize)]
+pub struct AuAmpSection {
+    pub name: String,
+    pub type_code: u32,
+    pub subtype: u32,
+    pub manufacturer: u32,
+    #[serde(default)]
+    pub amp_only: bool,
+    /// Session-relative parameter-snapshot sidecar.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub params: Option<String>,
+}
+
+/// One AU parameter's persisted value.
+#[derive(Debug, Deserialize, Serialize)]
+pub struct AuParamState {
+    pub id: u32,
+    pub value: f64,
+}
+
+/// Wrapper so the AU parameter list can be a TOML table (`[[params]]`).
+#[derive(Debug, Deserialize, Serialize)]
+pub struct AuParamsFile {
+    pub params: Vec<AuParamState>,
+}
+
+/// Runtime CLAP spec gathered from a live plugin for saving.
+pub struct ClapSpec {
+    pub path: PathBuf,
+    pub id: String,
+    pub name: String,
+    pub state: Vec<u8>,
+}
+
+/// Runtime AU spec gathered from a live plugin for saving.
+pub struct AuSpec {
+    pub name: String,
+    pub type_code: u32,
+    pub subtype: u32,
+    pub manufacturer: u32,
+    pub amp_only: bool,
+    pub params: Vec<(u32, f64)>,
+}
+
+/// External plugins to restore after loading a session.
+#[derive(Default)]
+pub struct SessionExternal {
+    pub clap: Option<ClapSpec>,
+    pub au: Option<AuSpec>,
+}
+
+/// A file to write from memory into the project folder.
+pub struct AssetBytes {
+    pub rel: String,
+    pub bytes: Vec<u8>,
 }
 
 /// Transport state, in project ticks / frames.
@@ -168,9 +238,22 @@ pub fn read_manifest(dir: &Path) -> Result<Manifest> {
 /// The manifest is written last (via a temp file + rename), so a failure while
 /// copying leaves the previously saved manifest intact. Overwrites an existing
 /// session in place.
-pub fn write_session(dir: &Path, manifest: &Manifest, assets: &[AssetCopy]) -> Result<()> {
+pub fn write_session(
+    dir: &Path,
+    manifest: &Manifest,
+    assets: &[AssetCopy],
+    blobs: &[AssetBytes],
+) -> Result<()> {
     std::fs::create_dir_all(dir.join("audio"))
         .with_context(|| format!("creating session folder {}", dir.display()))?;
+    for blob in blobs {
+        let dst = dir.join(&blob.rel);
+        if let Some(parent) = dst.parent() {
+            std::fs::create_dir_all(parent)
+                .with_context(|| format!("creating {}", parent.display()))?;
+        }
+        std::fs::write(&dst, &blob.bytes).with_context(|| format!("writing {}", dst.display()))?;
+    }
     for asset in assets {
         let dst = dir.join(&asset.rel);
         // Re-saving a loaded project would otherwise copy a file onto itself,
@@ -407,8 +490,8 @@ pub fn build_manifest(
     rig: Preset,
     external_ir: Option<String>,
     external_ir_active: bool,
-    au_amp_name: Option<String>,
-    clap_insert_name: Option<String>,
+    clap_insert: Option<ClapInsertSection>,
+    au_amp: Option<AuAmpSection>,
     tracks: Vec<TrackSection>,
 ) -> Result<Manifest> {
     if project_sample_rate == 0 {
@@ -423,10 +506,49 @@ pub fn build_manifest(
         rig,
         external_ir,
         external_ir_active,
-        au_amp_name,
-        clap_insert_name,
+        clap_insert,
+        au_amp,
         tracks,
     })
+}
+
+impl Manifest {
+    /// Read the external-plugin identity/state sidecars referenced by this
+    /// manifest. Missing or unreadable sidecars degrade to `None` rather than
+    /// failing the whole session load.
+    pub fn load_external(&self, dir: &Path) -> SessionExternal {
+        let clap = self.clap_insert.as_ref().map(|s| {
+            let state = s
+                .state
+                .as_ref()
+                .and_then(|rel| std::fs::read(resolve_asset(dir, rel).ok()?).ok())
+                .unwrap_or_default();
+            ClapSpec {
+                path: PathBuf::from(&s.path),
+                id: s.id.clone(),
+                name: s.name.clone(),
+                state,
+            }
+        });
+        let au = self.au_amp.as_ref().map(|a| {
+            let params = a
+                .params
+                .as_ref()
+                .and_then(|rel| std::fs::read_to_string(resolve_asset(dir, rel).ok()?).ok())
+                .and_then(|text| toml::from_str::<AuParamsFile>(&text).ok())
+                .map(|file| file.params.into_iter().map(|p| (p.id, p.value)).collect())
+                .unwrap_or_default();
+            AuSpec {
+                name: a.name.clone(),
+                type_code: a.type_code,
+                subtype: a.subtype,
+                manufacturer: a.manufacturer,
+                amp_only: a.amp_only,
+                params,
+            }
+        });
+        SessionExternal { clap, au }
+    }
 }
 
 #[cfg(test)]
@@ -503,7 +625,7 @@ mod tests {
             source: src,
             rel: "audio/track-7.wav".into(),
         }];
-        write_session(&dir, &manifest, &assets).expect("write");
+        write_session(&dir, &manifest, &assets, &[]).expect("write");
 
         let read = read_manifest(&dir).expect("read");
         assert_eq!(read.name, "My Session");
@@ -549,7 +671,7 @@ mod tests {
             source: asset.clone(),
             rel: "audio/track-1.wav".into(),
         }];
-        write_session(&dir, &manifest, &assets).expect("resave");
+        write_session(&dir, &manifest, &assets, &[]).expect("resave");
 
         let after = std::fs::read(&asset).expect("read asset");
         assert_eq!(
@@ -585,6 +707,75 @@ mod tests {
         discard_recovery_file(&wav);
         assert!(!wav.exists());
         assert!(!wav.with_extension("toml").exists());
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn external_plugin_state_round_trips() {
+        let dir = tmp_dir("plugins");
+        let params = crate::dsp::Params::new();
+        let rig = Preset::from_params("rig".into(), None, &params);
+        let manifest = build_manifest(
+            "S".into(),
+            48_000,
+            TransportSection::default(),
+            MetronomeSection::default(),
+            rig,
+            None,
+            false,
+            Some(ClapInsertSection {
+                path: "/tmp/x.clap".into(),
+                id: "com.example.x".into(),
+                name: "X".into(),
+                state: Some("plugins/insert.state".into()),
+            }),
+            Some(AuAmpSection {
+                name: "AU: Amp".into(),
+                type_code: 1,
+                subtype: 2,
+                manufacturer: 3,
+                amp_only: true,
+                params: Some("plugins/amp.params".into()),
+            }),
+            Vec::new(),
+        )
+        .expect("manifest");
+
+        let param_state = vec![
+            AuParamState {
+                id: 11,
+                value: 0.25,
+            },
+            AuParamState {
+                id: 42,
+                value: 0.75,
+            },
+        ];
+        let blobs = [
+            AssetBytes {
+                rel: "plugins/insert.state".into(),
+                bytes: vec![1, 2, 3, 4],
+            },
+            AssetBytes {
+                rel: "plugins/amp.params".into(),
+                bytes: toml::to_string(&AuParamsFile {
+                    params: param_state,
+                })
+                .expect("params toml")
+                .into_bytes(),
+            },
+        ];
+        // `plugins/` must exist before writing blobs.
+        std::fs::create_dir_all(dir.join("plugins")).expect("mkdir");
+        write_session(&dir, &manifest, &[], &blobs).expect("write");
+
+        let read = read_manifest(&dir).expect("read");
+        let external = read.load_external(&dir);
+        let clap = external.clap.expect("clap spec");
+        assert_eq!(clap.state, vec![1, 2, 3, 4]);
+        let au = external.au.expect("au spec");
+        assert!(au.amp_only);
+        assert_eq!(au.params, vec![(11, 0.25), (42, 0.75)]);
         let _ = std::fs::remove_dir_all(&dir);
     }
 

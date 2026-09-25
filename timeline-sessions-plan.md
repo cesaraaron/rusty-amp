@@ -286,6 +286,14 @@ offline export and plugin-state parity remain follow-ups (sections 6–8).
   latency). Export no longer refuses a loaded plugin unless AU state cannot be
   captured.
 
-**Deferred:** persisting plugin identity+state in the session and restoring it on
-load (sessions still record only the plugin name); AU opaque ClassInfo state
-(parameters only); clip reposition/move.
+**Done — increment 7 (session plugin restore):**
+
+- Manifest gains `[clap_insert]` / `[au_amp]` sections; state is written to
+  `plugins/insert.state` (opaque CLAP state) and `plugins/amp.params` (AU
+  parameter snapshot). `Manifest::load_external` returns `SessionExternal`.
+- On load, the UI re-instantiates the CLAP insert and AU amp on both chains from
+  their state and adopts them into the browsers, so the session is complete and a
+  later export includes them.
+- A missing/renamed plugin bundle degrades to the built-in rig with a message.
+
+**Deferred:** AU opaque ClassInfo state (parameters only); clip reposition/move.
