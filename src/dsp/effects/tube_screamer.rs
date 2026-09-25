@@ -5,15 +5,19 @@ use crate::dsp::oversample::Oversampler4;
 /// Ibanez TS-808 Tube Screamer simulation.
 ///
 /// Signal path:
-///   DC block → input coupling HP (~60 Hz) → 720 Hz mid-peak boost → asymmetric
+///   DC block → input coupling HP (~340 Hz) → 720 Hz mid-peak boost → asymmetric
 ///   diode clipper → output coupling cap (DC block) → variable tone LP → level
 ///
 /// The real TS-808's 720 Hz characteristic comes from a frequency-dependent feedback network
 /// inside the clipping op-amp: it gives more gain in the mids/highs relative to the bass,
 /// but does NOT block the guitar fundamental from entering the stage. The input coupling cap
-/// only cuts below ~60 Hz. Modeling the 720 Hz as an input HP (as many simulations do)
+/// cuts below ~340 Hz. Modeling the 720 Hz as an input HP (as many simulations do)
 /// strips the fundamental from lower notes and causes intermodulation artifacts ("sitar" sound).
 /// We instead model it as a peak boost at 720 Hz before the clipper.
+///
+/// NOTE: the 340 Hz coupling corner is the current RC-derived estimate
+/// (0.047 µF × 10 kΩ); the exact value still needs a measured TS-808 response to
+/// confirm — see `IMPLEMENTATION-NOTES.md`.
 ///
 /// Authenticity — why the output coupling cap matters:
 ///   The asymmetric diode pair (one diode one way, two the other) is what gives the
