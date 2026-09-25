@@ -315,7 +315,7 @@ impl Session {
 
     /// Directory for this session's recoverable capture assets.
     pub fn recovery_dir(&self) -> Option<PathBuf> {
-        dirs::home_dir().map(|h| h.join(".config/rusty-amp/recovery").join(&self.temp_id))
+        dirs::home_dir().map(|h| h.join(".config/rusty-riff/recovery").join(&self.temp_id))
     }
 
     pub fn temp_id(&self) -> &str {

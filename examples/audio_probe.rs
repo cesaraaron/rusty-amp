@@ -1,7 +1,7 @@
 //! Diagnoses audio-device startup failures on this machine.
 //!
 //! For every (non-null) input and output device, this tries to build an `f32`
-//! stream first with a fixed 256-frame buffer (what rusty-amp prefers) and then
+//! stream first with a fixed 256-frame buffer (what rusty-riff prefers) and then
 //! with the backend default. It prints `OK` / `ERR` per attempt so you can see
 //! exactly which device rejects the small buffer, which one is busy (usually
 //! because PipeWire already owns it), and so on.
@@ -66,7 +66,7 @@ fn main() {
 }
 
 /// Filter `null` and duplicate `(name, channels)` entries, returning each device
-/// with its default config. Mirrors `rusty_amp::audio`'s own device filtering.
+/// with its default config. Mirrors `rusty_riff::audio`'s own device filtering.
 fn collect(
     devices: Result<impl Iterator<Item = Device>, cpal::Error>,
     input: bool,

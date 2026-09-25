@@ -29,9 +29,9 @@
 //! path at a low drive level (speaker nonlinearities ~transparent), default
 //! mic knobs — the same path the reference .wav takes through `ExternalIrCab`.
 
-use rusty_amp::dsp::AmpModel;
-use rusty_amp::dsp::amp::AmpBank;
-use rusty_amp::dsp::cab::{
+use rusty_riff::dsp::AmpModel;
+use rusty_riff::dsp::amp::AmpBank;
+use rusty_riff::dsp::cab::{
     Cabinet, ExternalIrCab, MAX_IR_LEN, MarshallCab, MesaCab, OrangeCab, load_ir,
     speaker_drive_stats,
 };
@@ -354,7 +354,7 @@ fn print_engagement(width: usize) {
         for (setting, gain, master) in [("defaults", 0.75, 0.55), ("cranked", 1.0, 1.0)] {
             let mut bank = AmpBank::new(SR);
             let knobs =
-                rusty_amp::dsp::amp::standard_knobs(model, gain, 1.0, 0.0, 0.65, 0.40, master);
+                rusty_riff::dsp::amp::standard_knobs(model, gain, 1.0, 0.0, 0.65, 0.40, master);
             let out: Vec<f32> = di.iter().map(|&x| bank.process(model, x, &knobs)).collect();
             let rms = (out.iter().map(|&x| x * x).sum::<f32>() / out.len() as f32).sqrt();
             let peak = out.iter().fold(0.0f32, |m, &x| m.max(x.abs()));

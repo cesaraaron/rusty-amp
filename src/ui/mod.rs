@@ -79,7 +79,7 @@ fn select_devices(
     }
 
     // Reuse the last good selection unless asked to prompt (`RUSTY_AMP_DEVICE_PROMPT`
-    // or the in-app device-change hotkey). Delete `~/.config/rusty-amp/audio.conf`
+    // or the in-app device-change hotkey). Delete `~/.config/rusty-riff/audio.conf`
     // to be prompted again.
     let saved = if force_prompt || std::env::var_os("RUSTY_AMP_DEVICE_PROMPT").is_some() {
         None

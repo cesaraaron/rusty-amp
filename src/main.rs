@@ -1,9 +1,11 @@
 use anyhow::Result;
 use std::sync::Arc;
 
-use rusty_amp::{dsp, practice, preset, recording, ui};
+use rusty_riff::{dsp, practice, preset, recording, ui};
 
 fn main() -> Result<()> {
+    rusty_riff::migrate_legacy_config_dir();
+
     let params = Arc::new(dsp::Params::new());
     let levels = Arc::new(dsp::Levels::new());
     let tuner = Arc::new(dsp::Tuner::new());

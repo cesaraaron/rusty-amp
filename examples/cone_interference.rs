@@ -17,7 +17,7 @@
 //!
 //!     cargo run --release --example cone_interference -- <reference.wav>
 
-use rusty_amp::dsp::cab::{
+use rusty_riff::dsp::cab::{
     Cabinet, ExternalIrCab, MAX_IR_LEN, MarshallCab, MesaCab, OrangeCab, cone_spread_response,
     load_ir,
 };

@@ -1,6 +1,6 @@
 //! Session (project) browser modal: New / Save / Save As / Load / Delete for
-//! portable session folders under `~/.config/rusty-amp/sessions/`, plus
-//! recovery of dry takes abandoned in `~/.config/rusty-amp/recovery/`.
+//! portable session folders under `~/.config/rusty-riff/sessions/`, plus
+//! recovery of dry takes abandoned in `~/.config/rusty-riff/recovery/`.
 
 use std::path::PathBuf;
 

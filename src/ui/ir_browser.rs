@@ -268,7 +268,7 @@ impl IrBrowser {
         }
         if self.files.is_empty() {
             lines.push(Line::from(Span::styled(
-                "  (no .wav IRs found — drop files in ./irs or ~/.config/rusty-amp/irs)",
+                "  (no .wav IRs found — drop files in ./irs or ~/.config/rusty-riff/irs)",
                 Style::default().fg(DIM),
             )));
         }
@@ -282,7 +282,7 @@ impl IrBrowser {
 
 /// Standard IR locations, scanned (recursively, bounded depth) for `.wav` files:
 /// `$RUSTY_AMP_IR_DIR`, `./irs` next to the binary's working dir, and
-/// `~/.config/rusty-amp/irs`.
+/// `~/.config/rusty-riff/irs`.
 fn scan() -> Vec<IrFile> {
     let mut roots: Vec<PathBuf> = Vec::new();
     if let Ok(dir) = std::env::var("RUSTY_AMP_IR_DIR") {
@@ -290,7 +290,7 @@ fn scan() -> Vec<IrFile> {
     }
     roots.push(PathBuf::from("irs"));
     if let Some(home) = dirs::home_dir() {
-        roots.push(home.join(".config").join("rusty-amp").join("irs"));
+        roots.push(home.join(".config").join("rusty-riff").join("irs"));
     }
 
     let mut out: Vec<IrFile> = Vec::new();

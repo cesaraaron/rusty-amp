@@ -254,7 +254,7 @@ mod tests {
 
     #[test]
     fn decode_rejects_a_missing_file() {
-        let err = decode_track("/nonexistent/rusty-amp-nope.mp3", 48_000.0).unwrap_err();
+        let err = decode_track("/nonexistent/rusty-riff-nope.mp3", 48_000.0).unwrap_err();
         assert!(
             err.to_string().contains("opening"),
             "unexpected error: {err}"
@@ -266,8 +266,10 @@ mod tests {
     /// fails to decode. This guards the Cargo feature set.
     #[test]
     fn decodes_a_32bit_float_wav() {
-        let path =
-            std::env::temp_dir().join(format!("rusty-amp-decode-float-{}.wav", std::process::id()));
+        let path = std::env::temp_dir().join(format!(
+            "rusty-riff-decode-float-{}.wav",
+            std::process::id()
+        ));
         let spec = hound::WavSpec {
             channels: 1,
             sample_rate: 48_000,

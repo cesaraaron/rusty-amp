@@ -5,7 +5,7 @@
 //! [`timeline-sessions-plan.md`](../../timeline-sessions-plan.md) §7):
 //!
 //! ```text
-//! ~/.config/rusty-amp/sessions/<name>/
+//! ~/.config/rusty-riff/sessions/<name>/
 //!   session.toml        # versioned manifest: timing, transport, rig, tracks
 //!   audio/track-<id>.<ext>   # imported originals and dry raw takes
 //!   irs/cabinet.<ext>        # the selected external IR, when applicable
@@ -168,12 +168,12 @@ pub struct AssetCopy {
 
 /// The default root for saved sessions.
 pub fn sessions_root() -> Option<PathBuf> {
-    dirs::home_dir().map(|h| h.join(".config/rusty-amp/sessions"))
+    dirs::home_dir().map(|h| h.join(".config/rusty-riff/sessions"))
 }
 
 /// Root for unsaved recovery captures.
 pub fn recovery_root() -> Option<PathBuf> {
-    dirs::home_dir().map(|h| h.join(".config/rusty-amp/recovery"))
+    dirs::home_dir().map(|h| h.join(".config/rusty-riff/recovery"))
 }
 
 /// The folder a session named `name` would be saved to under the default root.
@@ -557,7 +557,7 @@ mod tests {
 
     fn tmp_dir(tag: &str) -> PathBuf {
         let dir = std::env::temp_dir().join(format!(
-            "rusty-amp-project-test-{tag}-{}",
+            "rusty-riff-project-test-{tag}-{}",
             std::process::id()
         ));
         let _ = std::fs::remove_dir_all(&dir);

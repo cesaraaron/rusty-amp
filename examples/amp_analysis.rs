@@ -22,9 +22,9 @@
 //! Knobs are fixed at the test-suite defaults (gain 0.65, bass 0.5, mid 0.45,
 //! treble 0.65, presence 0.5, master 0.5) so runs are comparable over time.
 
-use rusty_amp::dsp::amp::AmpBank;
-use rusty_amp::dsp::cab::CabBank;
-use rusty_amp::dsp::{AmpModel, CabModel};
+use rusty_riff::dsp::amp::AmpBank;
+use rusty_riff::dsp::cab::CabBank;
+use rusty_riff::dsp::{AmpModel, CabModel};
 use std::f32::consts::PI;
 
 const SR: f32 = 48_000.0;
@@ -54,7 +54,7 @@ impl Dut for BuiltIn {
     }
     fn process(&mut self, x: f32) -> f32 {
         let knobs =
-            rusty_amp::dsp::amp::standard_knobs(self.model, 0.65, 0.50, 0.45, 0.65, 0.50, 0.50);
+            rusty_riff::dsp::amp::standard_knobs(self.model, 0.65, 0.50, 0.45, 0.65, 0.50, 0.50);
         let a = self.bank.process(self.model, x, &knobs);
         match &mut self.cab {
             Some((cm, cab)) => {
@@ -75,8 +75,8 @@ impl Dut for BuiltIn {
 #[cfg(target_os = "macos")]
 struct AuDut {
     name: String,
-    au: Box<dyn rusty_amp::dsp::StereoInsert>,
-    desc: rusty_amp::host::au::DiscoveredAu,
+    au: Box<dyn rusty_riff::dsp::StereoInsert>,
+    desc: rusty_riff::host::au::DiscoveredAu,
 }
 
 #[cfg(target_os = "macos")]
@@ -91,7 +91,7 @@ impl Dut for AuDut {
         0.5 * (l[0] + r[0])
     }
     fn reset(&mut self) {
-        if let Ok((_, ins)) = rusty_amp::host::au::load(&self.desc, SR, 512) {
+        if let Ok((_, ins)) = rusty_riff::host::au::load(&self.desc, SR, 512) {
             self.au = ins;
         }
     }
@@ -360,7 +360,7 @@ fn main() {
     #[cfg(target_os = "macos")]
     {
         if args.iter().any(|a| a == "--list-au") {
-            for au in rusty_amp::host::au::scan() {
+            for au in rusty_riff::host::au::scan() {
                 println!("{}", au.name);
             }
             return;
@@ -370,11 +370,11 @@ fn main() {
                 .get(i + 1)
                 .expect("usage: --au <name-substring>")
                 .to_lowercase();
-            let found = rusty_amp::host::au::scan()
+            let found = rusty_riff::host::au::scan()
                 .into_iter()
                 .find(|a| a.name.to_lowercase().contains(&pat))
                 .expect("no AU matches");
-            let (_, ins) = rusty_amp::host::au::load(&found, SR, 512).expect("AU load failed");
+            let (_, ins) = rusty_riff::host::au::load(&found, SR, 512).expect("AU load failed");
             let mut dut = AuDut {
                 name: found.name.clone(),
                 au: ins,

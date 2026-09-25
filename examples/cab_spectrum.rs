@@ -4,8 +4,8 @@
 //!
 //!     cargo run --release --example cab_spectrum -- <path-to-ir.wav>
 
-use rusty_amp::dsp::cab::{Cabinet, ExternalIrCab, MAX_IR_LEN, load_ir};
-use rusty_amp::dsp::cab::{MarshallCab, MesaCab, OrangeCab};
+use rusty_riff::dsp::cab::{Cabinet, ExternalIrCab, MAX_IR_LEN, load_ir};
+use rusty_riff::dsp::cab::{MarshallCab, MesaCab, OrangeCab};
 use std::f32::consts::PI;
 
 const SR: f32 = 48_000.0;

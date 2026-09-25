@@ -1,6 +1,6 @@
 //! Extract a reference AU's cabinet+mic section as an IR: set AmpBypass so
 //! only the (linear) cab/mic/mixer path runs, feed an impulse, and save the
-//! response as a stereo .wav into the rusty-amp IR folder — ready to load
+//! response as a stereo .wav into the rusty-riff IR folder — ready to load
 //! with <I> and A/B against the built-in cabs with <X>.
 //!
 //!     cargo run --release --example au_cab_extract -- jubilee
@@ -16,7 +16,7 @@ const SR: f32 = 48_000.0;
 const CAP: usize = 16_384; // ~340 ms, plenty for the room mics
 
 #[cfg(target_os = "macos")]
-fn capture(ins: &mut Box<dyn rusty_amp::dsp::StereoInsert>, amp: f32) -> (Vec<f32>, Vec<f32>) {
+fn capture(ins: &mut Box<dyn rusty_riff::dsp::StereoInsert>, amp: f32) -> (Vec<f32>, Vec<f32>) {
     let (mut l_out, mut r_out) = (Vec::with_capacity(CAP), Vec::with_capacity(CAP));
     let mut i = 0usize;
     while i < CAP {
@@ -44,11 +44,11 @@ fn run() {
         .nth(1)
         .expect("usage: au_cab_extract <au-substring>")
         .to_lowercase();
-    let found = rusty_amp::host::au::scan()
+    let found = rusty_riff::host::au::scan()
         .into_iter()
         .find(|a| a.name.to_lowercase().contains(&pat))
         .expect("no AU matches");
-    let (mut loaded, mut ins) = rusty_amp::host::au::load(&found, SR, 512).expect("load");
+    let (mut loaded, mut ins) = rusty_riff::host::au::load(&found, SR, 512).expect("load");
     let bypass = loaded
         .params()
         .iter()
@@ -79,7 +79,7 @@ fn run() {
         l1.len()
     );
 
-    let dir = dirs::home_dir().unwrap().join(".config/rusty-amp/irs");
+    let dir = dirs::home_dir().unwrap().join(".config/rusty-riff/irs");
     std::fs::create_dir_all(&dir).unwrap();
     let path = dir.join(format!(
         "{}_cab.wav",
@@ -98,7 +98,7 @@ fn run() {
     }
     w.finalize().unwrap();
     println!("saved {}", path.display());
-    println!("load it in rusty-amp with <I>, A/B against the built-in cab with <X>");
+    println!("load it in rusty-riff with <I>, A/B against the built-in cab with <X>");
 }
 
 #[cfg(not(target_os = "macos"))]

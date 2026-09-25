@@ -13,10 +13,10 @@ jobs:
         include:
           - os: macos-latest
             target: aarch64-apple-darwin
-            asset_name: rusty-amp-macos-aarch64
+            asset_name: rusty-riff-macos-aarch64
           - os: ubuntu-latest
             target: x86_64-unknown-linux-gnu
-            asset_name: rusty-amp-linux-x86_64
+            asset_name: rusty-riff-linux-x86_64
 
     runs-on: ${{ matrix.os }}
     permissions:
@@ -48,7 +48,7 @@ jobs:
         run: cargo build --release --target ${{ matrix.target }}
 
       - name: Rename binary
-        run: cp target/${{ matrix.target }}/release/rusty-amp ${{ matrix.asset_name }}
+        run: cp target/${{ matrix.target }}/release/rusty-riff ${{ matrix.asset_name }}
 
       - name: Create release
         uses: softprops/action-gh-release@v2

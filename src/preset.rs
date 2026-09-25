@@ -845,7 +845,7 @@ impl Preset {
 /// The user presets directory, created on demand.
 fn user_preset_dir() -> Result<PathBuf> {
     let home = dirs::home_dir().ok_or_else(|| anyhow::anyhow!("cannot find home dir"))?;
-    let dir = home.join(".config").join("rusty-amp").join("presets");
+    let dir = home.join(".config").join("rusty-riff").join("presets");
     std::fs::create_dir_all(&dir)?;
     Ok(dir)
 }
@@ -894,7 +894,7 @@ pub fn find_preset_files() -> Vec<(PathBuf, PresetSource)> {
     result.extend(scan(&system_dir, PresetSource::System));
 
     if let Some(home) = dirs::home_dir() {
-        let user_dir = home.join(".config").join("rusty-amp").join("presets");
+        let user_dir = home.join(".config").join("rusty-riff").join("presets");
         result.extend(scan(&user_dir, PresetSource::User));
     }
 
@@ -1057,7 +1057,7 @@ mod tests {
     /// collide. Callers remove what they create.
     fn scratch_dir(tag: &str) -> PathBuf {
         std::env::temp_dir().join(format!(
-            "rusty-amp-preset-test-{}-{}",
+            "rusty-riff-preset-test-{}-{}",
             tag,
             std::process::id()
         ))

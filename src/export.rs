@@ -336,7 +336,7 @@ mod tests {
     #[test]
     fn exports_a_take_to_stereo_float() {
         let dir =
-            std::env::temp_dir().join(format!("rusty-amp-export-test-{}", std::process::id()));
+            std::env::temp_dir().join(format!("rusty-riff-export-test-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&dir);
         std::fs::create_dir_all(&dir).expect("mkdir");
         let take = dir.join("take.wav");
@@ -378,7 +378,7 @@ mod tests {
     #[test]
     fn places_clips_at_their_start() {
         let dir =
-            std::env::temp_dir().join(format!("rusty-amp-export-start-{}", std::process::id()));
+            std::env::temp_dir().join(format!("rusty-riff-export-start-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&dir);
         std::fs::create_dir_all(&dir).expect("mkdir");
         let first = dir.join("first.wav");
@@ -426,7 +426,7 @@ mod tests {
     #[test]
     fn empty_job_is_rejected() {
         let dir =
-            std::env::temp_dir().join(format!("rusty-amp-export-empty-{}", std::process::id()));
+            std::env::temp_dir().join(format!("rusty-riff-export-empty-{}", std::process::id()));
         let params = Params::new();
         let job = ExportJob {
             dest: dir.join("out.wav"),

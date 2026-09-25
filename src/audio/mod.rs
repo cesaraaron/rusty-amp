@@ -105,14 +105,14 @@ fn requested_frames(host: &cpal::Host) -> u32 {
     LIVE_BUFFER_FRAMES
 }
 
-/// Appends one timestamped line to `~/.config/rusty-amp/audio.log`.
+/// Appends one timestamped line to `~/.config/rusty-riff/audio.log`.
 ///
 /// Diagnostics must go here, not stderr: the TUI runs in the terminal's
 /// alternate screen, so anything printed while it is active scrolls into a
 /// hidden buffer that is discarded on quit and the user never sees it.
 /// Logging is best-effort — it must never fail audio startup.
 pub fn log_line(msg: &str) {
-    let path = dirs::home_dir().map(|h| h.join(".config/rusty-amp/audio.log"));
+    let path = dirs::home_dir().map(|h| h.join(".config/rusty-riff/audio.log"));
     if let Some(path) = path {
         if let Some(parent) = path.parent() {
             let _ = std::fs::create_dir_all(parent);
@@ -408,7 +408,7 @@ pub fn list_devices() -> Result<DeviceInfo> {
 
 /// Where the last good device selection is remembered.
 fn selection_path() -> Option<std::path::PathBuf> {
-    dirs::home_dir().map(|h| h.join(".config/rusty-amp/audio.conf"))
+    dirs::home_dir().map(|h| h.join(".config/rusty-riff/audio.conf"))
 }
 
 /// Persist the chosen devices by *name* rather than index, so the selection
@@ -423,7 +423,7 @@ pub fn save_selection(devices: &DeviceInfo, input_idx: usize, guitar_ch: usize, 
         return;
     };
     let body = format!(
-        "# rusty-amp device selection — delete this file (or launch with \
+        "# rusty-riff device selection — delete this file (or launch with \
          RUSTY_AMP_DEVICE_PROMPT=1) to be prompted again\n\
          input_name = {}\n\
          input_channels = {}\n\

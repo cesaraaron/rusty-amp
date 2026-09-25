@@ -22,7 +22,7 @@
 //!
 //! Knobs are fixed at musically-typical settings so runs compare over time.
 
-use rusty_amp::dsp::effects::{Distortion, MetalCore, TubeScreamer};
+use rusty_riff::dsp::effects::{Distortion, MetalCore, TubeScreamer};
 use std::f32::consts::PI;
 
 const SR: f32 = 48_000.0;

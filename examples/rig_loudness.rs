@@ -1,8 +1,8 @@
 //! RMS loudness of each amp+cab rig on a matched DI (the loudness-matching
 //! check at the level real playing hits, not a single sine).
-use rusty_amp::dsp::amp::AmpBank;
-use rusty_amp::dsp::cab::CabBank;
-use rusty_amp::dsp::{AmpModel, CabModel};
+use rusty_riff::dsp::amp::AmpBank;
+use rusty_riff::dsp::cab::CabBank;
+use rusty_riff::dsp::{AmpModel, CabModel};
 const SR: f32 = 48_000.0;
 
 fn main() {
@@ -24,7 +24,7 @@ fn main() {
     ] {
         let mut amp = AmpBank::new(SR);
         let mut cab = CabBank::new(SR);
-        let knobs = rusty_amp::dsp::amp::standard_knobs(am, 0.65, 0.50, 0.45, 0.65, 0.50, 0.50);
+        let knobs = rusty_riff::dsp::amp::standard_knobs(am, 0.65, 0.50, 0.45, 0.65, 0.50, 0.50);
         let out: Vec<f32> = di
             .iter()
             .map(|&x| {
@@ -36,8 +36,8 @@ fn main() {
         let rms = (out.iter().map(|&x| x * x).sum::<f32>() / out.len() as f32).sqrt();
         // Perceived-loudness proxy: the ear weights the mids far more than the
         // low end a chug rig is full of — measure the 300 Hz–5 kHz band too.
-        let mut hp = rusty_amp::dsp::biquad::Biquad::highpass(SR, 300.0, 0.707);
-        let mut lp = rusty_amp::dsp::biquad::Biquad::lowpass(SR, 5000.0, 0.707);
+        let mut hp = rusty_riff::dsp::biquad::Biquad::highpass(SR, 300.0, 0.707);
+        let mut lp = rusty_riff::dsp::biquad::Biquad::lowpass(SR, 5000.0, 0.707);
         let mid: Vec<f32> = out.iter().map(|&x| lp.process(hp.process(x))).collect();
         let mid_rms = (mid.iter().map(|&x| x * x).sum::<f32>() / mid.len() as f32).sqrt();
         let peak = out.iter().fold(0.0f32, |m, &x| m.max(x.abs()));

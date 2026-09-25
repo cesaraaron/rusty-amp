@@ -1,11 +1,11 @@
 [package]
-name = "rusty-amp"
+name = "rusty-riff"
 version = "0.2.14"
 edition = "2024"
 rust-version = "1.96"
 description = "A guitar amplifier and effects simulator in your terminal"
-repository = "https://github.com/danylokravchenko/rusty-amp"
-authors = ["Danylo Kravchenko <danylo.kravchenko.r@gmail.com>"]
+repository = "https://github.com/cesaraaron/rusty-riff"
+authors = ["Cesar Sosa <aaronash@live.com>"]
 license-file = "LICENSE"
 readme = "README.md"
 publish = false
