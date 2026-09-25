@@ -120,7 +120,7 @@ The app launches immediately with default values. Press <kbd>P</kbd> at any time
 | <kbd>K</kbd> | Open the keybinding cheat-sheet (press <kbd>K</kbd> / <kbd>Esc</kbd> to close) |
 | <kbd>Q</kbd> / <kbd>Ctrl-C</kbd> | Quit |
 
-With the **[timeline](tools.html#practice) focused** (<kbd>3</kbd>): <kbd>↑</kbd>/<kbd>↓</kbd> select a row, <kbd>Space</kbd> play/pause or mute the selected track, <kbd>←</kbd>/<kbd>→</kbd> seek by the current step, <kbd>+</kbd>/<kbd>−</kbd> cycle that step through **1 / 5 / 10 / 30&nbsp;s**, <kbd>G</kbd> edits the selected track's gain, <kbd>[</kbd>/<kbd>]</kbd>/<kbd>L</kbd> set and toggle the loop, and <kbd>Delete</kbd> removes the row.
+With the **[timeline](tools.html#practice) focused** (<kbd>3</kbd>): <kbd>↑</kbd>/<kbd>↓</kbd> select a row, <kbd>Space</kbd> play/pause or mute the selected track, <kbd>←</kbd>/<kbd>→</kbd> seek by the current step, <kbd>+</kbd>/<kbd>−</kbd> cycle that step through **1 / 5 / 10 / 30&nbsp;s**, <kbd>G</kbd> edits the selected track's gain, <kbd>E</kbd> [exports](tools.html#export) the unmuted takes, <kbd>[</kbd>/<kbd>]</kbd>/<kbd>L</kbd> set and toggle the loop, and <kbd>Delete</kbd> removes the row.
 
 The footer only shows `K keybindings  Q quit` — the full list above lives in the <kbd>K</kbd> modal, including the preset-browser, timeline, and metronome keys.
 

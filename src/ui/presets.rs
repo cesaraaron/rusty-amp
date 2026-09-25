@@ -283,6 +283,8 @@ pub(super) fn render_save_dialog(
 pub(super) enum PathDialogKind {
     Import,
     Export,
+    /// Export the timeline's raw takes to a WAV file.
+    SessionExport,
 }
 
 /// Single-field typed-path dialog for preset import (source file) and export
@@ -296,6 +298,10 @@ pub(super) fn render_path_dialog(
     let (title, label) = match kind {
         PathDialogKind::Import => (" I M P O R T   P R E S E T ", "File to import (.toml):"),
         PathDialogKind::Export => (" E X P O R T   P R E S E T ", "Export to:"),
+        PathDialogKind::SessionExport => (
+            " E X P O R T   T A K E S ",
+            "Render guitar takes to (.wav):",
+        ),
     };
     let area = centered_rect(60, f.area());
     f.render_widget(Clear, area);

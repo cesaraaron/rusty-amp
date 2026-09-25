@@ -16,6 +16,9 @@ mod tuner;
 
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
+use std::sync::mpsc::TryRecvError;
+
+use crate::export::{self as exporter, ExportHandle};
 use std::time::Duration;
 
 use anyhow::Result;
@@ -31,7 +34,10 @@ use crate::preset::Preset;
 use crate::recording::CaptureState;
 
 use config::{ADD_TILE, AMP_END, AMP_START, CHAIN_TILE, PEDALS, PRACTICE_TILE, Panels, pedal_of};
-use draw::{draw, render_add_pedal_modal, render_amp_modal, render_cab_modal, render_help_modal};
+use draw::{
+    draw, render_add_pedal_modal, render_amp_modal, render_cab_modal, render_export_progress,
+    render_help_modal,
+};
 use input::{
     NavMemory, add_pedal, amp_choices, cab_choices, ensure_focus_visible, init_amp_cursor,
     init_cab_cursor, move_chain_cursor, move_selected_stage, nudge, press_number, remove_pedal,
@@ -146,6 +152,58 @@ fn save_current_session(
     }
 }
 
+/// Resolve a leading `~` against the home directory.
+fn expand_tilde(input: &str) -> PathBuf {
+    if let Some(home) = dirs::home_dir() {
+        if input == "~" {
+            return home;
+        }
+        if let Some(rest) = input.strip_prefix("~/") {
+            return home.join(rest);
+        }
+    }
+    PathBuf::from(input)
+}
+
+/// Validate an export request and start the render worker. Returns a
+/// user-facing error when a faithful render cannot be guaranteed.
+fn start_export(
+    practice_ui: &PracticeUi,
+    input: &str,
+    params: &Params,
+    ir_browser: &ir_browser::IrBrowser,
+    clap_insert_name: Option<&str>,
+    au_amp_name: Option<&str>,
+) -> std::result::Result<ExportHandle, String> {
+    let input = input.trim();
+    if input.is_empty() {
+        return Err("Enter a destination path".to_owned());
+    }
+    if au_amp_name.is_some()
+        || params
+            .amp_external_loaded
+            .load(std::sync::atomic::Ordering::Relaxed)
+    {
+        return Err(
+            "An AU amp is loaded — it cannot be cloned exactly for export. Clear it (or use the built-in amp) and try again."
+                .to_owned(),
+        );
+    }
+    if clap_insert_name.is_some() {
+        return Err(
+            "A CLAP insert is loaded — it cannot be cloned exactly for export. Clear it and try again."
+                .to_owned(),
+        );
+    }
+    let dest = expand_tilde(input);
+    let ir_path = ir_browser.loaded_path().cloned();
+    let ir_active = params
+        .cab_external_active
+        .load(std::sync::atomic::Ordering::Relaxed);
+    let job = practice_ui.build_export_job(dest, params, ir_path, ir_active)?;
+    Ok(exporter::spawn(job))
+}
+
 pub fn run(
     params: Arc<Params>,
     levels: Arc<Levels>,
@@ -205,6 +263,11 @@ pub fn run(
     let mut practice_ui = PracticeUi::new();
     // Session (project) browser modal, toggled with `J`.
     let mut session_browser = SessionBrowser::new();
+    // Timeline export (`E`): typed destination + background render worker.
+    let mut export_open = false;
+    let mut export_input = String::new();
+    let mut export_error: Option<String> = None;
+    let mut export_handle: Option<ExportHandle> = None;
 
     // ── Session loop: (re)select devices, start the engine, run the UI ─────────
     // The `O` key drops the engine and loops back here so the picker runs again —
@@ -303,6 +366,28 @@ pub fn run(
 
             // Install finished background decodes / capture results before drawing.
             practice_ui.poll(&mut engine, &practice, &capture);
+
+            // Poll a running export; reinsert the handle while it is still going.
+            if let Some(handle) = export_handle.take() {
+                match handle.rx.try_recv() {
+                    Ok(Ok(path)) => {
+                        save_msg = Some((
+                            format!("Exported: {}", path.display()),
+                            std::time::Instant::now(),
+                        ));
+                    }
+                    Ok(Err(e)) => {
+                        save_msg = Some((format!("Export failed: {e}"), std::time::Instant::now()));
+                    }
+                    Err(TryRecvError::Empty) => export_handle = Some(handle),
+                    Err(TryRecvError::Disconnected) => {
+                        save_msg = Some((
+                            "Export worker stopped".to_owned(),
+                            std::time::Instant::now(),
+                        ));
+                    }
+                }
+            }
 
             // Clear save message after 4 seconds
             if let Some((_, ts)) = &save_msg
@@ -403,6 +488,14 @@ pub fn run(
                 if let Some(kind) = path_open {
                     render_path_dialog(f, kind, &path_input, path_error.as_deref());
                 }
+                if export_open {
+                    render_path_dialog(
+                        f,
+                        PathDialogKind::SessionExport,
+                        &export_input,
+                        export_error.as_deref(),
+                    );
+                }
                 #[cfg(feature = "clap")]
                 if browser.open {
                     browser.render(f);
@@ -442,11 +535,22 @@ pub fn run(
                 if help_open {
                     render_help_modal(f);
                 }
+                if let Some(handle) = &export_handle {
+                    render_export_progress(f, handle.percent());
+                }
             })?;
 
             if event::poll(Duration::from_millis(30))?
                 && let Event::Key(key) = event::read()?
             {
+                // While an export runs, only Esc (cancel) is accepted.
+                if let Some(handle) = &export_handle {
+                    if key.code == KeyCode::Esc {
+                        handle.cancel();
+                    }
+                    continue;
+                }
+
                 #[cfg(feature = "clap")]
                 if browser.open {
                     browser.handle_key(key.code, &mut engine);
@@ -471,6 +575,42 @@ pub fn run(
 
                 if practice_ui.gain_open() {
                     practice_ui.handle_gain_key(key.code, &mut engine);
+                    continue;
+                }
+
+                if export_open {
+                    match key.code {
+                        KeyCode::Esc => {
+                            export_open = false;
+                            export_error = None;
+                        }
+                        KeyCode::Backspace => {
+                            export_input.pop();
+                            export_error = None;
+                        }
+                        KeyCode::Char(c) => {
+                            export_input.push(c);
+                            export_error = None;
+                        }
+                        KeyCode::Enter => {
+                            match start_export(
+                                &practice_ui,
+                                &export_input,
+                                &params,
+                                &ir_browser,
+                                plugin_name,
+                                ext_amp_name,
+                            ) {
+                                Ok(handle) => {
+                                    export_handle = Some(handle);
+                                    export_open = false;
+                                    export_error = None;
+                                }
+                                Err(e) => export_error = Some(e),
+                            }
+                        }
+                        _ => {}
+                    }
                     continue;
                 }
 
@@ -908,6 +1048,27 @@ pub fn run(
                         }
                         KeyCode::Char('j') | KeyCode::Char('J') => {
                             session_browser.open();
+                        }
+                        KeyCode::Char('e') | KeyCode::Char('E') => {
+                            // Timeline export. (Preset export is handled inside the
+                            // preset browser and takes precedence there.)
+                            let stem: String = practice_ui
+                                .session
+                                .name()
+                                .to_lowercase()
+                                .chars()
+                                .map(|c| if c.is_alphanumeric() { c } else { '_' })
+                                .collect();
+                            export_input = practice_ui
+                                .session
+                                .saved_dir()
+                                .map(|d| d.join(format!("{stem}.wav")))
+                                .map_or_else(
+                                    || format!("./{stem}.wav"),
+                                    |p| p.to_string_lossy().into_owned(),
+                                );
+                            export_error = None;
+                            export_open = true;
                         }
                         KeyCode::Char('1') => {
                             (panels, focus) =

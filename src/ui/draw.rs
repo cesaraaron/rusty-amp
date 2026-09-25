@@ -1204,6 +1204,46 @@ fn render_help(f: &mut Frame, area: Rect, status: Option<&str>) {
 /// Full keybinding cheat-sheet, opened with `K`. Sections mirror the footer
 /// rows the modal replaces, plus the context keys for the preset browser,
 /// the practice timeline, and the metronome.
+/// A small centered modal showing offline-export progress.
+pub(super) fn render_export_progress(f: &mut Frame, percent: u32) {
+    let area = f.area();
+    let width = 46.min(area.width);
+    let height = 5.min(area.height);
+    let x = (area.width.saturating_sub(width)) / 2;
+    let y = (area.height.saturating_sub(height)) / 2;
+    let rect = Rect {
+        x: area.x + x,
+        y: area.y + y,
+        width,
+        height,
+    };
+    f.render_widget(Clear, rect);
+    let block = Block::default()
+        .borders(Borders::ALL)
+        .border_type(BorderType::Double)
+        .border_style(Style::default().fg(SAFE))
+        .title(Span::styled(
+            " E X P O R T I N G ",
+            Style::default().fg(AMBER).add_modifier(Modifier::BOLD),
+        ))
+        .style(Style::default().bg(Color::Black));
+    let inner = block.inner(rect);
+    f.render_widget(block, rect);
+
+    let bar_w = inner.width.saturating_sub(2) as usize;
+    let filled = (percent as usize * bar_w / 100).min(bar_w);
+    let bar = format!("{}{}", "█".repeat(filled), "·".repeat(bar_w - filled));
+    let text = vec![
+        Line::from(Span::styled(
+            format!("{percent:>3}%"),
+            Style::default().add_modifier(Modifier::BOLD),
+        )),
+        Line::from(Span::styled(bar, Style::default().fg(SAFE))),
+        Line::from(Span::styled("Esc to cancel", Style::default().fg(DIM))),
+    ];
+    f.render_widget(Paragraph::new(text), inner);
+}
+
 pub(super) fn render_help_modal(f: &mut Frame) {
     // Modal-local description gray: brighter than the shared `DIM` (which is
     // near-invisible on black at this size) but still a step below `CHROME`
@@ -1270,6 +1310,7 @@ pub(super) fn render_help_modal(f: &mut Frame) {
         row("  ↑/↓  ←/→", "  select row / seek by the step"),
         row("  +/−", "  seek step: 1 / 5 / 10 / 30 s"),
         row("  G", "  selected track gain"),
+        row("  E", "  export unmuted raw takes (WAV)"),
         row("  [ / ]  L", "  loop in-point / out-point, toggle loop"),
         row("  Del", "  remove selected track"),
     ]);

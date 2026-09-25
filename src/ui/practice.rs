@@ -944,6 +944,42 @@ impl PracticeUi {
         self.message = Some(format!("Restoring {}", take.label()));
     }
 
+    /// Build a frozen export job for the unmuted raw takes. Returns a
+    /// human-readable error when there is nothing to render.
+    pub(super) fn build_export_job(
+        &self,
+        dest: PathBuf,
+        params: &Params,
+        ir_path: Option<PathBuf>,
+        ir_active: bool,
+    ) -> Result<crate::export::ExportJob, String> {
+        let clips: Vec<crate::export::ExportClip> = self
+            .session
+            .tracks()
+            .iter()
+            .filter(|t| t.kind == TrackKind::RawTake && !t.muted && t.is_ready())
+            .filter_map(|t| {
+                t.asset.as_ref().map(|a| crate::export::ExportClip {
+                    path: a.path.clone(),
+                    start_ticks: t.start_ticks,
+                    gain: t.gain,
+                })
+            })
+            .collect();
+        if clips.is_empty() {
+            return Err("No unmuted raw takes to export".to_owned());
+        }
+        Ok(crate::export::ExportJob {
+            dest,
+            sample_rate: self.session.project_sample_rate(),
+            project_sample_rate: self.session.project_sample_rate(),
+            clips,
+            rig: crate::export::snapshot_rig(params),
+            ir_path,
+            ir_active,
+        })
+    }
+
     // ── Browser / gain modal input ──────────────────────────────────────────────
 
     pub(super) fn handle_browser_key(&mut self, code: KeyCode, practice: &Practice) -> bool {

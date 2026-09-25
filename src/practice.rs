@@ -260,4 +260,28 @@ mod tests {
             "unexpected error: {err}"
         );
     }
+
+    /// Regression: our own dry captures are 32-bit float WAVs. The `wav` feature
+    /// alone is only the RIFF *reader*; without the `pcm` codec feature every WAV
+    /// fails to decode. This guards the Cargo feature set.
+    #[test]
+    fn decodes_a_32bit_float_wav() {
+        let path =
+            std::env::temp_dir().join(format!("rusty-amp-decode-float-{}.wav", std::process::id()));
+        let spec = hound::WavSpec {
+            channels: 1,
+            sample_rate: 48_000,
+            bits_per_sample: 32,
+            sample_format: hound::SampleFormat::Float,
+        };
+        let mut w = hound::WavWriter::create(&path, spec).expect("wav");
+        for i in 0..256 {
+            w.write_sample((i as f32 * 0.001).sin()).expect("sample");
+        }
+        w.finalize().expect("finalize");
+
+        let decoded = decode_track(&path, 48_000.0).expect("decode float wav");
+        assert_eq!(decoded.track.frames(), 256);
+        let _ = std::fs::remove_file(&path);
+    }
 }

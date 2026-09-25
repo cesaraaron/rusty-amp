@@ -261,7 +261,19 @@ offline export and plugin-state parity remain follow-ups (sections 6–8).
   session, `D` discards. A save that incorporates a take deletes its recovery
   copy. The prompt opens automatically on first launch when takes are found.
 
-**Deferred — later increments:** offline export with plugin-state parity
-(sections 6). Plugin-state capture (`get_state`/`set_state` in
-`src/host/{clap_host,au}.rs`) is the remaining piece needed for a faithful
-offline render; live take-bus mirroring is in place.
+**Done — increment 5 (offline export, §6):**
+
+- `src/export.rs` — worker render of the unmuted raw takes through a fresh
+  `DspChain` built from a frozen `Preset` snapshot, at the project sample rate,
+  to a stereo 32-bit float WAV (temp + rename, progress + cancel). Includes the
+  delay/reverb tail (capped); excludes imports/metronome/live guitar. External
+  IR is re-loaded at the export rate; the UI **refuses** export while an AU amp
+  or CLAP insert is loaded (no state capture yet) with an actionable message.
+- Timeline `E` opens a path dialog; a progress modal runs during the render.
+- **Fixed a latent decode bug:** the `wav` symphonia feature is only the RIFF
+  reader; added the `pcm` codec feature, without which every WAV (including our
+  own captures) failed to decode.
+
+**Deferred:** plugin-state parity (`get_state`/`set_state` in
+`src/host/{clap_host,au}.rs`) so AU/CLAP can participate in export, and clip
+reposition/move. Live take-bus mirroring is in place.

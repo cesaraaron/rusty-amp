@@ -25,7 +25,14 @@ hound = "3.5.1"
 
 # Practice / jam-along backing-track decoding. Pure-Rust, no C toolchain; the
 # feature set is trimmed to the formats a player would point at (MP3, WAV, FLAC).
-symphonia = { version = "0.5.4", default-features = false, features = ["mp3", "wav", "flac"] }
+# `wav` enables the RIFF *reader* only; the PCM *codec* is the separate `pcm`
+# feature — without it every WAV (including our own dry captures) fails to decode.
+symphonia = { version = "0.5.4", default-features = false, features = [
+    "mp3",
+    "wav",
+    "pcm",
+    "flac",
+] }
 
 # CLAP plugin hosting — only pulled in with the `clap` feature so the base amp
 # builds with no extra dependencies. `clack` is a pure-Rust, safe wrapper over the

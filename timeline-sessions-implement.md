@@ -95,6 +95,17 @@ metronome are monitor-only.
   unsaved takes; the `J` browser offers **restore** (into the current session) or
   **discard**; a session save that incorporates a take deletes its recovery copy.
 
+### Offline export
+- `src/export.rs`: worker renders the **unmuted raw takes** through a fresh
+  `DspChain` built from a frozen `Preset` snapshot, at the project sample rate,
+  to a stereo 32-bit float WAV (temp + rename, `ExportHandle` progress/cancel).
+  Tail is included and capped; imports/metronome/live input are excluded.
+- External IR is re-loaded at the export rate; an AU/CLAP processor makes export
+  **refuse** with an actionable message (no state capture).
+- Timeline `E` opens a destination dialog; a progress modal runs; `Esc` cancels.
+- Dependency fix: added symphonia's `pcm` codec feature — `wav` alone is only the
+  RIFF reader, so no WAV ever decoded before (including captures).
+
 ---
 
 ## 3. Invariants — do not break
@@ -130,8 +141,11 @@ metronome are monitor-only.
    *name* only (`au_amp_name`, `clap_insert_name`) and report it as unrestored on
    load. There is no `get_state`/`set_state` in `src/host/{clap_host,au}.rs`.
    **This is the blocker for an accurate offline export** (plan §6).
-2. **No offline export yet.** No exporter module/worker. The planned range,
-   format and tail cap are still unset (plan §6, review question 3).
+2. **Offline export exists, but external processors block it.** `src/export.rs`
+   renders takes through the built-in rig + external IR only. An AU amp or CLAP
+   insert causes a visible refusal (no state capture yet). Export range is tick 0
+   → last unmuted take + a capped tail; format is stereo 32-bit float at the
+   project rate. Explicit loop/selection export and stem options are not offered.
 3. **Recovery is best-effort.** Unsaved takes are indexed and offered for
    restore/discard at launch (§5). A take is GC'd from recovery once a session
    save incorporates it. `abort_capture` deletes an in-progress partial file.
@@ -211,9 +225,11 @@ Abandoned dry takes are now discoverable and restorable (§7):
 - **Q1 shared take bus vs per-take rig:** decided **shared bus** (implemented).
 - **Q2 transport after stop / loop end:** implemented as proposed (manual stop
   keeps transport running; loop-end pauses capture and auto-places the row).
-- **Q3 export range/format/tail cap:** **unresolved** — needed before WP6.
-- **Q4 bindings:** `G` gain and `J` sessions are in; **clip-move and timeline
-  `E` export are not**, and their bindings are still unsettled.
-- **Q5 non-restorable plugin policy:** **unresolved** — the plan proposes
-  refusing an inaccurately labelled export rather than silently substituting a
-  built-in rig.
+- **Q3 export range/format/tail cap:** **decided** — tick 0 → last unmuted take
+  + capped tail (12 s cap, 250 ms silence hold), stereo 32-bit float at the
+  project rate. Implemented.
+- **Q4 bindings:** `G` gain, `J` sessions and timeline `E` export are in;
+  **clip-move is still unsettled/not implemented**.
+- **Q5 non-restorable plugin policy:** **decided for export** — refuse with an
+  actionable message rather than silently substituting a built-in rig. Plugin
+  *state* capture remains the open work to lift the refusal.

@@ -6,6 +6,7 @@
 
 pub mod audio;
 pub mod dsp;
+pub mod export;
 /// Third-party plugin hosting: CLAP effects as a stereo insert (behind the `clap`
 /// feature) and macOS Audio Units as an amp-position override (behind `au`).
 #[cfg(any(feature = "clap", feature = "au"))]
