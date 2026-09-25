@@ -1938,6 +1938,93 @@ mod tests {
         }
     }
 
+    /// End-to-end route-domain check: with live stereo effects decorrelating L/R,
+    /// moving a *bypassed* mono pedal from before the amp into the stereo region
+    /// must leave the rendered output bit-identical. Before the transparency fix
+    /// the post-amp placement summed the image to mono and changed every sample.
+    #[test]
+    fn bypassed_mono_stage_moved_after_live_stereo_is_identical() {
+        let sr = 48_000.0;
+        fn stereo_params() -> Arc<Params> {
+            let p = Arc::new(Params::new());
+            p.ch_enabled.store(true, Relaxed); // live stereo chorus decorrelates L/R
+            p.rev_enabled.store(true, Relaxed); // decorrelated stereo tail
+            p
+        }
+
+        // Default placement (Wah bypassed, before the amp).
+        let default = ChainStage::default_order();
+        // Move the bypassed Wah to just after the amp+cab block.
+        let mut moved: Vec<u8> = default.to_vec();
+        moved.retain(|&v| v != ChainStage::Wah as u8);
+        let amp = moved
+            .iter()
+            .position(|&v| v == ChainStage::AmpCab as u8)
+            .expect("amp+cab is in the default order");
+        moved.insert(amp + 1, ChainStage::Wah as u8);
+        let moved: [u8; CHAIN_LEN] = moved.try_into().expect("19 slots");
+
+        let mut before = DspChain::new(sr, stereo_params());
+        let mut after = DspChain::new(sr, stereo_params());
+        before.params.set_chain_order(&default);
+        after.params.set_chain_order(&moved);
+
+        let mut max_diff = 0.0f32;
+        for n in 0..4000 {
+            let x = (2.0 * PI * 110.0 * n as f32 / sr).sin() * 0.6;
+            let (al, ar) = before.process(x);
+            let (bl, br) = after.process(x);
+            max_diff = max_diff.max((al - bl).abs()).max((ar - br).abs());
+        }
+        assert!(
+            max_diff < 1e-6,
+            "moving the bypassed Wah changed the output by {max_diff}"
+        );
+    }
+
+    /// A **live** mono pedal sitting on a stereo feed intentionally downmixes to
+    /// mono (and duplicates): that is the documented behavior of a real mono
+    /// pedal fed from a stereo send, unlike a bypassed one.
+    #[test]
+    fn live_mono_stage_after_stereo_downsamples_to_mono() {
+        let params = Arc::new(Params::new());
+        params.wah_enabled.store(true, Relaxed); // live mono effect
+        let mut chain = DspChain::new(48_000.0, params);
+
+        let out = chain.run_ordered_stage(Sig::Stereo(0.4, -0.2), ChainStage::Wah);
+        match out {
+            Sig::Stereo(l, r) => assert_eq!(
+                l, r,
+                "live mono stage must sum the stereo feed to dual mono"
+            ),
+            Sig::Mono(_) => panic!("live mono stage should keep the stereo domain (dual mono)"),
+        }
+    }
+
+    /// Rapid adjacent swaps (as the UI's `[` / `]` produce) never leave a
+    /// duplicate or missing stage: after every move the snapshot is exactly the
+    /// order that was written, and a full permutation of all stages.
+    #[test]
+    fn rapid_reorder_keeps_a_complete_permutation() {
+        let params = Params::new();
+        let want: Vec<u8> = (0..CHAIN_LEN as u8).collect();
+        for round in 0..1000usize {
+            let mut order = params.chain_slots();
+            let i = round % (CHAIN_LEN - 1);
+            order.swap(i, i + 1);
+            params.set_chain_order(&order);
+            let snap = params.chain_slots();
+            assert_eq!(snap, order, "snapshot diverged from the written order");
+            let mut sorted = snap;
+            sorted.sort_unstable();
+            assert_eq!(
+                sorted.as_slice(),
+                want.as_slice(),
+                "not a full permutation after round {round}"
+            );
+        }
+    }
+
     /// Chain order storage round-trips, and reset restores the shipped order.
     #[test]
     fn chain_order_round_trips_and_resets() {
