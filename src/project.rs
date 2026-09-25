@@ -173,6 +173,16 @@ pub fn write_session(dir: &Path, manifest: &Manifest, assets: &[AssetCopy]) -> R
         .with_context(|| format!("creating session folder {}", dir.display()))?;
     for asset in assets {
         let dst = dir.join(&asset.rel);
+        // Re-saving a loaded project would otherwise copy a file onto itself,
+        // truncating the source before it is read. Identical files are a no-op.
+        if dst.exists()
+            && std::fs::canonicalize(&asset.source)
+                .ok()
+                .zip(std::fs::canonicalize(&dst).ok())
+                .is_some_and(|(src, dst)| src == dst)
+        {
+            continue;
+        }
         if let Some(parent) = dst.parent() {
             std::fs::create_dir_all(parent)
                 .with_context(|| format!("creating {}", parent.display()))?;
@@ -393,6 +403,46 @@ mod tests {
         assert_eq!(session.track(7).map(|t| t.muted), Some(true));
         assert_eq!(session.seek_seconds(), 10);
 
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn resaving_in_place_does_not_truncate_assets() {
+        // Simulates saving a session that was loaded from its own folder: the
+        // asset source and destination are the same file.
+        let dir = tmp_dir("resave");
+        let params = crate::dsp::Params::new();
+        let rig = Preset::from_params("rig".into(), None, &params);
+        let manifest = build_manifest(
+            "S".into(),
+            48_000,
+            TransportSection::default(),
+            MetronomeSection::default(),
+            rig,
+            None,
+            false,
+            None,
+            None,
+            Vec::new(),
+        )
+        .expect("manifest");
+
+        std::fs::create_dir_all(dir.join("audio")).expect("mkdir");
+        let payload = vec![7u8; 4096];
+        let asset = dir.join("audio/track-1.wav");
+        std::fs::write(&asset, &payload).expect("seed asset");
+
+        let assets = [AssetCopy {
+            source: asset.clone(),
+            rel: "audio/track-1.wav".into(),
+        }];
+        write_session(&dir, &manifest, &assets).expect("resave");
+
+        let after = std::fs::read(&asset).expect("read asset");
+        assert_eq!(
+            after, payload,
+            "in-place resave must not truncate the asset"
+        );
         let _ = std::fs::remove_dir_all(&dir);
     }
 

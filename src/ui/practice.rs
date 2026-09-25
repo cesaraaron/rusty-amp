@@ -678,6 +678,7 @@ impl PracticeUi {
         let name = self.session.name().to_owned();
         let mut sections = Vec::with_capacity(self.session.len());
         let mut assets = Vec::new();
+        let mut written: Vec<(TrackId, String)> = Vec::new();
         let mut skipped = 0usize;
         for track in self.session.tracks() {
             let rel = match (&track.asset, track.is_ready()) {
@@ -692,6 +693,7 @@ impl PracticeUi {
                         source: asset.path.clone(),
                         rel: rel.clone(),
                     });
+                    written.push((track.id, rel.clone()));
                     Some(rel)
                 }
                 _ => {
@@ -757,6 +759,15 @@ impl PracticeUi {
             sections,
         )?;
         project::write_session(ctx.dir, &manifest, &assets)?;
+        // Retarget each track at its copy inside the project folder, so the
+        // running session and later saves reference the portable asset.
+        for (id, rel) in written {
+            if let Some(track) = self.session.track_mut(id)
+                && let Some(asset) = track.asset.as_mut()
+            {
+                asset.path = ctx.dir.join(rel);
+            }
+        }
         self.session.set_saved_dir(Some(ctx.dir.to_path_buf()));
         Ok(skipped)
     }
