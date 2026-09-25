@@ -376,6 +376,54 @@ mod tests {
     }
 
     #[test]
+    fn places_clips_at_their_start() {
+        let dir =
+            std::env::temp_dir().join(format!("rusty-amp-export-start-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).expect("mkdir");
+        let first = dir.join("first.wav");
+        let second = dir.join("second.wav");
+        let sample: Vec<f32> = (0..1200).map(|i| (i as f32 * 0.05).sin() * 0.4).collect();
+        write_mono_wav(&first, 48_000, &sample);
+        write_mono_wav(&second, 48_000, &sample);
+
+        let params = Params::new();
+        let start_ticks = 24_000; // 0.5 s at the project rate
+        let job = ExportJob {
+            dest: dir.join("out.wav"),
+            sample_rate: 48_000,
+            project_sample_rate: 48_000,
+            clips: vec![
+                ExportClip {
+                    path: first,
+                    start_ticks: 0,
+                    gain: 1.0,
+                },
+                ExportClip {
+                    path: second,
+                    start_ticks,
+                    gain: 1.0,
+                },
+            ],
+            rig: snapshot_rig(&params),
+            ir_path: None,
+            ir_active: false,
+            insert: None,
+            amp: None,
+        };
+        let cancel = AtomicBool::new(false);
+        let progress = AtomicU32::new(0);
+        let out = run(job, &progress, &cancel).expect("export");
+        let reader = hound::WavReader::open(&out).expect("open out");
+        let frames = reader.len() as usize / 2;
+        assert!(
+            frames >= start_ticks as usize + sample.len(),
+            "second clip's placement was dropped: {frames} frames"
+        );
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
     fn empty_job_is_rejected() {
         let dir =
             std::env::temp_dir().join(format!("rusty-amp-export-empty-{}", std::process::id()));

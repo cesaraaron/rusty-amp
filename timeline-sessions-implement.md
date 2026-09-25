@@ -146,10 +146,11 @@ metronome are monitor-only.
    parameters — so AUs with non-parameter state may not restore exactly. Plugin
    binaries are not portable: a missing/renamed bundle degrades to the built-in
    rig with a message.
-2. **Offline export exists, but external processors block it.** `src/export.rs`
-   renders takes through the built-in rig + external IR only. An AU amp or CLAP
-   insert causes a visible refusal (no state capture yet). Export range is tick 0
-   → last unmuted take + a capped tail; format is stereo 32-bit float at the
+2. **Offline export includes the external rig, best-effort.** `src/export.rs`
+   renders the unmuted takes through a fresh rig; a loaded CLAP insert is rebuilt
+   from its captured opaque state and a loaded AU amp from its parameter snapshot.
+   Export refuses only if an AU is loaded but its state cannot be captured. Range
+   is tick 0 → last unmuted take + a capped tail; stereo 32-bit float at the
    project rate. Explicit loop/selection export and stem options are not offered.
 3. **Recovery is best-effort.** Unsaved takes are indexed and offered for
    restore/discard at launch (§5). A take is GC'd from recovery once a session
@@ -198,15 +199,28 @@ Abandoned dry takes are now discoverable and restorable (§7):
 ## 6. Testing & verification
 
 - Unit tests: `src/session.rs` (tick conversion, selection, seek steps),
-  `src/dsp/player.rs` (bus split, offset, loop, full-table rejection),
-  `src/recording.rs` (writer finalize / abort / empty take),
-  `src/project.rs` (round-trip, sanitizer, path-escape, in-place resave),
-  `src/dsp/cab/external.rs` (IR duplicate via the twin-cab test).
+  `src/dsp/player.rs` (bus split, offset, loop, `set_start`, full-table
+  rejection), `src/recording.rs` (writer finalize / abort / empty take),
+  `src/project.rs` (round-trip, sanitizer, path-escape, in-place resave, plugin
+  state sidecars), `src/export.rs` (float-WAV render, clip placement, empty-job
+  refusal), `src/practice.rs` (32-bit float WAV decode), `src/ui/practice.rs`
+  (export job filters muted/imports), `src/dsp/cab/external.rs` (IR duplicate).
 - UI snapshots (insta): `src/ui/snapshots/` — update deliberately with
   `INSTA_UPDATE=always cargo test` or `cargo insta review`.
 - CI commands: `cargo fmt --all -- --check`,
   `cargo clippy --all-targets --all-features -- -D warnings`, `cargo test`,
-  and `npm run build` in `site/`.
+  and `npm run build` in `site/`. `cargo build --release` and
+  `cargo check --no-default-features` are also kept green.
+
+### Verification status
+
+| Check | Status |
+| --- | --- |
+| `cargo fmt --check` / `clippy -D warnings` / `cargo test` (289 tests) | green |
+| `cargo build --release` (macOS, `clap`+`au`+`pipewire`) | green |
+| `cargo check --no-default-features` | green |
+| `npm run build` (`site/`) | green |
+| Hardware monitoring, loop-aligned capture, twin/export plugin CPU, device change | **not yet run** — needs `cargo run --release` on real hardware |
 - **Hardware-only checks (not automated):** real audio monitoring, capture
   alignment under a loop, plugin CPU with twin instances, device changes.
   Run `cargo run --release` for these.

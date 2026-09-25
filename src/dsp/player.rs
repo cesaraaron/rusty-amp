@@ -453,6 +453,47 @@ mod tests {
     }
 
     #[test]
+    fn set_start_realigns_a_track_without_redecoding() {
+        let mut v = PlayerVoice::new();
+        let samples: Vec<f32> = (0..3).map(|i| 10.0 + i as f32).collect();
+        let take = PlayerTrack {
+            r: samples.clone(),
+            l: samples,
+            start: 0,
+        };
+        install_take(&mut v, 1, take);
+
+        let at0 = Transport {
+            playing: true,
+            seek: Some(0),
+            ..Transport::default()
+        };
+        v.begin(&at0);
+        assert_eq!(v.next_frame(&at0).take, 10.0);
+
+        // Move the clip to frame 5 and confirm it is silent before then.
+        assert!(v.set_start(1, 5));
+        let at0 = Transport {
+            playing: true,
+            seek: Some(0),
+            ..Transport::default()
+        };
+        v.begin(&at0);
+        assert_eq!(
+            v.next_frame(&at0).take,
+            0.0,
+            "clip must not play before its start"
+        );
+        let at5 = Transport {
+            playing: true,
+            seek: Some(5),
+            ..Transport::default()
+        };
+        v.begin(&at5);
+        assert_eq!(v.next_frame(&at5).take, 10.0, "clip plays at its new start");
+    }
+
+    #[test]
     fn removing_a_track_returns_its_slot() {
         let mut v = PlayerVoice::new();
         install_import(&mut v, 7, track(1, 0));

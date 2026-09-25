@@ -1,6 +1,10 @@
 # Timeline, raw takes, export, and sessions — review plan
 
-**Status:** design proposal for review. No feature implementation is implied by this document. This work belongs on a **new branch created from the intended base when implementation starts**; do not fold it into the existing amp/cab fidelity plan in [`plan.md`](plan.md). File names, bindings, limits, and the sample schema below are proposals until reviewed.
+**Status:** implemented on branch `timeline-sessions` (see the as-built notes in
+[`timeline-sessions-implement.md`](timeline-sessions-implement.md) and the
+increment log in §11). Kept separate from the amp/cab fidelity plan in
+[`plan.md`](plan.md). Sections below remain the design rationale; where the
+shipped code differs, §11 and the handover notes are authoritative.
 
 ## 1. What the user should be able to do
 
@@ -305,3 +309,10 @@ offline export and plugin-state parity remain follow-ups (sections 6–8).
 
 **Deferred:** AU opaque ClassInfo state (parameters only). Hardware acceptance
 passes (`cargo run --release`) still recommended.
+
+**Verification (increment 9):** `cargo fmt --check`,
+`cargo clippy --all-targets --all-features -- -D warnings`, `cargo test`
+(289 passing), `cargo build --release`, `cargo check --no-default-features`, and
+`npm run build` in `site/` are all green. Added regression tests for clip move
+(`PlayerVoice::set_start`) and export placement/filtering. The hardware-only
+acceptance items in §9 remain to be run on a real interface.

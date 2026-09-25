@@ -1815,3 +1815,93 @@ fn shade(c: Color, factor: f32) -> Color {
 fn border_style(active: bool) -> Style {
     Style::default().fg(if active { ACCENT } else { shade(ACCENT, 0.5) })
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn ready(name: &str) -> (Option<AssetRef>, TrackKind) {
+        (
+            Some(AssetRef {
+                path: PathBuf::from(name),
+                source_sample_rate: 48_000,
+                source_channels: 1,
+            }),
+            TrackKind::RawTake,
+        )
+    }
+
+    #[test]
+    fn export_job_includes_only_unmuted_ready_takes() {
+        let mut ui = PracticeUi::new();
+        let params = Params::new();
+
+        let (asset, kind) = ready("a.wav");
+        ui.session.push(
+            1,
+            "take a".into(),
+            kind,
+            asset,
+            0,
+            48_000,
+            TrackLifecycle::Ready,
+        );
+        let (asset, kind) = ready("b.wav");
+        ui.session.push(
+            2,
+            "take b".into(),
+            kind,
+            asset,
+            0,
+            48_000,
+            TrackLifecycle::Ready,
+        );
+        ui.session.track_mut(2).expect("track b").muted = true;
+        // An import must never be part of a guitar-only export.
+        ui.session.push(
+            3,
+            "backing".into(),
+            TrackKind::Import,
+            Some(AssetRef {
+                path: PathBuf::from("c.wav"),
+                source_sample_rate: 48_000,
+                source_channels: 2,
+            }),
+            0,
+            48_000,
+            TrackLifecycle::Ready,
+        );
+
+        let job = ui
+            .build_export_job(
+                PathBuf::from("/tmp/out.wav"),
+                &params,
+                None,
+                false,
+                None,
+                None,
+            )
+            .expect("job");
+        assert_eq!(job.clips.len(), 1, "only the unmuted take should export");
+        assert_eq!(job.clips[0].path, PathBuf::from("a.wav"));
+        assert_eq!(job.sample_rate, ui.session.project_sample_rate());
+    }
+
+    #[test]
+    fn export_job_errors_when_nothing_to_render() {
+        let ui = PracticeUi::new();
+        let params = Params::new();
+        let err = ui
+            .build_export_job(
+                PathBuf::from("/tmp/out.wav"),
+                &params,
+                None,
+                false,
+                None,
+                None,
+            )
+            .err()
+            .expect("empty session must not produce a job");
+        assert!(err.contains("No unmuted"), "{err}");
+    }
+}
