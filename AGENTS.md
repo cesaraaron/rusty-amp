@@ -1,8 +1,8 @@
-# Agents.md — rusty-amp
+# Agents.md — rusty-riff
 
 ## Project overview
 
-rusty-amp is a real-time guitar amplifier emulator that runs in the terminal. It captures audio from an audio interface, processes it through a full signal chain (noise gate → overdrive pedals → amp model → cabinet simulation → EQ → flanger → delay → reverb), and writes the processed signal back out. The UI is a ratatui TUI with live VU meters, knob sections, and a preset browser.
+rusty-riff is a real-time guitar amplifier emulator that runs in the terminal. It captures audio from an audio interface, processes it through a full signal chain (noise gate → overdrive pedals → amp model → cabinet simulation → EQ → flanger → delay → reverb), and writes the processed signal back out. The UI is a ratatui TUI with live VU meters, knob sections, and a preset browser.
 
 **Platform:** multiplatform (via cpal)
 **Language:** Rust
@@ -49,9 +49,10 @@ disposed of on the control thread.
 | Amp models | Three distinct DSP paths (tube soft-clip, silicon clip, solid-state rail-clip) with per-model tone stacks and rectifier sag simulation |
 | Cabinet sim | Multi-stage biquad EQ chains that model close-mic'd 4×12 responses |
 | TUI | ratatui-based UI: selector row (amp + cabinet), pedals row, amp/FX row, VU meters, practice timeline pane, preset browser overlay; the pedalboard, amp panel, and timeline can be shown/hidden with `1`/`2`/`3` |
-| Preset system | TOML files loaded from `./presets/` and `~/.config/rusty-amp/presets/` |
+| Preset system | TOML files loaded from `./presets/` and `~/.config/rusty-riff/presets/` |
 | Practice / jam-along | `src/practice.rs` (shared transport + offline decode via symphonia), `src/dsp/player.rs` (audio-thread `PlayerVoice`), `src/ui/practice.rs` (timeline pane + track browser), `src/dsp/resample.rs` (shared windowed-sinc resampler) |
-| Docs website | `site/` — Markdown + inline HTML rendered by Eleventy, published to GitHub Pages |
+| Sessions / export | `src/session.rs` (runtime session/track state), `src/project.rs` (portable project folders), `src/export.rs` (offline take render) |
+| Plugin hosting | `src/host/` — CLAP effect insert (`clap` feature) and macOS Audio Unit amp override (`au` feature) |
 
 ---
 
@@ -76,34 +77,26 @@ The repository includes several standalone analysis utilities under `examples/` 
 - `examples/au_cab_extract.rs` and `examples/au_params.rs` — inspect AudioUnit cabinet and parameter data
 - `examples/cone_interference.rs`, `examples/di_compare.rs`, `examples/knob_match.rs`, and `examples/rig_loudness.rs` — compare signal paths, input stages, and loudness behavior
 
-External impulse responses (IRs) for cabinet simulation are stored in `~/.config/rusty-amp/irs/`.
+External impulse responses (IRs) for cabinet simulation are stored in `~/.config/rusty-riff/irs/`.
 
 ---
 
-## Documentation website
+## Documentation
 
-The user-facing docs live in [`site/`](site/) and publish to GitHub Pages at
-<https://danylokravchenko.github.io/rusty-amp/>. Pages are **Markdown with inline
-HTML** for the interactive components, rendered through a shared layout by
-[Eleventy](https://www.11ty.dev/) (11ty). The pedal, amp, and cabinet docs are
-data-driven HTML blocks inside Markdown — no per-item pages.
+The user-facing guide is the in-app help overlay (`K`) plus the README. The
+design/as-built notes live at the repository root (`fidelity-plan.md`,
+`fidelity-implement.md`, `timeline-sessions-plan.md`,
+`timeline-sessions-implement.md`). There is no separate docs website.
 
-```bash
-cd site
-npm install
-npm run dev     # local preview with live reload
-npm run build   # render to ./_site (what CI publishes)
-```
+---
 
-Pages: `index` (landing + board grid), `getting-started`, `pedals`, `amps-cabs`,
-`presets`, `plugins`, `how-it-works`. Each pedal has a **livery colour** whose web
-twin is a CSS variable in the `:root` block of `site/assets/site.css`, matching a
-`PEDAL_*` colour in `src/ui/styles.rs`.
+## Design docs (keep in sync)
 
-**Anything that changes a pedal, amp, cabinet, control, or preset must update the
-docs in the same PR.** See [`CONTRIBUTING.md`](CONTRIBUTING.md) ("Documentation
-site" / "Documenting a new pedal") and [`site/README.md`](site/README.md) for the
-authoring conventions.
+- `fidelity-plan.md` is the design/acceptance document; `fidelity-implement.md`
+  is the as-built record. Log every routed/topology commit in its increment log.
+- `docs/fidelity-references.md` is the evidence matrix for historical gear claims.
+- There is no docs-parity rule for a website; user-facing behavior is documented in
+  the README and the in-app `K` reference.
 
 ---
 
