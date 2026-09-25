@@ -13,4 +13,5 @@ pub mod host;
 pub mod practice;
 pub mod preset;
 pub mod recording;
+pub mod session;
 pub mod ui;

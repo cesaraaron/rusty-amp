@@ -102,8 +102,7 @@
         clearInterval(timer);
         recAir.textContent = "○REC";
         recBtn.innerHTML = '<span class="dot">●</span>Record';
-        var ts = Math.floor(Date.now() / 1000);
-        recFile.innerHTML = "Saved <code>~/rusty-amp-" + ts + ".wav</code> · " + fmt(secs) + " · 32-bit float stereo";
+        recFile.innerHTML = "Raw take ready · <b>" + fmt(secs) + "</b> dry guitar placed on the timeline (re-amped live by the current rig)";
       }
     });
   }

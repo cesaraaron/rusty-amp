@@ -1,13 +1,17 @@
-//! Practice / jam-along timeline pane and backing-track browser.
+//! Session timeline pane and track browser.
 //!
-//! The pane is a fixed 10-row strip under the amp panel: a transport line
-//! and three rows per track (backing + recorded take) with a tall waveform,
-//! the playhead and a shaded loop region. The browser modal loads a backing file
-//! (MP3 / WAV / FLAC) via [`crate::practice::decode_track`], decoding on a worker
-//! thread so the 30 ms UI loop never stalls.
+//! The pane is a scrollable list: a transport line followed by one row per
+//! timeline track (name, kind, mute, gain, start/end and a mini waveform scaled
+//! to the shared session extent). Everything editable is owned by the
+//! control-thread [`Session`]; decoded playback buffers are caches installed
+//! into the audio engine.
+//!
+//! The browser imports a file as a **new** track at the current playhead. Raw
+//! takes are captured dry through the take-bus pipeline (see
+//! [`crate::recording`]) and re-amped live by the current rig.
 
 use std::path::{Path, PathBuf};
-use std::sync::mpsc::Receiver;
+use std::sync::mpsc::{Receiver, Sender};
 
 use crossterm::event::KeyCode;
 use ratatui::{
@@ -21,11 +25,13 @@ use std::sync::atomic::Ordering::Relaxed;
 
 use super::styles::{ACCENT, AMBER, CHROME, DIM, HOT, SAFE, WARN};
 use crate::audio::AudioEngine;
-use crate::dsp::player::PlayerTrack;
-use crate::practice::{Practice, decode_track};
+use crate::dsp::player::{MAX_TRACKS, TrackKind as PlayerKind};
+use crate::practice::{DecodedTrack, Practice, decode_track, peaks};
+use crate::recording::{CaptureCommand, CaptureResult, CaptureState, spawn_capture_worker};
+use crate::session::{AssetRef, Session, TrackId, TrackKind, TrackLifecycle};
 
-/// How many waveform buckets we keep per track for the mini display (mapped to the
-/// pane width each frame). Enough detail for a glance without recomputing peaks.
+/// How many waveform buckets we keep per track for the mini display (mapped to
+/// the pane width each frame). Enough detail for a glance without recomputing.
 pub(super) const PEAK_BUCKETS: usize = 512;
 
 /// One discovered audio file in the browser.
@@ -35,70 +41,121 @@ struct TrackFile {
     detail: String,
 }
 
-/// A finished background decode: the ready-to-install track and its display peaks.
-struct Decoded {
-    track: PlayerTrack,
-    peaks: Vec<(f32, f32)>,
-    name: String,
+/// A background decode in flight, targeting a specific row id.
+struct PendingDecode {
+    id: TrackId,
+    generation: u64,
+    kind: TrackKind,
+    path: PathBuf,
+    rx: Receiver<Result<DecodedTrack, String>>,
 }
 
-/// Which install slot a browser selection targets.
+/// Which row owns the pane cursor.
 #[derive(Clone, Copy, PartialEq, Eq)]
-enum Slot {
-    Backing,
-    Take,
+enum Selection {
+    Transport,
+    Track(TrackId),
 }
 
-/// All practice UI state, owned by the UI thread.
+/// All practice UI state, owned by the UI thread. Persists across a device
+/// change: the [`Session`] and its recovery paths are the source of truth, and
+/// decoded caches are rebuilt.
 pub(super) struct PracticeUi {
     pub(super) browser_open: bool,
     browser_cursor: usize,
     files: Vec<TrackFile>,
-    /// Slot the browser loads into (toggled with Tab).
-    slot: Slot,
     /// Typed path alternative to browsing.
     path_input: String,
     /// 0 = file list, 1 = path field.
     field: usize,
     message: Option<String>,
     sample_rate: f32,
-    pending: Option<Receiver<Result<Decoded, String>>>,
-    loading: bool,
+    decodes: Vec<PendingDecode>,
 
-    pub backing_name: Option<String>,
-    backing_peaks: Vec<(f32, f32)>,
-    backing_frames: usize,
-    pub record_name: Option<String>,
-    record_peaks: Vec<(f32, f32)>,
-    record_frames: usize,
+    /// Canonical project state.
+    pub(super) session: Session,
+    selection: Selection,
 
-    /// Focused control inside the pane: 0 = transport, 1 = backing, 2 = take.
-    pub selected: usize,
-    /// Backing playhead captured when recording started (take alignment).
-    pub record_offset: usize,
+    /// Capture plumbing (attached per engine).
+    capture_cmd: Option<Sender<CaptureCommand>>,
+    capture_result: Option<Receiver<CaptureResult>>,
+    recording_id: Option<TrackId>,
+    /// Small modal editing a track's gain.
+    gain_edit: Option<TrackId>,
+    next_generation: u64,
+    /// The project time base is adopted from the first engine and kept across
+    /// later device changes, so clip offsets never drift.
+    rate_adopted: bool,
 }
 
 impl PracticeUi {
-    pub(super) fn new(sample_rate: f32) -> Self {
+    pub(super) fn new() -> Self {
         Self {
             browser_open: false,
             browser_cursor: 0,
             files: Vec::new(),
-            slot: Slot::Backing,
             path_input: String::new(),
             field: 0,
             message: None,
-            sample_rate,
-            pending: None,
-            loading: false,
-            backing_name: None,
-            backing_peaks: Vec::new(),
-            backing_frames: 0,
-            record_name: None,
-            record_peaks: Vec::new(),
-            record_frames: 0,
-            selected: 0,
-            record_offset: 0,
+            sample_rate: 48_000.0,
+            decodes: Vec::new(),
+            session: Session::new(48_000),
+            selection: Selection::Transport,
+            capture_cmd: None,
+            capture_result: None,
+            recording_id: None,
+            gain_edit: None,
+            next_generation: 1,
+            rate_adopted: false,
+        }
+    }
+
+    fn generation(&mut self) -> u64 {
+        let g = self.next_generation;
+        self.next_generation = self.next_generation.saturating_add(1);
+        g
+    }
+
+    /// Adopt the running engine's rate and (re)attach the capture writer. Called
+    /// once per engine start; keeps the session across device changes.
+    pub(super) fn attach(&mut self, engine: &mut AudioEngine) {
+        self.sample_rate = engine.sample_rate();
+        // Adopt the project time base once; later device changes keep it.
+        if !self.rate_adopted {
+            self.session
+                .set_project_sample_rate(self.sample_rate as u32);
+            self.rate_adopted = true;
+        }
+        if let Some(consumer) = engine.take_capture_consumer() {
+            self.capture_cmd = Some(spawn_capture_worker(consumer));
+        }
+        // Any decode that was in flight was resampled for the *old* rate; reissue
+        // it at the new rate rather than installing a mismatched buffer.
+        let inflight = std::mem::take(&mut self.decodes);
+        self.reinstall_ready_tracks();
+        for pending in inflight {
+            self.start_decode(pending.id, pending.kind, pending.path);
+        }
+    }
+
+    /// Re-decode every ready track from its asset into the fresh engine (device
+    /// change). Missing files become error rows rather than silently vanishing.
+    fn reinstall_ready_tracks(&mut self) {
+        let ids: Vec<TrackId> = self
+            .session
+            .tracks()
+            .iter()
+            .filter(|t| t.is_ready() && t.asset.is_some())
+            .map(|t| t.id)
+            .collect();
+        for id in ids {
+            let Some(track) = self.session.track(id) else {
+                continue;
+            };
+            let Some(asset) = track.asset.clone() else {
+                continue;
+            };
+            self.start_decode(id, track.kind, asset.path);
         }
     }
 
@@ -111,136 +168,234 @@ impl PracticeUi {
         self.browser_open = true;
     }
 
-    /// Start a background decode of `path`, targeting `slot`.
-    fn start_decode(&mut self, path: PathBuf, slot: Slot) {
-        if self.pending.is_some() {
-            self.message = Some("A track is already loading…".to_owned());
-            return;
-        }
+    /// Start a background decode of `path`, targeting `id`.
+    fn start_decode(&mut self, id: TrackId, kind: TrackKind, path: PathBuf) {
         let sr = self.sample_rate;
         let (tx, rx) = std::sync::mpsc::channel();
+        let decode_path = path.clone();
         std::thread::spawn(move || {
-            let result = decode_track(&path, sr)
-                .map(|track| {
-                    let peaks = peaks(&track, PEAK_BUCKETS);
-                    let name = path
-                        .file_stem()
-                        .and_then(|s| s.to_str())
-                        .unwrap_or("track")
-                        .to_owned();
-                    Decoded { track, peaks, name }
-                })
-                .map_err(|e| e.to_string());
+            let result = decode_track(&decode_path, sr).map_err(|e| e.to_string());
             let _ = tx.send(result);
         });
-        self.pending = Some(rx);
-        self.loading = true;
-        self.slot = slot;
+        let generation = self.generation();
+        self.decodes.push(PendingDecode {
+            id,
+            generation,
+            kind,
+            path,
+            rx,
+        });
+    }
+
+    /// Create a new import row at the current playhead and start decoding.
+    fn import_at_playhead(&mut self, path: PathBuf, practice: &Practice) {
+        let id = self.session.alloc_id();
+        let start_ticks = self
+            .session
+            .frames_to_ticks(practice.position(), self.sample_rate);
+        let name = path
+            .file_stem()
+            .and_then(|s| s.to_str())
+            .unwrap_or("import")
+            .to_owned();
+        self.session.push(
+            id,
+            name,
+            TrackKind::Import,
+            None,
+            start_ticks,
+            0,
+            TrackLifecycle::Loading,
+        );
+        self.selection = Selection::Track(id);
+        self.start_decode(id, TrackKind::Import, path);
         self.message = Some("Loading…".to_owned());
     }
 
-    /// Install a background decode result if one has arrived. Called once per UI
-    /// loop tick. Returns `true` if the engine was touched (so the caller may want
-    /// to refresh anything derived from it).
-    pub(super) fn poll_decode(&mut self, engine: &mut AudioEngine, practice: &Practice) -> bool {
-        let Some(rx) = &self.pending else {
+    /// Poll background decodes and capture results once per UI tick. Returns
+    /// `true` if the engine was touched.
+    pub(super) fn poll(
+        &mut self,
+        engine: &mut AudioEngine,
+        practice: &Practice,
+        capture: &CaptureState,
+    ) -> bool {
+        let mut touched = false;
+        touched |= self.poll_decodes(engine);
+        touched |= self.poll_capture(engine);
+        touched |= self.poll_acks(engine);
+        // Auto-stopped at a loop out-point: finalize on the UI side.
+        if self.recording_id.is_some()
+            && capture.auto_stop.load(Relaxed)
+            && capture.active.load(Relaxed)
+        {
+            self.finalize_capture(capture);
+            let _ = practice;
+        }
+        touched
+    }
+
+    fn poll_decodes(&mut self, engine: &mut AudioEngine) -> bool {
+        let mut touched = false;
+        // Move the queue out so `self` methods (which touch `self.decodes`) can
+        // be called while iterating.
+        let mut queue = std::mem::take(&mut self.decodes);
+        let mut keep = Vec::with_capacity(queue.len());
+        for pending in queue.drain(..) {
+            match pending.rx.try_recv() {
+                Ok(Ok(decoded)) => {
+                    self.finish_decode(engine, &pending, decoded);
+                    touched = true;
+                }
+                Ok(Err(e)) => {
+                    self.set_error(pending.id, e);
+                    touched = true;
+                }
+                Err(std::sync::mpsc::TryRecvError::Empty) => keep.push(pending),
+                Err(std::sync::mpsc::TryRecvError::Disconnected) => {
+                    self.set_error(pending.id, "decode worker disconnected".to_owned());
+                    touched = true;
+                }
+            }
+        }
+        self.decodes = keep;
+        touched
+    }
+
+    fn finish_decode(
+        &mut self,
+        engine: &mut AudioEngine,
+        pending: &PendingDecode,
+        decoded: DecodedTrack,
+    ) {
+        let frames = decoded.track.frames();
+        let Some((start_ticks, gain, muted, name)) = self
+            .session
+            .track(pending.id)
+            .map(|t| (t.start_ticks, t.gain, t.muted, t.name.clone()))
+        else {
+            return;
+        };
+        let start_frames = self.session.ticks_to_frames(start_ticks, self.sample_rate);
+        let length_ticks = self.session.frames_to_ticks(frames, self.sample_rate);
+        let mut player_track = decoded.track;
+        player_track.start = start_frames;
+        let pk = peaks(&player_track, PEAK_BUCKETS);
+
+        let asset = AssetRef {
+            path: pending.path.clone(),
+            source_sample_rate: decoded.source_sample_rate,
+            source_channels: decoded.source_channels,
+        };
+        if let Some(track) = self.session.track_mut(pending.id) {
+            track.asset = Some(asset);
+            track.length_ticks = length_ticks;
+            track.peaks = pk;
+            track.generation = pending.generation;
+            track.lifecycle = TrackLifecycle::Ready;
+        }
+
+        let kind = to_player_kind(pending.kind);
+        if let Err(e) = engine.install_track(
+            pending.id,
+            pending.generation,
+            kind,
+            player_track,
+            gain,
+            muted,
+        ) {
+            self.set_error(pending.id, e.to_string());
+            return;
+        }
+        self.message = Some(format!("Loaded {name}"));
+    }
+
+    fn poll_acks(&mut self, engine: &mut AudioEngine) -> bool {
+        let acks = engine.poll_track_acks();
+        let mut touched = false;
+        for ack in acks {
+            if !ack.installed
+                && let Some(err) = ack.error
+            {
+                self.set_error(ack.id, err);
+                touched = true;
+            }
+        }
+        touched
+    }
+
+    fn poll_capture(&mut self, engine: &mut AudioEngine) -> bool {
+        let Some(rx) = &self.capture_result else {
             return false;
         };
         let Ok(result) = rx.try_recv() else {
             return false;
         };
-        self.pending = None;
-        self.loading = false;
-        match result {
-            Ok(decoded) => {
-                let frames = decoded.track.frames();
-                let install = match self.slot {
-                    Slot::Backing => engine.set_backing_track(Some(decoded.track)),
-                    Slot::Take => engine.set_record_track(Some(decoded.track)),
-                };
-                if let Err(e) = install {
-                    self.message = Some(format!("Load failed: {e}"));
-                    return false;
-                }
-                match self.slot {
-                    Slot::Backing => {
-                        practice.backing_loaded.store(true, Relaxed);
-                        practice.backing_len.store(frames as u64, Relaxed);
-                        self.backing_name = Some(decoded.name.clone());
-                        self.backing_peaks = decoded.peaks;
-                        self.backing_frames = frames;
-                    }
-                    Slot::Take => {
-                        // A take loaded from the browser starts at the top of the
-                        // timeline; only a live take carries a captured offset.
-                        self.record_offset = 0;
-                        practice.record_loaded.store(true, Relaxed);
-                        practice.record_len.store(frames as u64, Relaxed);
-                        self.record_name = Some(decoded.name.clone());
-                        self.record_peaks = decoded.peaks;
-                        self.record_frames = frames;
-                    }
-                }
-                self.message = Some(format!("Loaded {}", decoded.name));
-                true
-            }
-            Err(e) => {
-                self.message = Some(format!("Load failed: {e}"));
-                false
-            }
+        self.capture_result = None;
+        let current = self.recording_id;
+        if current != Some(result.generation) {
+            return false;
         }
-    }
-
-    /// Clear the backing track (UI + engine + shared state).
-    pub(super) fn clear_backing(&mut self, engine: &mut AudioEngine, practice: &Practice) {
-        let _ = engine.set_backing_track(None);
-        practice.backing_loaded.store(false, Relaxed);
-        practice.backing_len.store(0, Relaxed);
-        self.backing_name = None;
-        self.backing_peaks.clear();
-        self.backing_frames = 0;
-    }
-
-    /// Clear the take track (UI + engine + shared state).
-    pub(super) fn clear_take(&mut self, engine: &mut AudioEngine, practice: &Practice) {
-        let _ = engine.set_record_track(None);
-        practice.record_loaded.store(false, Relaxed);
-        practice.record_len.store(0, Relaxed);
-        self.record_name = None;
-        self.record_peaks.clear();
-        self.record_frames = 0;
-    }
-
-    /// Place a just-recorded take on the timeline: build the stereo track at the
-    /// captured backing offset, compute its display peaks and install it. The
-    /// samples are interleaved stereo `(L, R)` at the engine rate.
-    pub(super) fn place_take(
-        &mut self,
-        engine: &mut AudioEngine,
-        practice: &Practice,
-        samples: &[f32],
-        offset: usize,
-    ) {
-        let frames = samples.len() / 2;
-        let mut l = Vec::with_capacity(frames);
-        let mut r = Vec::with_capacity(frames);
-        for f in 0..frames {
-            l.push(samples.get(2 * f).copied().unwrap_or(0.0));
-            r.push(samples.get(2 * f + 1).copied().unwrap_or(0.0));
+        self.recording_id = None;
+        let mut touched = false;
+        if let Some(err) = result.error.clone() {
+            self.set_error(result.generation, err);
+            return touched;
         }
-        let track = PlayerTrack {
-            l,
-            r,
-            start: offset,
+        let Some(player_track) = result.track else {
+            self.session.remove(result.generation);
+            self.selection = Selection::Transport;
+            self.message = Some("Empty take discarded".to_owned());
+            return touched;
         };
-        let peaks = peaks(&track, PEAK_BUCKETS);
-        let _ = engine.set_record_track(Some(track));
-        practice.record_loaded.store(true, Relaxed);
-        practice.record_len.store((offset + frames) as u64, Relaxed);
-        self.record_name = Some(format!("take {}", mmss(offset, self.sample_rate)));
-        self.record_peaks = peaks;
-        self.record_frames = frames;
-        self.record_offset = offset;
+        let frames = player_track.frames();
+        let start_ticks = self
+            .session
+            .frames_to_ticks(result.start_frame as usize, self.sample_rate);
+        let length_ticks = self.session.frames_to_ticks(frames, self.sample_rate);
+        let generation = self.generation();
+        let (gain, muted) = self
+            .session
+            .track(result.generation)
+            .map_or((1.0, false), |t| (t.gain, t.muted));
+        if let Some(track) = self.session.track_mut(result.generation) {
+            track.asset = Some(AssetRef {
+                path: result.path,
+                source_sample_rate: self.sample_rate as u32,
+                source_channels: 1,
+            });
+            track.start_ticks = start_ticks;
+            track.length_ticks = length_ticks;
+            track.peaks = result.peaks.clone();
+            track.generation = generation;
+            track.lifecycle = TrackLifecycle::Ready;
+        }
+        if let Err(e) = engine.install_track(
+            result.generation,
+            generation,
+            PlayerKind::RawTake,
+            player_track,
+            gain,
+            muted,
+        ) {
+            self.set_error(result.generation, e.to_string());
+            return touched;
+        }
+        touched = true;
+        let note = if result.overflowed {
+            " (incomplete: capture overflowed)"
+        } else {
+            ""
+        };
+        self.message = Some(format!("Take ready{note}"));
+        touched
+    }
+
+    fn set_error(&mut self, id: TrackId, msg: String) {
+        if let Some(track) = self.session.track_mut(id) {
+            track.lifecycle = TrackLifecycle::Error(msg.clone());
+        }
+        self.message = Some(msg);
     }
 
     // ── Focused-control edits (called from the key handler) ─────────────────────
@@ -255,11 +410,51 @@ impl PracticeUi {
         practice.loop_enabled.store(now, Relaxed);
     }
 
-    pub(super) fn seek_by(&self, practice: &Practice, secs: f32) {
-        let total = practice.timeline_len() as i64;
+    /// Move the selection between the transport and the track rows.
+    pub(super) fn move_selection(&mut self, forward: bool) {
+        match self.selection {
+            Selection::Transport => {
+                if forward && let Some(id) = self.session.tracks().first().map(|t| t.id) {
+                    self.selection = Selection::Track(id);
+                    self.session.select(id);
+                }
+            }
+            Selection::Track(id) => {
+                let idx = self.session.index_of(id);
+                let last = self.session.len().saturating_sub(1);
+                match idx {
+                    Some(i) if forward && i >= last => {
+                        self.selection = Selection::Transport;
+                    }
+                    Some(0) if !forward => {
+                        self.selection = Selection::Transport;
+                    }
+                    Some(_) => {
+                        self.session.select_next(forward);
+                        if let Some(next) = self.session.selected() {
+                            self.selection = Selection::Track(next);
+                        }
+                    }
+                    None => self.selection = Selection::Transport,
+                }
+            }
+        }
+    }
+
+    pub(super) fn seek_by(&self, practice: &Practice, direction: i32) {
+        let step = f64::from(self.session.seek_seconds());
+        let delta = (step * f64::from(self.sample_rate)) as i64;
+        let total =
+            self.session
+                .ticks_to_frames(self.session.extent_ticks(), self.sample_rate) as i64;
         let cur = practice.position() as i64;
-        let delta = (secs * self.sample_rate) as i64;
-        practice.request_seek((cur + delta).clamp(0, total) as usize);
+        let next = (cur + delta * i64::from(direction)).clamp(0, total.max(0));
+        practice.request_seek(next as usize);
+    }
+
+    pub(super) fn cycle_seek_step(&mut self, direction: i32) {
+        let step = self.session.cycle_seek_step(direction);
+        self.message = Some(format!("Seek step: {step}s"));
     }
 
     /// Set the loop in-point at the playhead, opening a one-second region if the
@@ -285,36 +480,162 @@ impl PracticeUi {
         practice.loop_enabled.store(true, Relaxed);
     }
 
-    pub(super) fn toggle_selected_mute(&self, practice: &Practice) {
-        let flag = match self.selected {
-            1 => &practice.backing_muted,
-            2 => &practice.record_muted,
-            _ => return,
+    pub(super) fn toggle_selected_mute(&mut self, engine: &mut AudioEngine, practice: &Practice) {
+        let _ = practice;
+        let Some(id) = self.selected_track() else {
+            return;
         };
-        let now = !flag.load(Relaxed);
-        flag.store(now, Relaxed);
+        let Some(track) = self.session.track_mut(id) else {
+            return;
+        };
+        track.muted = !track.muted;
+        let muted = track.muted;
+        let _ = engine.set_track_mute(id, muted);
     }
 
-    pub(super) fn delete_selected(&mut self, engine: &mut AudioEngine, practice: &Practice) {
-        match self.selected {
-            1 => self.clear_backing(engine, practice),
-            2 => self.clear_take(engine, practice),
-            _ => {}
+    pub(super) fn delete_selected(
+        &mut self,
+        engine: &mut AudioEngine,
+        practice: &Practice,
+        capture: &CaptureState,
+    ) {
+        let _ = practice;
+        let Some(id) = self.selected_track() else {
+            return;
+        };
+        // Removing the row that is currently recording also stops the writer.
+        if self.recording_id == Some(id) {
+            self.abort_capture(capture);
+        }
+        let _ = engine.remove_track(id);
+        self.session.remove(id);
+        self.selection = Selection::Transport;
+    }
+
+    fn selected_track(&self) -> Option<TrackId> {
+        match self.selection {
+            Selection::Transport => None,
+            Selection::Track(id) => Some(id),
         }
     }
 
-    /// Handle a key while the browser modal is open. Enter on the path field loads
-    /// the typed path; Enter on the list loads the highlighted file.
-    pub(super) fn handle_browser_key(&mut self, code: KeyCode) {
+    /// True while the transport row (not a track) owns the cursor.
+    pub(super) fn on_transport(&self) -> bool {
+        matches!(self.selection, Selection::Transport)
+    }
+
+    // ── Capture lifecycle ───────────────────────────────────────────────────────
+
+    /// Handle `R`: arm a fresh raw-take row, or stop the active take.
+    pub(super) fn arm_or_stop(
+        &mut self,
+        engine: &mut AudioEngine,
+        practice: &Practice,
+        capture: &CaptureState,
+    ) {
+        let _ = engine;
+        if self.recording_id.is_some() {
+            // Stop: silence the callback, ask the writer to finalize.
+            self.finalize_capture(capture);
+            return;
+        }
+        self.arm(capture, practice);
+    }
+
+    fn arm(&mut self, capture: &CaptureState, practice: &Practice) {
+        let ready = self
+            .session
+            .tracks()
+            .iter()
+            .filter(|t| t.is_ready())
+            .count();
+        if ready >= MAX_TRACKS {
+            self.message = Some(format!("Timeline is full ({MAX_TRACKS} tracks)"));
+            return;
+        }
+        let Some(cmd) = &self.capture_cmd else {
+            self.message = Some("Capture writer unavailable".to_owned());
+            return;
+        };
+        let id = self.session.alloc_id();
+        let start_ticks = self
+            .session
+            .frames_to_ticks(practice.position(), self.sample_rate);
+        let count = self
+            .session
+            .tracks()
+            .iter()
+            .filter(|t| t.kind == TrackKind::RawTake)
+            .count()
+            + 1;
+        self.session.push(
+            id,
+            format!("Take {count}"),
+            TrackKind::RawTake,
+            None,
+            start_ticks,
+            0,
+            TrackLifecycle::Recording,
+        );
+        self.selection = Selection::Track(id);
+
+        let path = self
+            .session
+            .recovery_dir()
+            .map(|d| d.join(format!("take-{id}.wav")))
+            .unwrap_or_else(|| PathBuf::from(format!("take-{id}.wav")));
+        let (tx, rx) = std::sync::mpsc::channel();
+        if cmd
+            .send(CaptureCommand::Begin {
+                generation: id,
+                path,
+                sample_rate: self.sample_rate as u32,
+                result: tx,
+            })
+            .is_err()
+        {
+            self.message = Some("Capture writer unavailable".to_owned());
+            self.session.remove(id);
+            self.selection = Selection::Transport;
+            return;
+        }
+        self.capture_result = Some(rx);
+        self.recording_id = Some(id);
+        capture.arm(id);
+        // Start transport if paused so the take follows the playhead.
+        practice.playing.store(true, Relaxed);
+        self.message = Some("Recording…".to_owned());
+    }
+
+    fn finalize_capture(&mut self, capture: &CaptureState) {
+        capture.disarm();
+        if let Some(tx) = &self.capture_cmd {
+            let _ = tx.send(CaptureCommand::End);
+        }
+        self.message = Some("Finalizing take…".to_owned());
+    }
+
+    /// Abort an in-flight take (device change / quit).
+    pub(super) fn abort_capture(&mut self, capture: &CaptureState) {
+        capture.disarm();
+        if let Some(tx) = &self.capture_cmd {
+            let _ = tx.send(CaptureCommand::Abort);
+        }
+        if let Some(id) = self.recording_id.take() {
+            self.session.remove(id);
+        }
+        self.capture_result = None;
+        self.selection = Selection::Transport;
+    }
+
+    pub(super) fn is_recording(&self) -> bool {
+        self.recording_id.is_some()
+    }
+
+    // ── Browser / gain modal input ──────────────────────────────────────────────
+
+    pub(super) fn handle_browser_key(&mut self, code: KeyCode, practice: &Practice) -> bool {
         match code {
-            KeyCode::Tab => {
-                self.field = 1 - self.field;
-                self.slot = if self.slot == Slot::Backing {
-                    Slot::Take
-                } else {
-                    Slot::Backing
-                };
-            }
             KeyCode::Up if self.field == 0 => {
                 self.browser_cursor = self.browser_cursor.saturating_sub(1);
             }
@@ -322,17 +643,20 @@ impl PracticeUi {
                 self.browser_cursor =
                     (self.browser_cursor + 1).min(self.files.len().saturating_sub(1));
             }
+            KeyCode::Tab => self.field = 1 - self.field,
             KeyCode::Enter => {
                 if self.field == 1 {
                     let p = self.path_input.trim().to_owned();
                     if p.is_empty() {
                         self.message = Some("Type a file path first".to_owned());
                     } else {
-                        self.start_decode(PathBuf::from(p), self.slot);
+                        self.import_at_playhead(PathBuf::from(p), practice);
+                        self.browser_open = false;
                     }
                 } else if let Some(file) = self.files.get(self.browser_cursor) {
                     let path = file.path.clone();
-                    self.start_decode(path, self.slot);
+                    self.import_at_playhead(path, practice);
+                    self.browser_open = false;
                 }
             }
             KeyCode::Backspace if self.field == 1 => {
@@ -346,10 +670,53 @@ impl PracticeUi {
             }
             _ => {}
         }
+        false
     }
 
+    pub(super) fn open_gain_edit(&mut self) {
+        if let Some(id) = self.selected_track() {
+            self.gain_edit = Some(id);
+        }
+    }
+
+    pub(super) fn handle_gain_key(&mut self, code: KeyCode, engine: &mut AudioEngine) {
+        let Some(id) = self.gain_edit else {
+            return;
+        };
+        match code {
+            KeyCode::Left | KeyCode::Down | KeyCode::Char('-') => {
+                self.nudge_gain(engine, id, -0.05)
+            }
+            KeyCode::Right | KeyCode::Up | KeyCode::Char('+') | KeyCode::Char('=') => {
+                self.nudge_gain(engine, id, 0.05);
+            }
+            KeyCode::Char('r') | KeyCode::Char('R') => self.set_gain(engine, id, 1.0),
+            KeyCode::Enter | KeyCode::Esc => self.gain_edit = None,
+            _ => {}
+        }
+    }
+
+    fn nudge_gain(&mut self, engine: &mut AudioEngine, id: TrackId, delta: f32) {
+        let current = self.session.track(id).map_or(1.0, |t| t.gain);
+        self.set_gain(engine, id, (current + delta).clamp(0.0, 2.0));
+    }
+
+    fn set_gain(&mut self, engine: &mut AudioEngine, id: TrackId, value: f32) {
+        if let Some(track) = self.session.track_mut(id) {
+            track.gain = value;
+        }
+        let _ = engine.set_track_gain(id, value);
+    }
+
+    pub(super) fn gain_open(&self) -> bool {
+        self.gain_edit.is_some()
+    }
+
+    // ── Rendering ───────────────────────────────────────────────────────────────
+
     /// Render the timeline pane. `focused` is true while the pane owns focus;
-    /// `recording` drives the transport REC lamp (the header ON AIR row is gone).
+    /// `recording` drives the transport REC lamp.
+    #[allow(clippy::too_many_arguments)]
     pub(super) fn render(
         &self,
         f: &mut Frame,
@@ -358,6 +725,7 @@ impl PracticeUi {
         focused: bool,
         blink: bool,
         recording: bool,
+        takes_builtin: bool,
     ) {
         if area.height < 2 || area.width < 4 {
             return;
@@ -368,7 +736,7 @@ impl PracticeUi {
             .border_type(BorderType::Plain)
             .border_style(border_style(focused))
             .title(Line::from(Span::styled(
-                " P R A C T I C E ",
+                " T I M E L I N E ",
                 Style::default()
                     .fg(focused_glyph)
                     .add_modifier(Modifier::BOLD),
@@ -377,55 +745,34 @@ impl PracticeUi {
         let inner = block.inner(area);
         f.render_widget(block, area);
 
-        let playing = practice.playing.load(Relaxed);
-        let total = practice.timeline_len();
-        let position = practice.position().min(total.max(1));
-        let has_any = self.backing_name.is_some() || self.record_name.is_some();
-
         let rows = Layout::default()
             .direction(Direction::Vertical)
             .constraints([
                 Constraint::Length(1), // transport
-                Constraint::Length(3), // backing (3-row waveform)
-                Constraint::Length(3), // take (3-row waveform)
-                Constraint::Min(1),    // hint/message (absorbs leftover)
+                Constraint::Min(1),    // track list
+                Constraint::Length(1), // hint/message
             ])
             .split(inner);
 
-        if !has_any {
-            let mut empty = vec![
-                if recording && blink {
-                    Span::styled(
-                        "●REC ",
-                        Style::default().fg(HOT).add_modifier(Modifier::BOLD),
-                    )
-                } else if recording {
-                    Span::styled("○REC ", Style::default().fg(HOT))
-                } else {
-                    Span::raw("  ")
-                },
-                Span::styled("no track — press ", Style::default().fg(DIM)),
-                Span::styled("B", Style::default().fg(AMBER)),
-                Span::styled(" to load a backing track or take", Style::default().fg(DIM)),
-            ];
-            if self.loading {
-                empty.push(Span::styled("   (loading…)", Style::default().fg(HOT)));
-            }
-            f.render_widget(Paragraph::new(Line::from(empty)), rows[0]);
-            if let Some(msg) = &self.message {
-                f.render_widget(
-                    Paragraph::new(Line::from(Span::styled(
-                        msg.clone(),
-                        Style::default().fg(WARN),
-                    )))
-                    .alignment(Alignment::Center),
-                    rows[3],
-                );
-            }
-            return;
-        }
+        self.render_transport(f, rows[0], practice, focused, blink, recording);
+        self.render_tracks(f, rows[1], practice, focused);
+        self.render_hint(f, rows[2], focused, takes_builtin);
+    }
 
-        // ── transport line ──────────────────────────────────────────────────────
+    fn render_transport(
+        &self,
+        f: &mut Frame,
+        area: Rect,
+        practice: &Practice,
+        focused: bool,
+        blink: bool,
+        recording: bool,
+    ) {
+        let playing = practice.playing.load(Relaxed);
+        let total = self
+            .session
+            .ticks_to_frames(self.session.extent_ticks(), self.sample_rate);
+        let position = practice.position().min(total.max(1));
         let state = if playing {
             Span::styled(
                 " ▶ ",
@@ -434,7 +781,7 @@ impl PracticeUi {
         } else {
             Span::styled(" ⏸ ", Style::default().fg(DIM))
         };
-        let cursor = if focused && self.selected == 0 && blink {
+        let cursor = if focused && self.selection == Selection::Transport && blink {
             "▌"
         } else {
             " "
@@ -443,8 +790,6 @@ impl PracticeUi {
         let mut transport = vec![
             Span::styled(cursor.to_owned(), Style::default().fg(ACCENT)),
             state,
-            // REC lamp (fixed width so the time readout never shifts): the dot
-            // blinks while a take records.
             if recording && blink {
                 Span::styled(
                     "●REC ",
@@ -462,6 +807,10 @@ impl PracticeUi {
                     mmss(total, self.sample_rate)
                 ),
                 Style::default().fg(CHROME),
+            ),
+            Span::styled(
+                format!("{}s ", self.session.seek_seconds()),
+                Style::default().fg(AMBER),
             ),
             Span::styled(
                 if loop_on { "LOOP " } else { "loop " },
@@ -489,133 +838,105 @@ impl PracticeUi {
         if let Some(msg) = &self.message {
             transport.push(Span::styled(msg.clone(), Style::default().fg(WARN)));
         }
-        f.render_widget(Paragraph::new(Line::from(transport)), rows[0]);
-
-        // ── track blocks (3 rows each so the 10-row pane is all waveform) ────
-        let width = inner.width as usize;
-        f.render_widget(
-            Paragraph::new(self.track_rows(
-                "BACK",
-                self.backing_name.as_deref(),
-                &self.backing_peaks,
-                self.backing_frames,
-                0,
-                practice.backing_muted.load(Relaxed),
-                focused && self.selected == 1,
-                practice,
-                position,
-                total,
-                width,
-                rows[1].height as usize,
-            )),
-            rows[1],
-        );
-        f.render_widget(
-            Paragraph::new(self.track_rows(
-                "TAKE",
-                self.record_name.as_deref(),
-                &self.record_peaks,
-                self.record_frames,
-                self.record_offset,
-                practice.record_muted.load(Relaxed),
-                focused && self.selected == 2,
-                practice,
-                position,
-                total,
-                width,
-                rows[2].height as usize,
-            )),
-            rows[2],
-        );
-
-        // ── hint line ───────────────────────────────────────────────────────────
-        let hint = if focused {
-            Line::from(vec![
-                Span::styled("↑/↓", Style::default().fg(AMBER)),
-                Span::styled(" select  ", Style::default().fg(DIM)),
-                Span::styled("Space", Style::default().fg(AMBER)),
-                Span::styled(" play/mute  ", Style::default().fg(DIM)),
-                Span::styled("←/→", Style::default().fg(AMBER)),
-                Span::styled(" seek  ", Style::default().fg(DIM)),
-                Span::styled("[ ]", Style::default().fg(AMBER)),
-                Span::styled(" loop  ", Style::default().fg(DIM)),
-                Span::styled("L", Style::default().fg(AMBER)),
-                Span::styled(" on/off  ", Style::default().fg(DIM)),
-                Span::styled("Del", Style::default().fg(AMBER)),
-                Span::styled(" delete  ", Style::default().fg(DIM)),
-                Span::styled("B", Style::default().fg(AMBER)),
-                Span::styled(" browser", Style::default().fg(DIM)),
-            ])
-        } else {
-            Line::from(vec![
-                Span::styled("Tab", Style::default().fg(AMBER)),
-                Span::styled(" to focus the timeline  ·  ", Style::default().fg(DIM)),
-                Span::styled("B", Style::default().fg(AMBER)),
-                Span::styled(" load a track", Style::default().fg(DIM)),
-            ])
-        };
-        f.render_widget(Paragraph::new(hint).alignment(Alignment::Left), rows[3]);
+        f.render_widget(Paragraph::new(Line::from(transport)), area);
     }
 
-    /// Build one track's rows: focus cursor, mute LED, name, then a tall waveform
-    /// with the playhead and loop shading. `track_frames` is the track's own length
-    /// and `start` its timeline offset (0 for backing, the captured playhead for a
-    /// take), so both align on the shared cursor. `height` is the rows available
-    /// (3 in the 10-row pane); the first row carries the label and the wave cells
-    /// repeat below it so the waveform reads tall instead of single-line.
+    fn render_tracks(&self, f: &mut Frame, area: Rect, practice: &Practice, focused: bool) {
+        let tracks = self.session.tracks();
+        if tracks.is_empty() {
+            f.render_widget(
+                Paragraph::new(Line::from(vec![
+                    Span::styled("no tracks — press ", Style::default().fg(DIM)),
+                    Span::styled("B", Style::default().fg(AMBER)),
+                    Span::styled(" to import, ", Style::default().fg(DIM)),
+                    Span::styled("R", Style::default().fg(AMBER)),
+                    Span::styled(" to record a raw take", Style::default().fg(DIM)),
+                ])),
+                area,
+            );
+            return;
+        }
+        let visible = area.height as usize;
+        let selected_idx = match self.selection {
+            Selection::Transport => None,
+            Selection::Track(id) => self.session.index_of(id),
+        };
+        let offset = match selected_idx {
+            Some(idx) => idx.saturating_sub(visible.saturating_sub(1)),
+            None => 0,
+        };
+        let total = self
+            .session
+            .ticks_to_frames(self.session.extent_ticks(), self.sample_rate)
+            .max(1);
+        let position = practice.position().min(total);
+        let width = area.width as usize;
+
+        let mut lines: Vec<Line> = Vec::with_capacity(visible);
+        for (i, track) in tracks.iter().enumerate().skip(offset).take(visible) {
+            let focused_row = focused && selected_idx == Some(i);
+            lines.push(self.track_line(track, focused_row, practice, position, total, width));
+        }
+        f.render_widget(Paragraph::new(lines), area);
+    }
+
     #[allow(clippy::too_many_arguments)]
-    fn track_rows<'a>(
+    fn track_line<'a>(
         &self,
-        tag: &str,
-        name: Option<&str>,
-        peaks: &[(f32, f32)],
-        track_frames: usize,
-        start: usize,
-        muted: bool,
+        track: &crate::session::Track,
         focused: bool,
         practice: &Practice,
         position: usize,
         total: usize,
         width: usize,
-        height: usize,
-    ) -> Vec<Line<'a>> {
-        let loaded = name.is_some() && track_frames > 0;
-        let led = if muted {
+    ) -> Line<'a> {
+        let start = self
+            .session
+            .ticks_to_frames(track.start_ticks, self.sample_rate);
+        let frames = self
+            .session
+            .ticks_to_frames(track.length_ticks, self.sample_rate);
+        let loaded = track.is_ready() && frames > 0;
+        let (tag, tag_color) = match track.kind {
+            TrackKind::Import => ("IMP ", CHROME),
+            TrackKind::RawTake => ("TAKE", CHROME),
+        };
+        let led = if track.muted {
             Span::styled("○ ", Style::default().fg(DIM))
         } else if loaded {
             Span::styled("● ", Style::default().fg(SAFE))
+        } else if matches!(track.lifecycle, TrackLifecycle::Recording) {
+            Span::styled("◉ ", Style::default().fg(HOT))
         } else {
             Span::styled("· ", Style::default().fg(DIM))
         };
-        let name = name.unwrap_or("empty");
-        let label = format!("{tag:<4} ");
-        let name_w = 16usize;
-        let mut first = vec![
+        let name_w = 14usize;
+        let gain = format!("{:>3}%", (track.gain * 100.0).round() as i32);
+        let mut spans = vec![
             Span::styled(
                 if focused { "▌" } else { " " }.to_owned(),
                 Style::default().fg(ACCENT),
             ),
             led,
+            Span::styled(tag.to_owned(), Style::default().fg(tag_color)),
+            Span::raw(" "),
             Span::styled(
-                label.clone(),
+                format!("{:<name_w$}", truncate(&track.name, name_w)),
                 Style::default().fg(if loaded { CHROME } else { DIM }),
             ),
-            Span::styled(
-                format!("{:<name_w$}", truncate(name, name_w)),
-                Style::default().fg(if loaded { CHROME } else { DIM }),
-            ),
+            Span::styled(gain, Style::default().fg(AMBER)),
             Span::raw(" "),
         ];
-
-        let used = 1 + 2 + label.len() + name_w + 1;
+        let used = 1 + 2 + 4 + 1 + name_w + 4 + 1;
         let wave_w = width.saturating_sub(used);
-        let height = height.max(1);
-        if !loaded || wave_w == 0 || total == 0 || peaks.is_empty() || track_frames == 0 {
-            let mut out = vec![Line::from(first)];
-            while out.len() < height {
-                out.push(Line::from(Span::raw("")));
+        if !loaded || wave_w == 0 || total == 0 || track.peaks.is_empty() {
+            if let TrackLifecycle::Error(e) = &track.lifecycle {
+                spans.push(Span::styled(
+                    format!(" {}", truncate(e, wave_w.max(4))),
+                    Style::default().fg(WARN),
+                ));
             }
-            return out;
+            return Line::from(spans);
         }
 
         let loop_on = practice.loop_enabled.load(Relaxed);
@@ -623,50 +944,84 @@ impl PracticeUi {
             practice.loop_start.load(Relaxed) as usize,
             practice.loop_end.load(Relaxed) as usize,
         );
-        let pos_col = position * (wave_w.saturating_sub(1)) / total;
+        let pos_col = position * wave_w.saturating_sub(1) / total;
         let bars = [' ', '▁', '▂', '▃', '▄', '▅', '▆', '▇', '█'];
-        // One styled cell per waveform column, shared by all rows.
-        let mut cells: Vec<Span<'a>> = Vec::with_capacity(wave_w);
         for col in 0..wave_w {
             let frame = col * total / wave_w.max(1);
-            let in_loop = loop_on && lb > la && frame >= la && frame < lb;
             if col == pos_col {
-                cells.push(Span::styled(
+                spans.push(Span::styled(
                     "│",
                     Style::default().fg(HOT).add_modifier(Modifier::BOLD),
                 ));
                 continue;
             }
-            let inside = frame >= start && frame - start < track_frames;
+            let in_loop = loop_on && lb > la && frame >= la && frame < lb;
+            let inside = frame >= start && frame - start < frames;
             let ch = if !inside {
                 if in_loop { '·' } else { ' ' }
             } else {
                 let rel = frame - start;
-                let bucket = rel * peaks.len() / track_frames.max(1);
-                let amp = peaks
-                    .get(bucket.min(peaks.len() - 1))
+                let bucket = rel * track.peaks.len() / frames.max(1);
+                let amp = track
+                    .peaks
+                    .get(bucket.min(track.peaks.len() - 1))
                     .map(|(lo, hi)| (hi - lo).max(0.0))
                     .unwrap_or(0.0);
-                let level = (amp.sqrt() * 8.0).round() as usize;
-                bars[level.min(bars.len() - 1)]
+                bars[(amp.sqrt() * 8.0).round() as usize % bars.len()]
             };
-            let color = if in_loop { HOT } else { CHROME };
-            cells.push(Span::styled(ch.to_string(), Style::default().fg(color)));
+            spans.push(Span::styled(
+                ch.to_string(),
+                Style::default().fg(if in_loop { HOT } else { CHROME }),
+            ));
         }
-        first.extend(cells.iter().cloned());
-        let mut out = vec![Line::from(first)];
-        // Continuation rows: blank label gutter so the wave aligns under row 0,
-        // same cells so the playhead reads as a vertical line.
-        let gutter = Span::raw(" ".repeat(used));
-        while out.len() < height {
-            let mut spans = vec![gutter.clone()];
-            spans.extend(cells.iter().cloned());
-            out.push(Line::from(spans));
-        }
-        out
+        Line::from(spans)
     }
 
-    /// Render the backing/track browser modal.
+    fn render_hint(&self, f: &mut Frame, area: Rect, focused: bool, takes_builtin: bool) {
+        if takes_builtin {
+            let note = Line::from(vec![
+                Span::styled("⚠ ", Style::default().fg(WARN)),
+                Span::styled(
+                    "takes monitor through the built-in amp/cab (external rig is not mirrored yet)",
+                    Style::default().fg(WARN),
+                ),
+            ]);
+            f.render_widget(Paragraph::new(note).alignment(Alignment::Left), area);
+            return;
+        }
+        let hint = if focused {
+            Line::from(vec![
+                Span::styled("Space", Style::default().fg(AMBER)),
+                Span::styled(" play/mute  ", Style::default().fg(DIM)),
+                Span::styled("←/→", Style::default().fg(AMBER)),
+                Span::styled(" seek  ", Style::default().fg(DIM)),
+                Span::styled("+/-", Style::default().fg(AMBER)),
+                Span::styled(" step  ", Style::default().fg(DIM)),
+                Span::styled("G", Style::default().fg(AMBER)),
+                Span::styled(" gain  ", Style::default().fg(DIM)),
+                Span::styled("[ ] L", Style::default().fg(AMBER)),
+                Span::styled(" loop  ", Style::default().fg(DIM)),
+                Span::styled("Del", Style::default().fg(AMBER)),
+                Span::styled(" remove  ", Style::default().fg(DIM)),
+                Span::styled("R", Style::default().fg(AMBER)),
+                Span::styled(" rec  ", Style::default().fg(DIM)),
+                Span::styled("B", Style::default().fg(AMBER)),
+                Span::styled(" import", Style::default().fg(DIM)),
+            ])
+        } else {
+            Line::from(vec![
+                Span::styled("3", Style::default().fg(AMBER)),
+                Span::styled(" focus the timeline  ·  ", Style::default().fg(DIM)),
+                Span::styled("B", Style::default().fg(AMBER)),
+                Span::styled(" import  ·  ", Style::default().fg(DIM)),
+                Span::styled("R", Style::default().fg(AMBER)),
+                Span::styled(" record", Style::default().fg(DIM)),
+            ])
+        };
+        f.render_widget(Paragraph::new(hint).alignment(Alignment::Left), area);
+    }
+
+    /// Render the import browser modal.
     pub(super) fn render_browser(&self, f: &mut Frame) {
         let area = centered_rect(62, f.area());
         f.render_widget(Clear, area);
@@ -675,7 +1030,7 @@ impl PracticeUi {
             .border_type(BorderType::Double)
             .border_style(Style::default().fg(ACCENT))
             .title(Span::styled(
-                " P R A C T I C E   T R A C K S ",
+                " I M P O R T   T R A C K ",
                 Style::default().fg(AMBER).add_modifier(Modifier::BOLD),
             ))
             .style(Style::default().bg(Color::Black));
@@ -685,7 +1040,7 @@ impl PracticeUi {
         let rows = Layout::default()
             .direction(Direction::Vertical)
             .constraints([
-                Constraint::Length(1), // slot line
+                Constraint::Length(1), // intro
                 Constraint::Length(1), // path field
                 Constraint::Min(1),    // file list
                 Constraint::Length(1), // hint
@@ -693,15 +1048,13 @@ impl PracticeUi {
             ])
             .split(inner);
 
-        let slot_label = match self.slot {
-            Slot::Backing => "Loading into: BACKING",
-            Slot::Take => "Loading into: TAKE",
-        };
         f.render_widget(
             Paragraph::new(Line::from(vec![
-                Span::styled("Tab", Style::default().fg(AMBER)),
-                Span::styled(" switch target  ", Style::default().fg(DIM)),
-                Span::styled(slot_label, Style::default().fg(CHROME)),
+                Span::styled("Enter", Style::default().fg(AMBER)),
+                Span::styled(
+                    " adds the file as a new track at the playhead",
+                    Style::default().fg(DIM),
+                ),
             ])),
             rows[0],
         );
@@ -727,7 +1080,6 @@ impl PracticeUi {
             rows[1],
         );
 
-        // File list (highlight when the list has focus).
         let mut lines: Vec<Line> = Vec::with_capacity(self.files.len());
         for (i, file) in self.files.iter().enumerate() {
             let selected = i == self.browser_cursor && self.field == 0;
@@ -752,8 +1104,8 @@ impl PracticeUi {
             Paragraph::new(Line::from(vec![
                 Span::styled("↑/↓", Style::default().fg(AMBER)),
                 Span::styled(" files  ", Style::default().fg(DIM)),
-                Span::styled("Enter", Style::default().fg(AMBER)),
-                Span::styled(" load  ", Style::default().fg(DIM)),
+                Span::styled("Tab", Style::default().fg(AMBER)),
+                Span::styled(" path  ", Style::default().fg(DIM)),
                 Span::styled("Esc / B", Style::default().fg(AMBER)),
                 Span::styled(" close", Style::default().fg(DIM)),
             ]))
@@ -761,38 +1113,75 @@ impl PracticeUi {
             rows[3],
         );
 
-        let msg = if self.loading {
-            "Loading…".to_owned()
-        } else {
-            self.message.clone().unwrap_or_default()
-        };
+        let msg = self.message.clone().unwrap_or_default();
         f.render_widget(
             Paragraph::new(Line::from(Span::styled(msg, Style::default().fg(WARN))))
                 .alignment(Alignment::Center),
             rows[4],
         );
     }
+
+    /// Render the per-track gain modal.
+    pub(super) fn render_gain_modal(&self, f: &mut Frame) {
+        let Some(id) = self.gain_edit else {
+            return;
+        };
+        let Some(track) = self.session.track(id) else {
+            return;
+        };
+        let area = centered_box(46, 7, f.area());
+        f.render_widget(Clear, area);
+        let block = Block::default()
+            .borders(Borders::ALL)
+            .border_type(BorderType::Double)
+            .border_style(Style::default().fg(ACCENT))
+            .title(Span::styled(
+                " T R A C K   G A I N ",
+                Style::default().fg(AMBER).add_modifier(Modifier::BOLD),
+            ))
+            .style(Style::default().bg(Color::Black));
+        let inner = block.inner(area);
+        f.render_widget(block, area);
+
+        let kind = match track.kind {
+            TrackKind::Import => "monitor volume",
+            TrackKind::RawTake => "pre-rig level (drives the amp)",
+        };
+        let pct = (track.gain * 100.0).round() as i32;
+        let bar_w = inner.width.saturating_sub(2) as usize;
+        let filled = ((track.gain / 2.0).clamp(0.0, 1.0) * bar_w as f32).round() as usize;
+        let bar = format!(
+            "{}{}",
+            "█".repeat(filled),
+            "·".repeat(bar_w.saturating_sub(filled))
+        );
+        let text = vec![
+            Line::from(Span::styled(
+                truncate(&track.name, inner.width as usize),
+                Style::default().fg(CHROME),
+            )),
+            Line::from(Span::styled(kind.to_owned(), Style::default().fg(DIM))),
+            Line::from(Span::styled(bar, Style::default().fg(ACCENT))),
+            Line::from(vec![
+                Span::styled(
+                    format!("{pct}%  "),
+                    Style::default().fg(AMBER).add_modifier(Modifier::BOLD),
+                ),
+                Span::styled(
+                    "←/→ adjust · R reset · Enter/Esc close",
+                    Style::default().fg(DIM),
+                ),
+            ]),
+        ];
+        f.render_widget(Paragraph::new(text), inner);
+    }
 }
 
-/// Peak envelope over `buckets` buckets: (min, max) of the mono sum per bucket.
-pub(super) fn peaks(track: &PlayerTrack, buckets: usize) -> Vec<(f32, f32)> {
-    let n = track.frames();
-    if n == 0 || buckets == 0 {
-        return Vec::new();
+fn to_player_kind(kind: TrackKind) -> PlayerKind {
+    match kind {
+        TrackKind::Import => PlayerKind::Import,
+        TrackKind::RawTake => PlayerKind::RawTake,
     }
-    let mut out = Vec::with_capacity(buckets);
-    for b in 0..buckets {
-        let start = b * n / buckets;
-        let end = (((b + 1) * n) / buckets).max(start + 1).min(n);
-        let (mut lo, mut hi) = (0.0f32, 0.0f32);
-        for i in start..end {
-            let s = 0.5 * (track.l[i] + track.r[i]);
-            lo = lo.min(s);
-            hi = hi.max(s);
-        }
-        out.push((lo, hi));
-    }
-    out
 }
 
 fn file_entry(file: &TrackFile, selected: bool) -> Line<'static> {
@@ -896,6 +1285,19 @@ fn is_audio(path: &Path) -> bool {
 fn centered_rect(percent_x: u16, area: Rect) -> Rect {
     let width = (area.width * percent_x / 100).max(30).min(area.width);
     let height = (area.height * 70 / 100).max(10);
+    let x = (area.width.saturating_sub(width)) / 2;
+    let y = (area.height.saturating_sub(height)) / 2;
+    Rect {
+        x: area.x + x,
+        y: area.y + y,
+        width,
+        height,
+    }
+}
+
+fn centered_box(width: u16, height: u16, area: Rect) -> Rect {
+    let width = width.min(area.width);
+    let height = height.min(area.height);
     let x = (area.width.saturating_sub(width)) / 2;
     let y = (area.height.saturating_sub(height)) / 2;
     Rect {

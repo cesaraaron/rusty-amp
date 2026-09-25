@@ -94,6 +94,14 @@ pub(super) fn draw(
     }
     if show_timeline {
         if let Some((practice, ui)) = timeline {
+            // D1: the take bus runs the built-in rig only. Warn while an external
+            // amp or IR is selected so the mismatch is never silent.
+            let takes_builtin = params
+                .amp_external_active
+                .load(std::sync::atomic::Ordering::Relaxed)
+                || params
+                    .cab_external_active
+                    .load(std::sync::atomic::Ordering::Relaxed);
             ui.render(
                 f,
                 rows[i],
@@ -101,6 +109,7 @@ pub(super) fn draw(
                 focus == Some(PRACTICE_TILE),
                 blink,
                 recording,
+                takes_builtin,
             );
         }
         i += 1;
@@ -1255,20 +1264,22 @@ pub(super) fn render_help_modal(f: &mut Frame) {
     lines.extend([
         row(
             "  R",
-            "  start / stop recording (take lands on the timeline)",
+            "  arm / stop a dry raw take (auto-plays; lands on the timeline)",
         ),
         row("  Q / Ctrl-C", "  quit"),
         head("Panels"),
-        row("  B", "  practice-track browser (MP3 / WAV / FLAC)"),
+        row("  B", "  import a track at the playhead (MP3 / WAV / FLAC)"),
         head("Preset browser"),
         row("  ↑/↓  Enter", "  navigate / apply (audio uninterrupted)"),
         row("  S / E / I", "  save / export / import"),
         row("  D", "  delete (user presets only)"),
         head("Timeline (focused)"),
         row("  Space", "  play / pause, or mute the selected track"),
-        row("  ↑/↓  ←/→", "  select line / seek ±5 s"),
+        row("  ↑/↓  ←/→", "  select row / seek by the step"),
+        row("  +/−", "  seek step: 1 / 5 / 10 / 30 s"),
+        row("  G", "  selected track gain"),
         row("  [ / ]  L", "  loop in-point / out-point, toggle loop"),
-        row("  Del", "  delete selected track"),
+        row("  Del", "  remove selected track"),
     ]);
 
     let width = (f.area().width * 55 / 100).max(40);
@@ -2151,7 +2162,7 @@ mod tests {
         let params = Params::new();
         let levels = Levels::new();
         let practice = crate::practice::Practice::new();
-        let ui = crate::ui::practice::PracticeUi::new(48_000.0);
+        let ui = crate::ui::practice::PracticeUi::new();
         let mut term = Terminal::new(TestBackend::new(W, H)).expect("test backend");
         term.draw(|f| {
             draw(
@@ -2181,7 +2192,7 @@ mod tests {
     fn practice_pane_renders_and_hides() {
         let shown = render_with_practice(Panels::all_visible(), false);
         assert!(
-            shown.contains("P R A C T I C E"),
+            shown.contains("T I M E L I N E"),
             "practice pane missing when shown"
         );
         insta::assert_snapshot!("practice_pane", shown);
@@ -2194,7 +2205,7 @@ mod tests {
             false,
         );
         assert!(
-            !hidden.contains("P R A C T I C E"),
+            !hidden.contains("T I M E L I N E"),
             "practice pane still drawn while hidden"
         );
     }

@@ -3,15 +3,15 @@ layout: page.njk
 permalink: tools.html
 title: "Tools · rusty-amp"
 ogTitle: "rusty-amp · tools"
-description: "The built-in chromatic tuner, practice metronome, and one-key WAV recording in rusty-amp — how to use them and what they capture."
+description: "The built-in chromatic tuner, practice metronome, multitrack jam-along timeline, and re-ampable raw takes in rusty-amp — how to use them and what they capture."
 eyebrow: "Tools"
 heading: "Tools"
-lead: "Built-in utilities you can reach at any time — a chromatic tuner that mutes the rig to a clean signal, a practice metronome that stays out of your recordings, and one-key recording of the processed output."
+lead: "Built-in utilities you can reach at any time — a chromatic tuner that mutes the rig to a clean signal, a practice metronome that stays out of your takes, a multitrack jam-along timeline, and dry raw takes you can re-amp with the live rig."
 toc:
   - { href: "#tuner", label: "Tuner" }
   - { href: "#metronome", label: "Metronome" }
-  - { href: "#practice", label: "Practice / jam-along" }
-  - { href: "#recording", label: "Recording" }
+  - { href: "#practice", label: "Practice & timeline" }
+  - { href: "#recording", label: "Raw takes" }
 prev: { href: "plugins.html", label: "CLAP plugins" }
 next: { href: "how-it-works.html", label: "How it works (under the hood)" }
 ---
@@ -59,20 +59,22 @@ The metronome keeps ticking after you close the modal, so you can dial in a temp
 <b>Never on the tape.</b> The click is mixed into the monitor output <em>after</em> the recording tap, so an active metronome is <b>never captured</b> in your WAV — you can practise to the beat and record a clean take at the same time.
 </div>
 
-## Practice / jam-along <span class="muted">(<kbd>B</kbd>)</span> {#practice}
+## Practice & timeline <span class="muted">(<kbd>B</kbd>)</span> {#practice}
 
-Play along with a backing track and loop the hard bits. Press <kbd>B</kbd> to open the **Practice tracks** browser and pick an audio file — **MP3, WAV, or FLAC** — from `~/Music`, `~/Desktop`, the current directory, `$RUSTY_AMP_PRACTICE_DIR`, or a path you type in. The file is decoded and resampled to your interface's rate off the audio thread, so the TUI never stalls.
+Play along with one or more backing tracks and loop the hard bits. Press <kbd>B</kbd> to open the **Import track** browser and pick an audio file — **MP3, WAV, or FLAC** — from `~/Music`, `~/Desktop`, the current directory, `$RUSTY_AMP_PRACTICE_DIR`, or a path you type in. Each import is added as a **new track at the current playhead**, and you can stack as many as you like (up to a bounded track limit). Files are decoded and resampled to your interface's rate off the audio thread, so the TUI never stalls.
 
-The **practice timeline** is the horizontal pane under the amp panel. It shows a transport line and one line per track, with a mini waveform and the playhead:
+The **timeline** is the scrollable pane that shows a transport line followed by one row per track, each with its name, type, mute LED, gain, a mini waveform and the shared playhead:
 
-- **Transport** — press <kbd>3</kbd> to focus the timeline, then <kbd>↑</kbd>/<kbd>↓</kbd> to pick the transport, <kbd>Space</kbd> to play/pause, and <kbd>←</kbd>/<kbd>→</kbd> to seek ±5&nbsp;s.
+- **Transport** — press <kbd>3</kbd> to focus the timeline, then <kbd>Space</kbd> on the transport row to play/pause.
+- **Select a row** — <kbd>↑</kbd>/<kbd>↓</kbd> walks the transport and the tracks.
+- **Seek** — <kbd>←</kbd>/<kbd>→</kbd> moves by the current step; <kbd>+</kbd>/<kbd>−</kbd> cycle the step through **1 / 5 / 10 / 30&nbsp;s**.
 - **Loop a section** — park the playhead and press <kbd>[</kbd> for the in-point and <kbd>]</kbd> for the out-point; <kbd>L</kbd> toggles looping. The loop region is shaded on the timeline.
-- **Mute a track** — select the backing or take line and press <kbd>Space</kbd> (the LED turns hollow).
-- **Delete a track** — select it and press <kbd>Delete</kbd>/<kbd>Backspace</kbd>.
-- **Your take** — press <kbd>R</kbd> to record; when you stop, the take is saved as a WAV **and** dropped onto the timeline, aligned to where the backing was when you started.
+- **Mute a track** — select its row and press <kbd>Space</kbd> (the LED turns hollow).
+- **Track gain** — select a row and press <kbd>G</kbd>; on an import this is the **monitor volume**, on a raw take it is the **pre-rig level** (it changes how the amp reacts, not just how loud the result is).
+- **Remove a track** — select it and press <kbd>Delete</kbd>/<kbd>Backspace</kbd>. Source files on disk are left alone.
 
 <div class="note note--info">
-<b>Monitor-only, like the metronome.</b> The backing track and your take are mixed into your monitor <em>after</em> the recording tap, so they are <b>never captured</b> in a new WAV — you always record just your guitar.
+<b>Imports are monitor-only.</b> Imported backing audio is summed into your monitor <em>after</em> the capture tap, so it is <b>never captured</b> in a raw take. You always record just your dry guitar.
 </div>
 
 ### Hiding panels {#panels}
@@ -81,9 +83,11 @@ The screen is four numbered panels. <kbd>1</kbd> focuses the live-order ribbon (
 
 Hidden panels give their space back to the rest of the rig, and the number keys are the only way to switch between panels — <kbd>Tab</kbd> stays inside the focused one. The choice lasts for the session.
 
-## Recording <span class="muted">(<kbd>R</kbd>)</span> {#recording}
+## Raw takes <span class="muted">(<kbd>R</kbd>)</span> {#recording}
 
-Press <kbd>R</kbd> to start recording. A blinking `●REC` lamp lights up on the practice timeline's transport line (next to `▶`). Press <kbd>R</kbd> again to stop — the file is written immediately and the saved path is shown briefly in the footer.
+Press <kbd>R</kbd> to arm a **new raw take**. A blinking `●REC` lamp lights up on the timeline's transport line, transport starts automatically if it was paused, and the **dry selected input channel** is captured from the current playhead — *before* the gate, pedals, amp, cab and output limiter. Press <kbd>R</kbd> again (or let a loop reach its out-point) to stop; the take is placed on the timeline as its own row.
+
+Raw takes are **non-destructive and re-ampable**: the timeline stores the dry guitar, and the currently selected pedals, amp and cabinet render it live. Change a knob or switch amp model and the same take changes with it. Each take is a new row — recording again never overwrites the previous one.
 
 <div class="widget rec" data-rec>
   <div class="rec__header"><span>⏸</span><span class="rec__air">○REC</span><span>00:00 / 00:00</span></div>
@@ -94,4 +98,10 @@ Press <kbd>R</kbd> to start recording. A blinking `●REC` lamp lights up on the
 </div>
 <p class="widget__demo"><b>Interactive demo</b> — hit <em>Record</em> to see the on-air flow; nothing is captured here.</p>
 
-Recordings capture the fully-processed signal (after the entire effects chain and output limiter) as a 32-bit float **stereo** WAV at the same sample rate as your audio interface — the full multi-mic cab spread and stereo effects are preserved. Files are named `rusty-amp-<unix-timestamp>.wav` and saved to your home directory (`~/`).
+<div class="note">
+<b>No surprise files.</b> Stopping a take does <b>not</b> write a processed WAV to your home directory. Dry captures are held in a recoverable session cache and placed on the timeline; a portable session save and a guitar-only final WAV export are next.
+</div>
+
+<div class="note note--info">
+<b>Monitor-only, like the metronome.</b> Imports, the metronome click and already-recorded takes are summed into your monitor <em>after</em> the capture tap, so a new take contains only your live dry guitar.
+</div>

@@ -8,42 +8,43 @@ expression: text
 ┏┤ MESA DUAL RECTIFIER ├━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┤ 🎙 MESA V30 ├┓
 ┃                                                                                                                     ┃┃                                                 ┃
 ┃         ···                ···                 ···                ··◇                 ◇··                ·◇·        ┃┃       ◇··             ···              ···      ┃
-┃        · ● ◇              · ● ·               · ● ·              · ● ·               · ● ·              · ● ·       ┃┃      · ● ·           · ● ·            · ● ·     ┃
-┃         · ·                · ◇      ╔ K E Y B I N D I N G S ════════════════════════════════════════════════════════════════════╗            ◇ ·              ◇ ·      ┃
-┃      GAIN 7.5           BASS 10.0   ║Panels & chain                                                                             ║0        BLEND 0.0        ROOM 0.0    ┃
-┃                                     ║  1 / 2 / 3 / 4  focus chain, amp, timeline, pedals (again: hide)                          ║                                      ┃
+┃        · ● ◇              · ● ·     ╔ K E Y B I N D I N G S ════════════════════════════════════════════════════════════════════╗           · ● ·            · ● ·     ┃
+┃         · ·                · ◇      ║Panels & chain                                                                             ║            ◇ ·              ◇ ·      ┃
+┃      GAIN 7.5           BASS 10.0   ║  1 / 2 / 3 / 4  focus chain, amp, timeline, pedals (again: hide)                          ║0        BLEND 0.0        ROOM 0.0    ┃
 ┃                                     ║  Tab / Shift-Tab  cycle amp/cab (2) or pedals (4) in the panel                            ║                                      ┃
-┃▚▞▚▞▚▞▚▞▚▞▚▞▚▞▚▞▚▞▚▞▚▞▚▞▚▞▚▞▚▞▚▞▚▞▚▞▚║  ←/→  move inside the focused panel                                                       ║▞▚▞▚▞▚▞▚▞▚▞▚▞▚▞▚▞▚▞▚▞▚▞▚▞▚▞▚▞▚▞▚▞▚▞▚▞▚┃
-┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━║  [ / ]  move the ribbon's stage earlier / later                                           ║━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
-┌ GUITAR RIG ─────────────────────────║  Space  bypass stage, pedal, or transport under focus                                     ║──────────────────────────────────────┐
-│┌ NOISE GATE ◉ ──────────────────────║Play & edit                                                                                ║ADD ─────────────────────────────────┐│
-││                2.0  3.0            ║  ↑/↓  +/−  knob / adjust value                                                            ║                ＋                    ││
-│└────────────────────────────────────║  D  remove pedal from the board                                                           ║─────────────────────────────────────┘│
-││├───────────────────────────────────║  A  amp model browser                                                                     ║────────────────────────────────────┤││
-││SELECT A PEDAL — ←→                 ║  C  cabinet model browser                                                                 ║                                     ││
-││                                    ║  I / X  IR browser / IR bypass                                                            ║                                     ││
+┃                                     ║  ←/→  move inside the focused panel                                                       ║                                      ┃
+┃▚▞▚▞▚▞▚▞▚▞▚▞▚▞▚▞▚▞▚▞▚▞▚▞▚▞▚▞▚▞▚▞▚▞▚▞▚║  [ / ]  move the ribbon's stage earlier / later                                           ║▞▚▞▚▞▚▞▚▞▚▞▚▞▚▞▚▞▚▞▚▞▚▞▚▞▚▞▚▞▚▞▚▞▚▞▚▞▚┃
+┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━║  Space  bypass stage, pedal, or transport under focus                                     ║━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
+┌ GUITAR RIG ─────────────────────────║Play & edit                                                                                ║──────────────────────────────────────┐
+│┌ NOISE GATE ◉ ──────────────────────║  ↑/↓  +/−  knob / adjust value                                                            ║ADD ─────────────────────────────────┐│
+││                2.0  3.0            ║  D  remove pedal from the board                                                           ║                ＋                    ││
+│└────────────────────────────────────║  A  amp model browser                                                                     ║─────────────────────────────────────┘│
+││├───────────────────────────────────║  C  cabinet model browser                                                                 ║────────────────────────────────────┤││
+││SELECT A PEDAL — ←→                 ║  I / X  IR browser / IR bypass                                                            ║                                     ││
 ││                                    ║  O  change audio devices                                                                  ║                                     ││
 ││                                    ║  W  studio-master width: neutral / wide                                                   ║                                     ││
 ││                                    ║  Z / U  amp-plugin bypass / browser                                                       ║                                     ││
 ││                                    ║Tools                                                                                      ║                                     ││
-│└────────────────────────────────────║  P  preset browser                                                                        ║─────────────────────────────────────┘│
-└─────────────────────────────────────║  S  save current rig as preset                                                            ║──────────────────────────────────────┘
-                                      ║  T  chromatic tuner                                                                       ║                                       
+││                                    ║  P  preset browser                                                                        ║                                     ││
+│└────────────────────────────────────║  S  save current rig as preset                                                            ║─────────────────────────────────────┘│
+└─────────────────────────────────────║  T  chromatic tuner                                                                       ║──────────────────────────────────────┘
                                       ║  M  practice metronome (+/− tempo, Space on/off)                                          ║                                       
                                       ║  V  plugin browser                                                                        ║                                       
-                                      ║  R  start / stop recording (take lands on the timeline)                                   ║                                       
+                                      ║  R  arm / stop a dry raw take (auto-plays; lands on the timeline)                         ║                                       
                                       ║  Q / Ctrl-C  quit                                                                         ║                                       
                                       ║Panels                                                                                     ║                                       
-                                      ║  B  practice-track browser (MP3 / WAV / FLAC)                                             ║                                       
+                                      ║  B  import a track at the playhead (MP3 / WAV / FLAC)                                     ║                                       
                                       ║Preset browser                                                                             ║                                       
                                       ║  ↑/↓  Enter  navigate / apply (audio uninterrupted)                                       ║                                       
                                       ║  S / E / I  save / export / import                                                        ║                                       
                                       ║  D  delete (user presets only)                                                            ║                                       
                                       ║Timeline (focused)                                                                         ║                                       
                                       ║  Space  play / pause, or mute the selected track                                          ║                                       
-                                      ║  ↑/↓  ←/→  select line / seek ±5 s                                                        ║                                       
+                                      ║  ↑/↓  ←/→  select row / seek by the step                                                  ║                                       
+                                      ║  +/−  seek step: 1 / 5 / 10 / 30 s                                                        ║                                       
+                                      ║  G  selected track gain                                                                   ║                                       
                                       ║  [ / ]  L  loop in-point / out-point, toggle loop                                         ║                                       
-                                      ║  Del  delete selected track                                                               ║                                       
+                                      ║  Del  remove selected track                                                               ║                                       
                                       ║                                                                                           ║                                       
                                       ║                                                                                           ║                                       
                                       ║                                                                                           ║                                       

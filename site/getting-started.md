@@ -87,7 +87,7 @@ The processed signal is **true stereo**: the left channel goes to output 0, the 
 
 <div class="note note--info">
 The app launches immediately with default values. Press <kbd>P</kbd> at any time to open the preset browser,
-<kbd>S</kbd> to save the current state as a new preset, and <kbd>R</kbd> to start or stop recording.
+<kbd>S</kbd> to save the current state as a new preset, and <kbd>R</kbd> to arm or stop a raw take.
 </div>
 
 ## Controls {#controls}
@@ -113,16 +113,18 @@ The app launches immediately with default values. Press <kbd>P</kbd> at any time
 | <kbd>M</kbd> | Open the [metronome](tools.html#metronome) — an adjustable click that plays along but stays out of recordings |
 | <kbd>V</kbd> | Open the CLAP [plugin browser](plugins.html) |
 | <kbd>S</kbd> | Save the current state as a new user preset |
-| <kbd>R</kbd> | Start / stop [recording](tools.html#recording) — saves a WAV file to your home directory and drops the take on the [practice timeline](tools.html#practice) when stopped |
-| <kbd>B</kbd> | Open the **Practice tracks** browser to load a backing track (MP3 / WAV / FLAC) or a take |
+| <kbd>R</kbd> | Arm / stop a [dry raw take](tools.html#recording) — auto-plays if paused and lands on the [timeline](tools.html#practice) as a new row; no WAV is written to your home directory |
+| <kbd>B</kbd> | Open the **Import track** browser — adds an MP3 / WAV / FLAC file as a new track at the playhead |
 | <kbd>O</kbd> | Change the audio input/output devices — reopens the device picker and restarts the engine |
 | <kbd>K</kbd> | Open the keybinding cheat-sheet (press <kbd>K</kbd> / <kbd>Esc</kbd> to close) |
 | <kbd>Q</kbd> / <kbd>Ctrl-C</kbd> | Quit |
+
+With the **[timeline](tools.html#practice) focused** (<kbd>3</kbd>): <kbd>↑</kbd>/<kbd>↓</kbd> select a row, <kbd>Space</kbd> play/pause or mute the selected track, <kbd>←</kbd>/<kbd>→</kbd> seek by the current step, <kbd>+</kbd>/<kbd>−</kbd> cycle that step through **1 / 5 / 10 / 30&nbsp;s**, <kbd>G</kbd> edits the selected track's gain, <kbd>[</kbd>/<kbd>]</kbd>/<kbd>L</kbd> set and toggle the loop, and <kbd>Delete</kbd> removes the row.
 
 The footer only shows `K keybindings  Q quit` — the full list above lives in the <kbd>K</kbd> modal, including the preset-browser, timeline, and metronome keys.
 
 Focus starts on the **live-order ribbon**. Switch panels with the number keys — <kbd>1</kbd> chain, <kbd>2</kbd> amp &amp; cabinet, <kbd>3</kbd> [practice timeline](tools.html#practice), <kbd>4</kbd> pedals (and press the same number again on a focused panel to hide it). Inside a panel, <kbd>Tab</kbd> cycles amp ↔ cab or pedal-by-pedal, and <kbd>←</kbd>/<kbd>→</kbd> cycle the knobs of whichever section owns focus. See [the pedalboard](pedals.html#board) for add/remove details, and [Presets](presets.html) for the browser and save dialog.
 
 <div class="note note--info">
-Looking for the <b>chromatic tuner</b> (<kbd>T</kbd>), the <b>metronome</b> (<kbd>M</kbd>), or <b>one-key recording</b> (<kbd>R</kbd>)? They have their own page — see <a href="tools.html">Tools</a>.
+Looking for the <b>chromatic tuner</b> (<kbd>T</kbd>), the <b>metronome</b> (<kbd>M</kbd>), or <b>re-ampable raw takes</b> (<kbd>R</kbd>)? They have their own page — see <a href="tools.html">Tools</a>.
 </div>

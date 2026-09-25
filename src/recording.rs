@@ -1,76 +1,363 @@
-use anyhow::{Result, anyhow};
-use std::path::PathBuf;
-use std::sync::atomic::{AtomicBool, AtomicU32, Ordering::Relaxed};
-use std::sync::{Arc, Mutex};
+//! Dry raw-take capture.
+//!
+//! The audio callback must never allocate, block, or touch the filesystem, so a
+//! capture is split between three pieces:
+//!
+//! - [`CaptureState`] — the shared atomics the UI uses to arm/disarm a take and
+//!   read its progress.
+//! - An `rtrb` SPSC ring ([`CaptureRing`]) the callback pushes dry input samples
+//!   into, one per project frame.
+//! - A writer worker thread ([`spawn_capture_worker`]) that owns the ring's
+//!   consumer, drains it into a mono 32-bit float WAV under the recovery
+//!   directory, computes display peaks, and hands a ready [`PlayerTrack`] back to
+//!   the UI over an `mpsc` channel.
+//!
+//! The captured signal is the **dry selected input channel**, taken before the
+//! gate/pedals/amp/cab so a finished take can later be re-amped by the current
+//! rig. Imports, clicks and existing FX returns are monitor-only and can never
+//! reach this ring.
 
-pub struct RecordingState {
-    pub active: Arc<AtomicBool>,
-    pub buffer: Arc<Mutex<Vec<f32>>>,
-    pub sample_rate: Arc<AtomicU32>,
+use std::path::PathBuf;
+use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, AtomicU32, AtomicU64, Ordering::Relaxed};
+use std::sync::mpsc::{self, Receiver, Sender, TryRecvError};
+use std::time::Duration;
+
+use rtrb::{Consumer, Producer, RingBuffer};
+
+use crate::dsp::player::PlayerTrack;
+use crate::practice::peaks;
+
+/// How many seconds of dry samples the ring can hold before the writer has to
+/// catch up. Generous: the worker only runs during a take.
+const CAPTURE_RING_SECONDS: usize = 2;
+
+/// Shared capture flags. Cloned (`Arc`) into both the audio thread and the UI.
+pub struct CaptureState {
+    /// UI → audio: push samples to the capture ring.
+    pub active: AtomicBool,
+    /// Audio → UI: a valid loop out-point was reached; stop and finalize.
+    pub auto_stop: AtomicBool,
+    /// Identifies the current take so a late result can be discarded.
+    pub generation: AtomicU64,
+    /// Audio → UI: timeline frame of the first captured sample.
+    pub start_frame: AtomicU64,
+    /// Audio → UI: samples pushed so far (progress display).
+    pub frames: AtomicU64,
+    /// Audio → UI: the ring filled and samples were dropped; take incomplete.
+    pub overflowed: AtomicBool,
+    /// Engine sample rate for the take.
+    pub sample_rate: AtomicU32,
 }
 
-impl Default for RecordingState {
+impl Default for CaptureState {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl RecordingState {
+impl CaptureState {
     pub fn new() -> Self {
         Self {
-            active: Arc::new(AtomicBool::new(false)),
-            buffer: Arc::new(Mutex::new(Vec::new())),
-            sample_rate: Arc::new(AtomicU32::new(44100)),
+            active: AtomicBool::new(false),
+            auto_stop: AtomicBool::new(false),
+            generation: AtomicU64::new(0),
+            start_frame: AtomicU64::new(0),
+            frames: AtomicU64::new(0),
+            overflowed: AtomicBool::new(false),
+            sample_rate: AtomicU32::new(44_100),
         }
     }
 
-    pub fn start(&self) {
-        if let Ok(mut buf) = self.buffer.lock() {
-            buf.clear();
-        }
+    pub fn arm(&self, generation: u64) {
+        self.generation.store(generation, Relaxed);
+        self.start_frame.store(0, Relaxed);
+        self.frames.store(0, Relaxed);
+        self.overflowed.store(false, Relaxed);
+        self.auto_stop.store(false, Relaxed);
         self.active.store(true, Relaxed);
     }
 
-    /// Stop recording and hand back the captured interleaved stereo samples
-    /// (L, R) at the engine rate, without writing a file. The caller can save them
-    /// and/or place them on the practice timeline.
-    pub fn stop_take(&self) -> Result<(Vec<f32>, u32)> {
+    /// Stop the audio side pushing immediately. The caller then asks the writer
+    /// worker to finalize.
+    pub fn disarm(&self) {
         self.active.store(false, Relaxed);
-        let samples = self
-            .buffer
-            .lock()
-            .map_err(|_| anyhow!("recording buffer lock poisoned"))
-            .map(|mut g| std::mem::take(&mut *g))?;
-        let sr = self.sample_rate.load(Relaxed);
-        Ok((samples, sr))
-    }
-
-    pub fn stop_and_save(&self) -> Result<PathBuf> {
-        let (samples, sr) = self.stop_take()?;
-        save_wav(&samples, sr)
     }
 }
 
-/// Write interleaved stereo `samples` to `~/rusty-amp-<unix>.wav` at `sample_rate`.
-pub fn save_wav(samples: &[f32], sample_rate: u32) -> Result<PathBuf> {
-    let base = dirs::home_dir().unwrap_or_else(|| PathBuf::from("."));
-    let secs = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .map(|d| d.as_secs())
-        .unwrap_or(0);
-    let path = base.join(format!("rusty-amp-{secs}.wav"));
+/// Create the capture sample ring. Returns `(producer_for_audio, consumer_for_worker)`.
+pub fn capture_ring(sample_rate: f32) -> (Producer<f32>, Consumer<f32>) {
+    let cap = (sample_rate.max(1.0) as usize)
+        .saturating_mul(CAPTURE_RING_SECONDS)
+        .max(1024);
+    RingBuffer::<f32>::new(cap)
+}
 
-    // Recording buffer holds interleaved stereo (L, R) frames.
+/// A finished capture, sent from the writer worker back to the UI.
+pub struct CaptureResult {
+    pub generation: u64,
+    pub path: PathBuf,
+    pub frames: usize,
+    pub start_frame: u64,
+    pub overflowed: bool,
+    pub peaks: Vec<(f32, f32)>,
+    /// `None` when the take was empty, aborted, or failed.
+    pub track: Option<PlayerTrack>,
+    pub error: Option<String>,
+}
+
+/// Commands the UI sends to the writer worker.
+pub enum CaptureCommand {
+    /// Start writing a new take to `path`. The worker replies on `result`.
+    Begin {
+        generation: u64,
+        path: PathBuf,
+        sample_rate: u32,
+        result: Sender<CaptureResult>,
+    },
+    /// Flush and finalize the active take.
+    End,
+    /// Discard the active take and remove its partial file.
+    Abort,
+}
+
+/// Spawn the writer worker and return the command sender.
+pub fn spawn_capture_worker(mut consumer: Consumer<f32>) -> Sender<CaptureCommand> {
+    let (tx, rx) = mpsc::channel::<CaptureCommand>();
+    std::thread::spawn(move || worker_loop(&mut consumer, &rx));
+    tx
+}
+
+fn worker_loop(consumer: &mut Consumer<f32>, cmds: &Receiver<CaptureCommand>) {
+    loop {
+        let Ok(cmd) = cmds.recv() else {
+            // The UI dropped the sender (engine teardown); exit.
+            return;
+        };
+        match cmd {
+            CaptureCommand::Begin {
+                generation,
+                path,
+                sample_rate,
+                result,
+            } => run_capture(consumer, cmds, generation, path, sample_rate, &result),
+            CaptureCommand::End | CaptureCommand::Abort => {}
+        }
+    }
+}
+
+fn run_capture(
+    consumer: &mut Consumer<f32>,
+    cmds: &Receiver<CaptureCommand>,
+    generation: u64,
+    path: PathBuf,
+    sample_rate: u32,
+    result: &Sender<CaptureResult>,
+) {
+    let mut reply = CaptureResult {
+        generation,
+        path: path.clone(),
+        frames: 0,
+        start_frame: 0,
+        overflowed: false,
+        peaks: Vec::new(),
+        track: None,
+        error: None,
+    };
+
+    if let Some(parent) = path.parent()
+        && let Err(e) = std::fs::create_dir_all(parent)
+    {
+        reply.error = Some(format!("creating capture dir {}: {e}", parent.display()));
+        let _ = result.send(reply);
+        return;
+    }
+
     let spec = hound::WavSpec {
-        channels: 2,
+        channels: 1,
         sample_rate,
         bits_per_sample: 32,
         sample_format: hound::SampleFormat::Float,
     };
-    let mut writer = hound::WavWriter::create(&path, spec)?;
-    for &s in samples {
-        writer.write_sample(s)?;
+    let writer = match hound::WavWriter::create(&path, spec) {
+        Ok(w) => w,
+        Err(e) => {
+            reply.error = Some(format!("creating capture file {}: {e}", path.display()));
+            let _ = result.send(reply);
+            return;
+        }
+    };
+    let mut writer = Some(writer);
+
+    let mut samples: Vec<f32> = Vec::new();
+    let mut aborted = false;
+    loop {
+        while let Ok(s) = consumer.pop() {
+            if let Some(w) = writer.as_mut()
+                && w.write_sample(s).is_err()
+            {
+                reply.error = Some("writing capture samples failed".to_owned());
+                aborted = true;
+                break;
+            }
+            samples.push(s);
+        }
+        if aborted {
+            break;
+        }
+        match cmds.try_recv() {
+            Ok(CaptureCommand::End) => {
+                // Drain whatever the callback left in the ring, then finalize.
+                while let Ok(s) = consumer.pop() {
+                    if let Some(w) = writer.as_mut()
+                        && w.write_sample(s).is_err()
+                    {
+                        reply.error = Some("writing capture samples failed".to_owned());
+                        break;
+                    }
+                    samples.push(s);
+                }
+                break;
+            }
+            Ok(CaptureCommand::Abort) => {
+                aborted = true;
+                break;
+            }
+            // A new Begin while one is active is a protocol error; ignore it so
+            // the active take stays intact.
+            Ok(CaptureCommand::Begin { result: late, .. }) => {
+                drop(late);
+            }
+            Err(TryRecvError::Empty) => std::thread::sleep(Duration::from_millis(1)),
+            Err(TryRecvError::Disconnected) => {
+                aborted = true;
+                break;
+            }
+        }
     }
-    writer.finalize()?;
-    Ok(path)
+
+    if let Some(w) = writer.take()
+        && let Err(e) = w.finalize()
+        && reply.error.is_none()
+    {
+        reply.error = Some(format!("finalizing capture file: {e}"));
+    }
+
+    if aborted || reply.error.is_some() {
+        let _ = std::fs::remove_file(&path);
+        let _ = result.send(reply);
+        return;
+    }
+
+    reply.frames = samples.len();
+    if samples.is_empty() {
+        let _ = std::fs::remove_file(&path);
+        let _ = result.send(reply);
+        return;
+    }
+
+    // A mono take is stored as a stereo track with identical channels so the
+    // rest of the playback path is unchanged; the take bus sums it back to mono.
+    let l = samples.clone();
+    let track = PlayerTrack {
+        r: samples,
+        start: 0,
+        l,
+    };
+    reply.peaks = peaks(&track, 1024);
+    reply.track = Some(track);
+    let _ = result.send(reply);
+}
+
+/// Convenience bundle shared with the engine at startup.
+pub type SharedCapture = Arc<CaptureState>;
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn temp_path(name: &str) -> PathBuf {
+        std::env::temp_dir().join(format!("rusty-amp-capture-test-{name}.wav"))
+    }
+
+    #[test]
+    fn writer_captures_and_finalizes_a_take() {
+        let (mut producer, consumer) = capture_ring(48_000.0);
+        let tx = spawn_capture_worker(consumer);
+        let (result_tx, result_rx) = mpsc::channel();
+        let path = temp_path("ok");
+        let _ = std::fs::remove_file(&path);
+
+        tx.send(CaptureCommand::Begin {
+            generation: 7,
+            path: path.clone(),
+            sample_rate: 48_000,
+            result: result_tx,
+        })
+        .ok();
+
+        for i in 0..1000 {
+            let _ = producer.push((i as f32 / 1000.0).sin());
+        }
+        tx.send(CaptureCommand::End).ok();
+
+        let res = result_rx
+            .recv_timeout(Duration::from_secs(5))
+            .expect("worker must reply");
+        assert!(res.error.is_none(), "unexpected error: {:?}", res.error);
+        assert_eq!(res.frames, 1000);
+        assert!(res.track.is_some());
+        assert!(path.exists());
+        let _ = std::fs::remove_file(&path);
+    }
+
+    #[test]
+    fn abort_removes_the_partial_file() {
+        let (mut producer, consumer) = capture_ring(48_000.0);
+        let tx = spawn_capture_worker(consumer);
+        let (result_tx, result_rx) = mpsc::channel();
+        let path = temp_path("abort");
+        let _ = std::fs::remove_file(&path);
+
+        tx.send(CaptureCommand::Begin {
+            generation: 1,
+            path: path.clone(),
+            sample_rate: 48_000,
+            result: result_tx,
+        })
+        .ok();
+        let _ = producer.push(1.0);
+        tx.send(CaptureCommand::Abort).ok();
+
+        let res = result_rx
+            .recv_timeout(Duration::from_secs(5))
+            .expect("worker must reply");
+        assert!(res.track.is_none());
+        assert!(!path.exists());
+    }
+
+    #[test]
+    fn empty_take_yields_no_track() {
+        let (_producer, consumer) = capture_ring(48_000.0);
+        let tx = spawn_capture_worker(consumer);
+        let (result_tx, result_rx) = mpsc::channel();
+        let path = temp_path("empty");
+        let _ = std::fs::remove_file(&path);
+
+        tx.send(CaptureCommand::Begin {
+            generation: 2,
+            path: path.clone(),
+            sample_rate: 48_000,
+            result: result_tx,
+        })
+        .ok();
+        tx.send(CaptureCommand::End).ok();
+
+        let res = result_rx
+            .recv_timeout(Duration::from_secs(5))
+            .expect("worker must reply");
+        assert_eq!(res.frames, 0);
+        assert!(res.track.is_none());
+        assert!(!path.exists());
+    }
 }

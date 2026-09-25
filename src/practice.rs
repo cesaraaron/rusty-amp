@@ -1,17 +1,20 @@
-//! Practice / jam-along: shared transport state and offline track decoding.
+//! Practice transport bridge and offline track decoding.
 //!
-//! [`Practice`] is the lock-free handshake between the UI thread (which writes the
-//! transport and hands over decoded tracks) and the audio thread (which reads a
-//! [`Transport`] snapshot per callback and mixes the tracks into the monitor).
+//! [`Practice`] is the lock-free handshake between the UI thread (which writes
+//! the transport and hands over decoded tracks) and the audio thread (which
+//! reads a [`Transport`] snapshot per callback and mixes every installed track).
+//! It holds only the shared transport — the canonical track list lives in
+//! [`crate::session::Session`], and decoded buffers are caches installed into
+//! bounded audio slots (see [`crate::audio`]).
+//!
 //! Decoding a backing file or a recorded take happens here, entirely off the
 //! audio thread; the finished [`PlayerTrack`] is installed into the engine
-//! lock-free (see [`crate::audio`]).
+//! lock-free.
 
 use std::path::Path;
 use std::sync::atomic::{AtomicBool, AtomicI64, AtomicU64, Ordering::Relaxed};
 
 use anyhow::{Context, Result, anyhow};
-use atomic_float::AtomicF32;
 use symphonia::core::audio::SampleBuffer;
 use symphonia::core::codecs::DecoderOptions;
 use symphonia::core::errors::Error as SymphoniaError;
@@ -35,16 +38,6 @@ pub struct Practice {
     pub loop_enabled: AtomicBool,
     pub loop_start: AtomicU64,
     pub loop_end: AtomicU64,
-    pub backing_muted: AtomicBool,
-    pub backing_gain: AtomicF32,
-    pub record_muted: AtomicBool,
-    pub record_gain: AtomicF32,
-    /// UI-side knowledge of what is installed (set when an install succeeds).
-    pub backing_loaded: AtomicBool,
-    pub record_loaded: AtomicBool,
-    /// Track lengths in frames (set when installed), for the UI timeline.
-    pub backing_len: AtomicU64,
-    pub record_len: AtomicU64,
 }
 
 impl Default for Practice {
@@ -62,20 +55,12 @@ impl Practice {
             loop_enabled: AtomicBool::new(false),
             loop_start: AtomicU64::new(0),
             loop_end: AtomicU64::new(0),
-            backing_muted: AtomicBool::new(false),
-            backing_gain: AtomicF32::new(1.0),
-            record_muted: AtomicBool::new(false),
-            record_gain: AtomicF32::new(1.0),
-            backing_loaded: AtomicBool::new(false),
-            record_loaded: AtomicBool::new(false),
-            backing_len: AtomicU64::new(0),
-            record_len: AtomicU64::new(0),
         }
     }
 
-    /// Read a consistent-enough transport snapshot for one audio callback, consuming
-    /// any pending seek. All loads are relaxed: the worst case is one buffer of
-    /// staleness on a knob move, which is inaudible.
+    /// Read a consistent-enough transport snapshot for one audio callback,
+    /// consuming any pending seek. All loads are relaxed: the worst case is one
+    /// buffer of staleness on a knob move, which is inaudible.
     pub fn snapshot(&self) -> Transport {
         let seek = self.seek.swap(-1, Relaxed);
         Transport {
@@ -84,16 +69,12 @@ impl Practice {
             loop_enabled: self.loop_enabled.load(Relaxed),
             loop_start: self.loop_start.load(Relaxed) as usize,
             loop_end: self.loop_end.load(Relaxed) as usize,
-            backing_muted: self.backing_muted.load(Relaxed),
-            backing_gain: self.backing_gain.load(Relaxed),
-            record_muted: self.record_muted.load(Relaxed),
-            record_gain: self.record_gain.load(Relaxed),
         }
     }
 
     /// Clear the transport back to its startup state. Called when a fresh engine
-    /// starts (including a device change), since the decoded tracks live with the
-    /// old engine and are gone.
+    /// starts (including a device change); the session itself is preserved by
+    /// the caller and its tracks are re-installed.
     pub fn reset(&self) {
         self.playing.store(false, Relaxed);
         self.position.store(0, Relaxed);
@@ -101,10 +82,6 @@ impl Practice {
         self.loop_enabled.store(false, Relaxed);
         self.loop_start.store(0, Relaxed);
         self.loop_end.store(0, Relaxed);
-        self.backing_loaded.store(false, Relaxed);
-        self.record_loaded.store(false, Relaxed);
-        self.backing_len.store(0, Relaxed);
-        self.record_len.store(0, Relaxed);
     }
 
     pub fn store_position(&self, frame: usize) {
@@ -118,22 +95,22 @@ impl Practice {
     pub fn request_seek(&self, frame: usize) {
         self.seek.store(frame as i64, Relaxed);
     }
-
-    /// Longest timeline extent: the backing length, or the end of the take
-    /// (its start offset included), whichever is longer.
-    pub fn timeline_len(&self) -> usize {
-        let backing = self.backing_len.load(Relaxed) as usize;
-        let record = self.record_len.load(Relaxed) as usize;
-        backing.max(record)
-    }
 }
 
-// ── Decoding ─────────────────────────────────────────────────────────────────
+/// A decoded track plus the source metadata needed to describe its asset.
+#[derive(Debug)]
+pub struct DecodedTrack {
+    pub track: PlayerTrack,
+    /// Sample rate of the source file before rate matching.
+    pub source_sample_rate: u32,
+    /// Channel count of the source file as decoded.
+    pub source_channels: u16,
+}
 
 /// Decode an audio file (MP3 / WAV / FLAC) to a stereo [`PlayerTrack`] at the
 /// engine rate, starting at timeline frame 0. Runs off the audio thread — file
 /// IO, decode and an offline resample.
-pub fn decode_track(path: impl AsRef<Path>, target_sr: f32) -> Result<PlayerTrack> {
+pub fn decode_track(path: impl AsRef<Path>, target_sr: f32) -> Result<DecodedTrack> {
     let path = path.as_ref();
     let file = std::fs::File::open(path)
         .with_context(|| format!("opening audio file {}", path.display()))?;
@@ -167,6 +144,7 @@ pub fn decode_track(path: impl AsRef<Path>, target_sr: f32) -> Result<PlayerTrac
     let mut sample_buf: Option<SampleBuffer<f32>> = None;
     let mut l: Vec<f32> = Vec::new();
     let mut r: Vec<f32> = Vec::new();
+    let mut source_channels: u16 = 1;
 
     loop {
         let packet = match format.next_packet() {
@@ -184,6 +162,7 @@ pub fn decode_track(path: impl AsRef<Path>, target_sr: f32) -> Result<PlayerTrac
             Ok(decoded) => {
                 let spec = *decoded.spec();
                 let capacity = decoded.capacity();
+                source_channels = spec.channels.count().max(1) as u16;
                 // (Re)allocate the scratch buffer only when the codec asks for more.
                 if sample_buf.as_ref().is_none_or(|b| b.capacity() < capacity) {
                     sample_buf = Some(SampleBuffer::<f32>::new(capacity as u64, spec));
@@ -217,7 +196,33 @@ pub fn decode_track(path: impl AsRef<Path>, target_sr: f32) -> Result<PlayerTrac
         r = resample(&r, ratio);
     }
 
-    Ok(PlayerTrack { l, r, start: 0 })
+    Ok(DecodedTrack {
+        track: PlayerTrack { l, r, start: 0 },
+        source_sample_rate: src_sr as u32,
+        source_channels,
+    })
+}
+
+/// Peak envelope over `buckets` buckets: (min, max) of the mono sum per bucket.
+/// Runs off the audio thread.
+pub fn peaks(track: &PlayerTrack, buckets: usize) -> Vec<(f32, f32)> {
+    let n = track.frames();
+    if n == 0 || buckets == 0 {
+        return Vec::new();
+    }
+    let mut out = Vec::with_capacity(buckets);
+    for b in 0..buckets {
+        let start = b * n / buckets;
+        let end = (((b + 1) * n) / buckets).max(start + 1).min(n);
+        let (mut lo, mut hi) = (0.0f32, 0.0f32);
+        for i in start..end {
+            let s = 0.5 * (track.l[i] + track.r[i]);
+            lo = lo.min(s);
+            hi = hi.max(s);
+        }
+        out.push((lo, hi));
+    }
+    out
 }
 
 #[cfg(test)]
@@ -234,13 +239,17 @@ mod tests {
     }
 
     #[test]
-    fn timeline_len_tracks_the_longest_installed_source() {
+    fn reset_clears_the_transport() {
         let p = Practice::new();
-        assert_eq!(p.timeline_len(), 0);
-        p.backing_len.store(1000, Relaxed);
-        assert_eq!(p.timeline_len(), 1000);
-        p.record_len.store(2500, Relaxed);
-        assert_eq!(p.timeline_len(), 2500);
+        p.playing.store(true, Relaxed);
+        p.request_seek(10);
+        p.loop_enabled.store(true, Relaxed);
+        p.reset();
+        let t = p.snapshot();
+        assert!(!t.playing);
+        assert_eq!(t.seek, None);
+        assert!(!t.loop_enabled);
+        assert_eq!(p.position(), 0);
     }
 
     #[test]

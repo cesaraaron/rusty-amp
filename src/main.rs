@@ -9,13 +9,11 @@ fn main() -> Result<()> {
     let tuner = Arc::new(dsp::Tuner::new());
     let metronome = Arc::new(dsp::Metronome::new());
     let presets = preset::load_all();
-    let recording = Arc::new(recording::RecordingState::new());
+    let capture = Arc::new(recording::CaptureState::new());
     let practice = Arc::new(practice::Practice::new());
 
     // TUI starts immediately; device selection happens inside via modals.
-    ui::run(
-        params, levels, tuner, metronome, presets, recording, practice,
-    )?;
+    ui::run(params, levels, tuner, metronome, presets, capture, practice)?;
 
     Ok(())
 }

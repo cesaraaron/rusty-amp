@@ -9,11 +9,11 @@ use std::sync::atomic::Ordering::Relaxed;
 
 use crate::dsp::cab::ExternalIrCab;
 use crate::dsp::metronome::{Metronome, MetronomeVoice};
-use crate::dsp::player::{PlayerTrack, PlayerVoice};
+use crate::dsp::player::{PlayerTrack, PlayerVoice, TrackKind};
 use crate::dsp::tuner::{Tuner, TunerDetector};
 use crate::dsp::{DspChain, Levels, Params, StereoInsert};
 use crate::practice::Practice;
-use crate::recording::RecordingState;
+use crate::recording::{CaptureState, capture_ring};
 
 /// A swappable plugin insert handed to the audio thread (`Some` to install, `None`
 /// to clear). Boxed so the audio thread only ever moves a pointer.
@@ -30,6 +30,45 @@ type ExtAmpCommand = Option<Box<dyn StereoInsert>>;
 /// How many pending insert swaps / disposals the lock-free rings can hold. Swaps
 /// are rare (a user loading/clearing a plugin), so a small buffer is plenty.
 const INSERT_QUEUE_CAP: usize = 8;
+
+/// Capacity of the UI → audio track command ring. Generous: gain/mute edits go
+/// through here too, at UI frame rate.
+const TRACK_QUEUE_CAP: usize = 64;
+
+/// A timeline-track change sent from the control thread to the audio callback.
+/// Applied at the top of `on_input`, so a block never sees a half-updated
+/// track set.
+pub enum TrackCommand {
+    Install {
+        id: u64,
+        generation: u64,
+        kind: TrackKind,
+        track: PlayerTrack,
+        gain: f32,
+        muted: bool,
+    },
+    Remove {
+        id: u64,
+    },
+    SetGain {
+        id: u64,
+        gain: f32,
+    },
+    SetMute {
+        id: u64,
+        muted: bool,
+    },
+}
+
+/// Audio → control acknowledgement that an install actually landed (or why it
+/// did not). Lets the UI reconcile a failed install instead of showing a row
+/// that is not playing.
+pub struct TrackAck {
+    pub id: u64,
+    pub generation: u64,
+    pub installed: bool,
+    pub error: Option<String>,
+}
 
 /// Largest block (in frames) the audio thread will ever process at once. Scratch
 /// buffers are pre-sized to this, and plugin inserts are activated with it as
@@ -107,14 +146,14 @@ pub struct AudioEngine {
     ext_amp_tx: Producer<ExtAmpCommand>,
     /// Receives external amps the audio thread displaced, for off-thread disposal.
     ext_amp_dropped_rx: Consumer<Box<dyn StereoInsert>>,
-    /// Sends practice backing-track swaps to the audio thread.
-    backing_tx: Producer<Option<PlayerTrack>>,
-    /// Receives backing tracks the audio thread displaced, for off-thread disposal.
-    backing_dropped_rx: Consumer<PlayerTrack>,
-    /// Sends practice take-track swaps to the audio thread.
-    record_tx: Producer<Option<PlayerTrack>>,
-    /// Receives take tracks the audio thread displaced, for off-thread disposal.
-    record_dropped_rx: Consumer<PlayerTrack>,
+    /// Sends timeline track commands to the audio thread.
+    track_tx: Producer<TrackCommand>,
+    /// Receives tracks the audio thread displaced, for off-thread disposal.
+    track_dropped_rx: Consumer<PlayerTrack>,
+    /// Receives install acknowledgements from the audio thread.
+    track_ack_rx: Consumer<TrackAck>,
+    /// The capture ring's consumer, handed to the writer worker by the UI.
+    capture_rx: Option<Consumer<f32>>,
 }
 
 impl AudioEngine {
@@ -168,30 +207,75 @@ impl AudioEngine {
             .map_err(|_| anyhow!("external-amp command queue is full"))
     }
 
-    /// Install (`Some`) or clear (`None`) the practice backing track.
+    /// Install (or replace) a timeline track.
     ///
     /// Decode and rate-match the file first (see [`crate::practice::decode_track`]) —
     /// that work is offline; this call only hands the finished buffers to the audio
     /// thread lock-free. The displaced track is disposed of here, on the caller's
-    /// thread, so its sample buffer is never freed in the realtime callback.
-    pub fn set_backing_track(&mut self, track: Option<PlayerTrack>) -> Result<()> {
-        while let Ok(old) = self.backing_dropped_rx.pop() {
+    /// thread, so its sample buffer is never freed in the realtime callback. An
+    /// install acknowledgement is delivered later via [`Self::poll_track_acks`].
+    pub fn install_track(
+        &mut self,
+        id: u64,
+        generation: u64,
+        kind: TrackKind,
+        track: PlayerTrack,
+        gain: f32,
+        muted: bool,
+    ) -> Result<()> {
+        while let Ok(old) = self.track_dropped_rx.pop() {
             drop(old);
         }
-        self.backing_tx
-            .push(track)
-            .map_err(|_| anyhow!("backing-track command queue is full"))
+        self.track_tx
+            .push(TrackCommand::Install {
+                id,
+                generation,
+                kind,
+                track,
+                gain,
+                muted,
+            })
+            .map_err(|_| anyhow!("timeline command queue is full"))
     }
 
-    /// Install (`Some`) or clear (`None`) the practice take track. Same contract as
-    /// [`Self::set_backing_track`].
-    pub fn set_record_track(&mut self, track: Option<PlayerTrack>) -> Result<()> {
-        while let Ok(old) = self.record_dropped_rx.pop() {
+    /// Remove a timeline track.
+    pub fn remove_track(&mut self, id: u64) -> Result<()> {
+        while let Ok(old) = self.track_dropped_rx.pop() {
             drop(old);
         }
-        self.record_tx
-            .push(track)
-            .map_err(|_| anyhow!("record-track command queue is full"))
+        self.track_tx
+            .push(TrackCommand::Remove { id })
+            .map_err(|_| anyhow!("timeline command queue is full"))
+    }
+
+    /// Set a track's level (monitor volume for imports, pre-rig gain for takes).
+    pub fn set_track_gain(&mut self, id: u64, gain: f32) -> Result<()> {
+        self.track_tx
+            .push(TrackCommand::SetGain { id, gain })
+            .map_err(|_| anyhow!("timeline command queue is full"))
+    }
+
+    /// Mute/unmute a track.
+    pub fn set_track_mute(&mut self, id: u64, muted: bool) -> Result<()> {
+        self.track_tx
+            .push(TrackCommand::SetMute { id, muted })
+            .map_err(|_| anyhow!("timeline command queue is full"))
+    }
+
+    /// Drain any pending install acknowledgements. Allocates a small `Vec` on the
+    /// control thread, never the audio thread.
+    pub fn poll_track_acks(&mut self) -> Vec<TrackAck> {
+        let mut out = Vec::new();
+        while let Ok(ack) = self.track_ack_rx.pop() {
+            out.push(ack);
+        }
+        out
+    }
+
+    /// Take the capture ring's consumer so the UI can spawn the writer worker.
+    /// Only available once.
+    pub fn take_capture_consumer(&mut self) -> Option<Consumer<f32>> {
+        self.capture_rx.take()
     }
 }
 
@@ -352,7 +436,7 @@ pub fn start(
     output_idx: usize,
     params: Arc<Params>,
     levels: Arc<Levels>,
-    recording: Arc<RecordingState>,
+    capture: Arc<CaptureState>,
     tuner: Arc<Tuner>,
     metronome: Arc<Metronome>,
     practice: Arc<Practice>,
@@ -413,7 +497,7 @@ pub fn start(
         sr,
         Arc::clone(&params),
         Arc::clone(&levels),
-        Arc::clone(&recording),
+        Arc::clone(&capture),
         Arc::clone(&tuner),
         Arc::clone(&metronome),
         Arc::clone(&practice),
@@ -437,7 +521,7 @@ pub fn start(
                 sr,
                 params,
                 levels,
-                recording,
+                capture,
                 tuner,
                 metronome,
                 practice,
@@ -543,7 +627,12 @@ fn with_buffer(cfg: &StreamConfig, buffer_size: cpal::BufferSize) -> StreamConfi
 /// stream fails to open at all. `on_input` converts the device's samples into the
 /// engine's `f32` domain on the way in.
 struct InputState {
+    /// The live guitar rig.
     chain: DspChain,
+    /// A second rig instance for the summed raw-take bus. It shares the same
+    /// [`Params`] (so knob changes apply to both), but owns independent DSP
+    /// state, so its reverb/delay/sag cannot leak into the live signal.
+    take_chain: DspChain,
     tuner_detector: TunerDetector,
     metro_voice: MetronomeVoice,
     player: PlayerVoice,
@@ -557,19 +646,30 @@ struct InputState {
     in_buf: Vec<f32>,
     out_l: Vec<f32>,
     out_r: Vec<f32>,
+    /// Mono sum of unmuted raw takes for this block (input to `take_chain`).
+    take_in: Vec<f32>,
+    /// Take-bus rig output for this block.
+    take_l: Vec<f32>,
+    take_r: Vec<f32>,
     insert_rx: Consumer<InsertCommand>,
     dropped_tx: Producer<Box<dyn StereoInsert>>,
     ext_cab_rx: Consumer<ExtCabCommand>,
     ext_dropped_tx: Producer<Box<ExternalIrCab>>,
     ext_amp_rx: Consumer<ExtAmpCommand>,
     ext_amp_dropped_tx: Producer<Box<dyn StereoInsert>>,
-    backing_rx: Consumer<Option<PlayerTrack>>,
-    backing_dropped_tx: Producer<PlayerTrack>,
-    record_rx: Consumer<Option<PlayerTrack>>,
-    record_dropped_tx: Producer<PlayerTrack>,
+    track_rx: Consumer<TrackCommand>,
+    track_dropped_tx: Producer<PlayerTrack>,
+    track_ack_tx: Producer<TrackAck>,
+    capture_tx: Producer<f32>,
+    /// Audio-local latch: set once the first dry sample of the active take has
+    /// been pushed, so `start_frame` is captured exactly once.
+    capture_started: bool,
+    /// Last seen [`CaptureState::generation`], so a re-arm is detected even if
+    /// the callback never observed an intermediate disarmed block.
+    capture_generation: u64,
     producer: Producer<f32>,
     levels: Arc<Levels>,
-    recording: Arc<RecordingState>,
+    capture: Arc<CaptureState>,
     tuner: Arc<Tuner>,
     metronome: Arc<Metronome>,
     practice: Arc<Practice>,
@@ -604,16 +704,54 @@ impl InputState {
                 let _ = self.ext_amp_dropped_tx.push(old);
             }
         }
-        // Practice backing/take tracks: install the decoded buffers, ship the
-        // displaced ones back for off-thread disposal.
-        while let Ok(cmd) = self.backing_rx.pop() {
-            if let Some(old) = self.player.set_backing(cmd) {
-                let _ = self.backing_dropped_tx.push(old);
-            }
-        }
-        while let Ok(cmd) = self.record_rx.pop() {
-            if let Some(old) = self.player.set_record(cmd) {
-                let _ = self.record_dropped_tx.push(old);
+        // Timeline track commands: apply every pending add/remove/gain/mute at
+        // once so this block sees a coherent track set. Displaced buffers go back
+        // to the control thread; a full return queue defers the swap rather than
+        // freeing a large `Vec` in the callback.
+        while let Ok(cmd) = self.track_rx.pop() {
+            match cmd {
+                TrackCommand::Install {
+                    id,
+                    generation,
+                    kind,
+                    track,
+                    gain,
+                    muted,
+                } => match self
+                    .player
+                    .install(id, generation, kind, track, gain, muted)
+                {
+                    Ok(displaced) => {
+                        if let Some(old) = displaced {
+                            let _ = self.track_dropped_tx.push(old);
+                        }
+                        let _ = self.track_ack_tx.push(TrackAck {
+                            id,
+                            generation,
+                            installed: true,
+                            error: None,
+                        });
+                    }
+                    Err(e) => {
+                        let _ = self.track_ack_tx.push(TrackAck {
+                            id,
+                            generation,
+                            installed: false,
+                            error: Some(e.to_string()),
+                        });
+                    }
+                },
+                TrackCommand::Remove { id } => {
+                    if let Some(slot) = self.player.remove(id) {
+                        let _ = self.track_dropped_tx.push(slot.track);
+                    }
+                }
+                TrackCommand::SetGain { id, gain } => {
+                    self.player.set_gain(id, gain);
+                }
+                TrackCommand::SetMute { id, muted } => {
+                    self.player.set_muted(id, muted);
+                }
             }
         }
 
@@ -621,6 +759,9 @@ impl InputState {
         if self.out_l.len() < frames {
             self.out_l.resize(frames, 0.0);
             self.out_r.resize(frames, 0.0);
+            self.take_l.resize(frames, 0.0);
+            self.take_r.resize(frames, 0.0);
+            self.take_in.resize(frames, 0.0);
         }
 
         // Deinterleave the guitar channel into the mono input block, converting
@@ -656,12 +797,52 @@ impl InputState {
         let transport = self.practice.snapshot();
         self.player.begin(&transport);
 
-        for ((&sample, &l), &r) in self
-            .in_buf
-            .iter()
-            .zip(self.out_l.iter())
-            .zip(self.out_r.iter())
-        {
+        // Capture only while the transport is actually advancing, so the captured
+        // frames stay aligned one-to-one with project frames. A disarmed take — or
+        // a freshly armed one — clears the start latch.
+        let generation = self.capture.generation.load(Relaxed);
+        if generation != self.capture_generation {
+            self.capture_generation = generation;
+            self.capture_started = false;
+        }
+        let capture_active = self.capture.active.load(Relaxed);
+        if !capture_active {
+            self.capture_started = false;
+        }
+        let mut capturing =
+            capture_active && !self.capture.auto_stop.load(Relaxed) && transport.playing;
+        let mut pushed: u64 = 0;
+        let mut capture_overflowed = false;
+
+        for (i, &sample) in self.in_buf.iter().enumerate() {
+            let cursor = self.player.cursor();
+
+            // Stop capture *before* a valid loop wraps: one loop pass yields one
+            // contiguous take with no duplicated or overwritten frames.
+            if capturing
+                && transport.loop_enabled
+                && transport.loop_end > transport.loop_start
+                && cursor >= transport.loop_end
+            {
+                self.capture.auto_stop.store(true, Relaxed);
+                capturing = false;
+            }
+
+            if capturing {
+                if !self.capture_started {
+                    self.capture.start_frame.store(cursor as u64, Relaxed);
+                    self.capture.frames.store(0, Relaxed);
+                    self.capture_started = true;
+                }
+                // Dry selected-channel sample, before gate/pedals/amp/cab. A full
+                // ring is reported (never silently shortened), not blocked on.
+                if self.capture_tx.push(sample).is_ok() {
+                    pushed = pushed.saturating_add(1);
+                } else {
+                    capture_overflowed = true;
+                }
+            }
+
             let a = sample.abs();
             self.in_env += if a > self.in_env {
                 self.attack
@@ -669,30 +850,50 @@ impl InputState {
                 self.release
             } * (a - self.in_env);
 
-            let mono = 0.5 * (l + r);
+            // Metronome click and the import bus are mixed into the monitor path
+            // only (post-capture), so neither ever lands in a take.
+            let click = self.metro_voice.next_sample(metro_active, metro_bpm);
+            let frame = self.player.next_frame(&transport);
+            self.take_in[i] = frame.take;
+            let out_left = self.out_l[i] + frame.import_l + click;
+            let out_right = self.out_r[i] + frame.import_r + click;
+            self.out_l[i] = out_left;
+            self.out_r[i] = out_right;
 
+            let mono = 0.5 * (out_left + out_right);
             let a = mono.abs();
             self.out_env += if a > self.out_env {
                 self.attack
             } else {
                 self.release
             } * (a - self.out_env);
+        }
 
-            if self.recording.active.load(Relaxed)
-                && let Ok(mut buf) = self.recording.buffer.try_lock()
-            {
-                // Interleaved stereo (L, R) — captured before the metronome
-                // click is added, so an active metronome never lands in the WAV.
-                buf.push(l);
-                buf.push(r);
+        if capture_active && self.capture_started {
+            self.capture.frames.fetch_add(pushed, Relaxed);
+            if capture_overflowed {
+                self.capture.overflowed.store(true, Relaxed);
             }
+        }
 
-            // Metronome click and the practice player are mixed into the monitor
-            // path only (post-record), so neither ever lands in the WAV.
-            let click = self.metro_voice.next_sample(metro_active, metro_bpm);
-            let (pl, pr) = self.player.next_frame(&transport);
-            let (out_left, out_right) = (l + click + pl, r + click + pr);
-            let out_mono = mono + click + 0.5 * (pl + pr);
+        // The summed raw-take bus is processed by its own rig instance, then
+        // added to the monitor. It is intentionally not part of the live chain.
+        self.take_chain.process_block(
+            &self.take_in[..frames],
+            &mut self.take_l[..frames],
+            &mut self.take_r[..frames],
+        );
+
+        for ((&live_l, &live_r), (&take_l, &take_r)) in self
+            .out_l
+            .iter()
+            .zip(self.out_r.iter())
+            .zip(self.take_l.iter().zip(self.take_r.iter()))
+            .take(frames)
+        {
+            let out_left = live_l + take_l;
+            let out_right = live_r + take_r;
+            let out_mono = 0.5 * (out_left + out_right);
 
             // Fan the stereo pair out to the device channels: L→0, R→1, any extra
             // channels get the mono sum; a mono device gets the sum.
@@ -791,17 +992,21 @@ fn build_engine(
     sr: f32,
     params: Arc<Params>,
     levels: Arc<Levels>,
-    recording: Arc<RecordingState>,
+    capture: Arc<CaptureState>,
     tuner: Arc<Tuner>,
     metronome: Arc<Metronome>,
     practice: Arc<Practice>,
 ) -> Result<AudioEngine> {
-    recording.sample_rate.store(sr as u32, Relaxed);
+    capture.sample_rate.store(sr as u32, Relaxed);
 
     let buf_samples = (sr as usize) / 5 * out_channels * 2;
     let (producer, consumer) = RingBuffer::<f32>::new(buf_samples);
 
+    // The live rig, and a second instance for the raw-take bus. They share the
+    // same `Params` so every knob/tone change applies to both, but their DSP
+    // state is independent.
     let chain = DspChain::new(sr, Arc::clone(&params));
+    let take_chain = DspChain::new(sr, Arc::clone(&params));
 
     // Tuner: when engaged, the rig is bypassed and the dry guitar feeds both the
     // output (a clean signal to tune against) and the pitch/spectrum detector.
@@ -825,12 +1030,14 @@ fn build_engine(
     let (ext_amp_tx, ext_amp_rx) = RingBuffer::<ExtAmpCommand>::new(INSERT_QUEUE_CAP);
     let (ext_amp_dropped_tx, ext_amp_dropped_rx) =
         RingBuffer::<Box<dyn StereoInsert>>::new(INSERT_QUEUE_CAP);
-    // Practice-track handoff: decoded tracks flow UI → audio, displaced tracks flow
-    // back to the control thread so their buffers are never freed in the callback.
-    let (backing_tx, backing_rx) = RingBuffer::<Option<PlayerTrack>>::new(INSERT_QUEUE_CAP);
-    let (backing_dropped_tx, backing_dropped_rx) = RingBuffer::<PlayerTrack>::new(INSERT_QUEUE_CAP);
-    let (record_tx, record_rx) = RingBuffer::<Option<PlayerTrack>>::new(INSERT_QUEUE_CAP);
-    let (record_dropped_tx, record_dropped_rx) = RingBuffer::<PlayerTrack>::new(INSERT_QUEUE_CAP);
+    // Timeline-track handoff: commands flow UI → audio, displaced tracks flow back
+    // to the control thread so their buffers are never freed in the callback, and
+    // install acknowledgements flow audio → UI.
+    let (track_tx, track_rx) = RingBuffer::<TrackCommand>::new(TRACK_QUEUE_CAP);
+    let (track_dropped_tx, track_dropped_rx) = RingBuffer::<PlayerTrack>::new(TRACK_QUEUE_CAP);
+    let (track_ack_tx, track_ack_rx) = RingBuffer::<TrackAck>::new(TRACK_QUEUE_CAP);
+    // Dry capture: the callback pushes samples, the writer worker owns the consumer.
+    let (capture_tx, capture_rx) = capture_ring(sr);
 
     let attack = 1.0 - (-1.0 / (0.001 * sr)).exp();
     let release = 1.0 - (-1.0 / (0.300 * sr)).exp();
@@ -841,9 +1048,13 @@ fn build_engine(
     let in_buf: Vec<f32> = Vec::with_capacity(MAX_BLOCK);
     let out_l: Vec<f32> = vec![0.0; MAX_BLOCK];
     let out_r: Vec<f32> = vec![0.0; MAX_BLOCK];
+    let take_in: Vec<f32> = vec![0.0; MAX_BLOCK];
+    let take_l: Vec<f32> = vec![0.0; MAX_BLOCK];
+    let take_r: Vec<f32> = vec![0.0; MAX_BLOCK];
 
     let state = InputState {
         chain,
+        take_chain,
         tuner_detector,
         metro_voice,
         player,
@@ -857,19 +1068,24 @@ fn build_engine(
         in_buf,
         out_l,
         out_r,
+        take_in,
+        take_l,
+        take_r,
         insert_rx,
         dropped_tx,
         ext_cab_rx,
         ext_dropped_tx,
         ext_amp_rx,
         ext_amp_dropped_tx,
-        backing_rx,
-        backing_dropped_tx,
-        record_rx,
-        record_dropped_tx,
+        track_rx,
+        track_dropped_tx,
+        track_ack_tx,
+        capture_tx,
+        capture_started: false,
+        capture_generation: 0,
         producer,
         levels,
-        recording,
+        capture,
         tuner,
         metronome,
         practice,
@@ -931,9 +1147,9 @@ fn build_engine(
         ext_dropped_rx,
         ext_amp_tx,
         ext_amp_dropped_rx,
-        backing_tx,
-        backing_dropped_rx,
-        record_tx,
-        record_dropped_rx,
+        track_tx,
+        track_dropped_rx,
+        track_ack_rx,
+        capture_rx: Some(capture_rx),
     })
 }
