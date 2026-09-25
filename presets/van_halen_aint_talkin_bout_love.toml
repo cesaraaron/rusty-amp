@@ -1,0 +1,122 @@
+name        = "Van Halen — Ain't Talkin' 'bout Love"
+description = "Eddie's first-album tone: a dimed Plexi with the Phase 90 swirl, MXR-style flange and Echoplex slapback — bright, aggressive and wide, with the amp's power section doing the dirty work."
+
+# ── Noise Gate ────────────────────────────────────────────────────────────────
+# Medium and quick — the tone is very high-gain, so the gate keeps the silent
+# passages between the stabs quiet.
+[noise_gate]
+enabled   = true
+threshold = 0.16
+release   = 0.34
+
+[compressor]
+enabled = false
+sustain = 0.40
+attack  = 0.30
+level   = 0.50
+
+[fuzz]
+enabled = false
+type    = 0.0
+fuzz    = 0.50
+tone    = 0.50
+level   = 0.60
+
+# ── Tube Screamer ─────────────────────────────────────────────────────────────
+# A light boost rather than distortion: it tightens the front of the Plexi and
+# adds the upper-mid bite without changing its character.
+[tube_screamer]
+enabled = true
+drive = 0.20
+tone  = 0.60
+level = 0.74
+
+[distortion]
+enabled = false
+drive = 0.40
+tone  = 0.50
+level = 0.65
+
+# ── Pre-amp EQ ────────────────────────────────────────────────────────────────
+# Lows tucked for the tight palm mutes, mids and top pushed for the bright
+# "brown" attack.
+[preamp_eq]
+enabled = true
+low  = 0.40
+mid  = 0.60
+high = 0.62
+
+[uni_vibe]
+enabled = false
+rate    = 0.24
+depth   = 0.40
+mix     = 0.0
+mode    = 0.0
+
+# ── Amp ───────────────────────────────────────────────────────────────────────
+# Dimed Plexi: the channel volume near the top so the power section is fully in
+# grind — the core of the early Van Halen sound.
+[amp]
+model  = "plexi"
+gain   = 0.82
+bass   = 0.52
+mid    = 0.58
+treble = 0.66
+presence = 0.60
+
+# ── Cabinet ───────────────────────────────────────────────────────────────────
+# Greenbacks on-axis and dry — bright and immediate.
+[cabinet]
+model     = "marshall"
+mic_pos   = 0.58
+mic_blend = 0.22
+mic_room  = 0.12
+
+# ── Parametric EQ ─────────────────────────────────────────────────────────────
+# A bright, mid-forward finish with the lows kept in check.
+[eq]
+enabled = true
+low  = 0.44
+mid  = 0.56
+high = 0.60
+
+[chorus]
+enabled = false
+rate  = 0.22
+depth = 0.40
+mix   = 0.0
+
+# ── Flanger ───────────────────────────────────────────────────────────────────
+# The MXR-style jet sweep, moderate, on the finished tone.
+[flanger]
+enabled  = true
+rate     = 0.22
+depth    = 0.42
+feedback = 0.35
+mix      = 0.35
+
+# ── Phaser ────────────────────────────────────────────────────────────────────
+# A slow Phase 90 swirl under the riff — shallow, not a whoosh.
+[phaser]
+enabled  = true
+rate     = 0.24
+depth    = 0.50
+feedback = 0.30
+mix      = 0.40
+
+# ── Delay ─────────────────────────────────────────────────────────────────────
+# Echoplex-style tape slapback: one bright repeat that thickens the attack.
+[delay]
+enabled  = true
+type     = 1.0
+time     = 0.26
+feedback = 0.18
+mix      = 0.18
+
+# ── Reverb ────────────────────────────────────────────────────────────────────
+# A small bright room — enough depth to sit the sound, nothing washy.
+[reverb]
+enabled = true
+room = 0.36
+damp = 0.45
+mix  = 0.14

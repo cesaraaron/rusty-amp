@@ -60,17 +60,17 @@ mix     = 0.0
 mode    = 0.0
 
 # ── Amp ───────────────────────────────────────────────────────────────────────
-# Marshall JCM800 standing in for the Fender/Tweed stack they actually used: at
-# this gain it keeps the soft, vocal breakup a Fender has when it's working hard.
-# Mids well forward — the solo is a singing midrange voice, never scooped.
+# Marshall Super Lead "Plexi" — the cranked non-master head the Eagles actually
+# used, with the power section supplying the soft, vocal breakup (not the JCM800,
+# which was a decade later). Mids well forward — the solo is a singing midrange
+# voice, never scooped.
 [amp]
-model  = "marshall"
-gain   = 0.60   # hot and singing — well past edge-of-breakup
+model  = "plexi"
+gain   = 0.62   # hot and singing — the channel volume well up
 bass   = 0.46   # tight low end so bends don't turn to mud
 mid    = 0.66   # the vocal vowel — the whole character of the tone
 treble = 0.58   # open and articulate without ice-pick
 presence = 0.52
-master = 0.66
 
 # ── Cabinet ───────────────────────────────────────────────────────────────────
 # Greenbacks slightly off-axis with a ribbon blend: warm and vocal on top, with

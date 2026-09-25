@@ -1,37 +1,38 @@
-name        = "Led Zeppelin — Stairway to Heaven (Solo)"
-description = "Page's solo: a cranked small-amp crunch — bright, mid-forward and singing, with a touch of room. Not high gain; the pick bite and the bend are the point."
+name        = "Led Zeppelin — Whole Lotta Love"
+description = "Page's riff tone: a Tone Bender MkII fuzz into a cranked Plexi and Greenbacks — thick, greasy and mid-rich, with the fuzz doing the snarling and the amp adding the chest."
 
 # ── Noise Gate ────────────────────────────────────────────────────────────────
-# Light — a medium-gain crunch, and the solo's quiet pickup-roll runs must not be
-# clamped.
+# Low and slow: the riff is full of stops and starts, and the fuzz's own gating
+# must not be doubled up by a hard gate.
 [noise_gate]
 enabled   = true
 threshold = 0.12
-release   = 0.36
+release   = 0.40
 
 # ── Compressor ────────────────────────────────────────────────────────────────
-# Only a whisper of compression for sustain. Page's tone is dynamic — too much
-# squeeze and the light-and-shade of the solo disappears.
+# Off: the Tone Bender already compresses hard and the riff needs its attack.
 [compressor]
+enabled = false
+sustain = 0.40
+attack  = 0.30
+level   = 0.50
+
+# ── Tone Bender MkII ──────────────────────────────────────────────────────────
+# type 1.0 selects the MkII — hotter and harder-kneed than a Fuzz Face, with the
+# mids kept in. Sustain high, tone up so the bite cuts through.
+[fuzz]
 enabled = true
-sustain = 0.30
-attack  = 0.45
+type    = 1.0   # 0 = Big Muff, 0.5 = Fuzz Face, 1 = Tone Bender
+fuzz    = 0.72
+tone    = 0.60
 level   = 0.52
 
-[fuzz]
-enabled = false
-fuzz  = 0.50
-tone  = 0.50
-level = 0.60
-
-# ── Tube Screamer ─────────────────────────────────────────────────────────────
-# A light boost standing in for a small amp pushed hard: more gain and mid push,
-# not more distortion.
+# TS off — the fuzz straight into the Plexi is the sound.
 [tube_screamer]
-enabled = true
-drive = 0.22
-tone  = 0.58
-level = 0.66
+enabled = false
+drive = 0.30
+tone  = 0.55
+level = 0.70
 
 [distortion]
 enabled = false
@@ -40,15 +41,13 @@ tone  = 0.50
 level = 0.65
 
 # ── Pre-amp EQ ────────────────────────────────────────────────────────────────
-# Mids up for the vocal Page lead voice, lows trimmed so chords stay tight, top
-# open for the Tele/Les Paul bite.
+# Mids forward, lows tightened so the fuzz's wall stays defined.
 [preamp_eq]
 enabled = true
-low  = 0.44
-mid  = 0.60
+low  = 0.42
+mid  = 0.62
 high = 0.56
 
-# Uni-Vibe off — not part of this tone; stored so it is explicitly bypassed.
 [uni_vibe]
 enabled = false
 rate    = 0.24
@@ -57,47 +56,65 @@ mix     = 0.0
 mode    = 0.0
 
 # ── Amp ───────────────────────────────────────────────────────────────────────
-# A cranked Marshall Super Lead "Plexi" — the non-master head Page used, pushed
-# into power-amp crunch: medium gain, strong mids, bright top. Enough to sing,
-# far from metal.
+# Marshall Super Lead "Plexi" with the channel volume up: the power section sags
+# and grinds under the fuzz, which is what gives the riff its weight.
 [amp]
 model  = "plexi"
-gain   = 0.48
-bass   = 0.44
-mid    = 0.62
-treble = 0.62
-presence = 0.58
+gain   = 0.66
+bass   = 0.48
+mid    = 0.60
+treble = 0.60
+presence = 0.54
 
 # ── Cabinet ───────────────────────────────────────────────────────────────────
-# Greenbacks near on-axis with a light ribbon and just a little room — immediate
-# and present, the way a close-mic'd small combo sits.
+# Greenbacks near on-axis — the warm, mid-forward cab the riff was cut on.
 [cabinet]
 model     = "marshall"
-mic_pos   = 0.56
-mic_blend = 0.18
-mic_room  = 0.24
+mic_pos   = 0.54
+mic_blend = 0.20
+mic_room  = 0.22
 
 # ── Parametric EQ ─────────────────────────────────────────────────────────────
-# A mid-forward finish with the lows tucked and a little brightness on top.
+# A final mid lift and gentle low tuck so the fuzz sits in the arrangement.
 [eq]
 enabled = true
 low  = 0.44
 mid  = 0.58
-high = 0.56
+high = 0.54
+
+[chorus]
+enabled = false
+rate  = 0.22
+depth = 0.40
+mix   = 0.0
+
+[flanger]
+enabled  = false
+rate     = 0.20
+depth    = 0.30
+feedback = 0.20
+mix      = 0.0
+
+[phaser]
+enabled  = false
+rate     = 0.28
+depth    = 0.50
+feedback = 0.30
+mix      = 0.0
 
 # ── Delay ─────────────────────────────────────────────────────────────────────
-# A short Echoplex-style slap (~130 ms), barely there — it thickens the single
-# note without turning into an audible echo.
+# A short slapback — just a hint of room around the riff, not an echo.
 [delay]
 enabled  = true
-time     = 0.26
-feedback = 0.18
-mix      = 0.14
+type     = 1.0   # tape
+time     = 0.30
+feedback = 0.20
+mix      = 0.12
 
 # ── Reverb ────────────────────────────────────────────────────────────────────
-# A small, damped room — enough to place the amp in a space, not a hall.
+# A tight, damped room so the riff stays dry and punchy.
 [reverb]
 enabled = true
-room = 0.38
-damp = 0.52
-mix  = 0.14
+room = 0.35
+damp = 0.55
+mix  = 0.12

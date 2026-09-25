@@ -3,7 +3,7 @@ layout: page.njk
 permalink: pedals.html
 title: "Pedals & effects · rusty-amp"
 ogTitle: "rusty-amp · pedals & effects"
-description: "Every rusty-amp pedal explained: noise gate, whammy pitch shifter, auto-wah, compressor, fuzz (Big Muff / Fuzz Face), TS-808, DS-1, ML-2 Metal Core, pre-amp EQ, Uni-Vibe, graphic EQ, parametric EQ, flanger, chorus, phaser, tremolo/vibrato, delay, and stereo reverb — with full knob reference tables."
+description: "Every rusty-amp pedal explained: noise gate, whammy pitch shifter, auto-wah, compressor, fuzz (Big Muff / Fuzz Face / Tone Bender), TS-808, DS-1, ML-2 Metal Core, pre-amp EQ, Uni-Vibe, graphic EQ, parametric EQ, flanger, chorus, phaser, tremolo/vibrato, delay (digital / tape), and stereo reverb — with full knob reference tables."
 eyebrow: "Pedals & effects"
 heading: "Configuring the board"
 lead: "Eighteen effects you can add, remove, and bypass independently. Each knob runs 0–10; here's exactly what every one does."
@@ -111,7 +111,7 @@ Pick a pedal to load it into the editor — exactly like arrowing to its tile in
     </button>
     <button class="tile" style="--c:var(--purple)" role="tab" aria-selected="false" data-tab="delay">
       <div class="tile__name"><span class="tile__dot"></span>Delay</div>
-      <div class="tile__sub">Time · Feedback · Mix</div>
+      <div class="tile__sub">Type · Time · Feedback · Mix</div>
     </button>
     <button class="tile" style="--c:var(--blue)" role="tab" aria-selected="false" data-tab="reverb">
       <div class="tile__name"><span class="tile__dot"></span>Stereo Reverb</div>
@@ -148,8 +148,8 @@ Pick a pedal to load it into the editor — exactly like arrowing to its tile in
   </div>
 
   <div class="tab-panel" style="--c:var(--magenta)" role="tabpanel" data-panel="fuzz">
-    <p class="muted">Two fuzz voicings in one pedal, run first in the drive chain so it sees the rawest pickup signal. <b>Big Muff</b> (Type 0) cascades two clipping stages for the long, singing sustain and near-square saturation of a vintage fuzz, with a 700 Hz mid scoop for the classic “wall of sound”. <b>Fuzz Face</b> (Type 1) runs a lower gain into a softer germanium-style clip and keeps its mids, so it stays vocal and cleans up as the fuzz knob comes down.</p>
-    <div class="kv"><span class="kv__k">Type</span><span class="kv__v"><span class="kv__r">0–10</span> Voicing: 0 = Big Muff (scooped, heavier), 10 = Fuzz Face (mid-rich, softer).</span></div>
+    <p class="muted">Three fuzz voicings in one pedal, run first in the drive chain so it sees the rawest pickup signal. <b>Big Muff</b> (Type 0) cascades two clipping stages for the long, singing sustain and near-square saturation of a vintage fuzz, with a 700 Hz mid scoop for the classic “wall of sound”. <b>Fuzz Face</b> (Type 5) runs a lower gain into a softer germanium-style clip and keeps its mids, so it stays vocal and cleans up as the fuzz knob comes down. <b>Tone Bender MkII</b> (Type 10) drives a three-transistor germanium chain hotter and with a harder knee — Jimmy Page's Led Zeppelin fuzz — for a thicker, more compressed bite (also no scoop).</p>
+    <div class="kv"><span class="kv__k">Type</span><span class="kv__v"><span class="kv__r">0–10</span> Voicing: 0–2 = Big Muff (scooped, heavier), 3–7 = Fuzz Face (mid-rich, softer), 8–10 = Tone Bender MkII (hotter, harder-kneed).</span></div>
     <div class="kv"><span class="kv__k">Fuzz</span><span class="kv__v"><span class="kv__r">0–10</span> Sustain/gain into the cascaded soft-clip stages. High values drive the waveform toward a gated square wave.</span></div>
     <div class="kv"><span class="kv__k">Tone</span><span class="kv__v"><span class="kv__r">0–10</span> Low-pass after the clipping. 0 = dark/woolly (~400 Hz), 10 = bright/buzzy (~6 kHz).</span></div>
     <div class="kv"><span class="kv__k">Level</span><span class="kv__v"><span class="kv__r">0–10</span> Output volume of the pedal into the next stage.</span></div>
@@ -243,9 +243,10 @@ Pick a pedal to load it into the editor — exactly like arrowing to its tile in
   </div>
 
   <div class="tab-panel" style="--c:var(--purple)" role="tabpanel" data-panel="delay">
-    <p class="muted">Stereo ping-pong: feedback cross-feeds the two channels so repeats bounce left ↔ right.</p>
+    <p class="muted">Two delay voicings. <b>Digital</b> (Type 0) is a stereo ping-pong: feedback cross-feeds the two channels so repeats bounce left ↔ right. <b>Tape</b> (Type 10) is an Echoplex EP-3 style echo — each repeat is high-cut and softly saturated, and the transport runs slightly unsteady (a slow wow plus a faster flutter), so held notes drift the way tape does; repeats return to the same channel at a lower ceiling.</p>
+    <div class="kv"><span class="kv__k">Type</span><span class="kv__v"><span class="kv__r">0–10</span> Voicing: 0–4 = digital ping-pong, 5–10 = tape.</span></div>
     <div class="kv"><span class="kv__k">Time</span><span class="kv__v"><span class="kv__r">0–10</span> Delay time 0–500 ms.</span></div>
-    <div class="kv"><span class="kv__k">Feedback</span><span class="kv__v"><span class="kv__r">0–10</span> Repeat level. Capped at 85% internally to prevent runaway.</span></div>
+    <div class="kv"><span class="kv__k">Feedback</span><span class="kv__v"><span class="kv__r">0–10</span> Repeat level. Capped internally (85% digital, 70% tape) to prevent runaway.</span></div>
     <div class="kv"><span class="kv__k">Mix</span><span class="kv__v"><span class="kv__r">0–10</span> Dry/wet blend.</span></div>
   </div>
 

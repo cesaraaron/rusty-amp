@@ -1,0 +1,110 @@
+name        = "Pink Floyd — Another Brick in the Wall, Pt. 2"
+description = "The Wall solo: a Big Muff into a Hiwatt with a slow Phase 90 sweep and a trailing tape echo — biting, nasal and spacious."
+
+[noise_gate]
+enabled   = true
+threshold = 0.12
+release   = 0.42
+
+[compressor]
+enabled = true
+sustain = 0.36
+attack  = 0.36
+level   = 0.52
+
+# ── Big Muff ──────────────────────────────────────────────────────────────────
+# The scooped Muff wall, tone up so the solo cuts.
+[fuzz]
+enabled = true
+type    = 0.0
+fuzz    = 0.62
+tone    = 0.60
+level   = 0.56
+
+[tube_screamer]
+enabled = false
+drive = 0.30
+tone  = 0.55
+level = 0.70
+
+[distortion]
+enabled = false
+drive = 0.40
+tone  = 0.50
+level = 0.65
+
+[preamp_eq]
+enabled = true
+low  = 0.42
+mid  = 0.60
+high = 0.58
+
+[uni_vibe]
+enabled = false
+rate    = 0.24
+depth   = 0.40
+mix     = 0.0
+mode    = 0.0
+
+# ── Amp ───────────────────────────────────────────────────────────────────────
+# Hiwatt DR103, clean and punchy under the fuzz.
+[amp]
+model  = "hiwatt"
+gain   = 0.46
+bass   = 0.42
+treble = 0.60
+mid    = 0.58
+presence = 0.58
+master = 0.56
+
+# ── Cabinet ───────────────────────────────────────────────────────────────────
+# WEM 4×12 with Fanes — bright and aggressive.
+[cabinet]
+model     = "wem"
+mic_pos   = 0.54
+mic_blend = 0.22
+mic_room  = 0.22
+
+[eq]
+enabled = true
+low  = 0.44
+mid  = 0.56
+high = 0.58
+
+[chorus]
+enabled = false
+rate  = 0.22
+depth = 0.40
+mix   = 0.0
+
+[flanger]
+enabled  = false
+rate     = 0.20
+depth    = 0.30
+feedback = 0.20
+mix      = 0.0
+
+# ── Phaser ────────────────────────────────────────────────────────────────────
+# A slow Phase 90 sweep moving under the solo.
+[phaser]
+enabled  = true
+rate     = 0.22
+depth    = 0.55
+feedback = 0.32
+mix      = 0.42
+
+# ── Delay ─────────────────────────────────────────────────────────────────────
+# Tape echo, a few repeats trailing the phrases.
+[delay]
+enabled  = true
+type     = 1.0
+time     = 0.60
+feedback = 0.34
+mix      = 0.22
+
+# ── Reverb ────────────────────────────────────────────────────────────────────
+[reverb]
+enabled = true
+room = 0.48
+damp = 0.50
+mix  = 0.18

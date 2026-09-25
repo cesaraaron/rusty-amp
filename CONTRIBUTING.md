@@ -26,7 +26,7 @@ src/
   recording.rs      — WAV recording
   audio/            — cpal device selection and audio callback
   dsp/              — all signal processing
-    amp/            — amp models (marshall, mesa, randall)
+    amp/            — amp models (marshall, mesa, plexi, vox, fender, randall, hiwatt)
     cab/            — cabinet IR convolution and mic models
     effects/        — pedals & rack effects + their shared building blocks
       mod.rs        — OnePoleLp, ThreeBandEq, dB/param helpers (shared logic)
@@ -120,28 +120,35 @@ To add one:
 ### Adding a new amp model
 
 Amp models live in `src/dsp/amp/`. Each model is a struct implementing the
-`Amplifier` trait (gain stages, tone stack call, sag, and speaker interaction).
-Use the existing `marshall.rs`/`mesa.rs` (tube) or `randall.rs` (solid-state)
-files as a template — the shared building blocks (`FrontEnd`, `Bloom`,
-`CathodeBias`, `BrightCap`, `OutputTransformer`, `SpeakerLoad`, `VoiceBalance`,
-`Cached`/`ToneCache`) live in `src/dsp/amp/mod.rs`.
+`Amplifier` trait (gain stages, tone stack call, sag, and speaker interaction)
+plus a `KNOBS` descriptor listing its front-panel controls. `process` takes a
+fixed `&[f32; AMP_MAX]` array decoded positionally, so each model can expose its
+own control set (JCM800's six knobs, a Plexi's two channel volumes, a Twin's
+reverb and tremolo). Use the existing `marshall.rs`/`mesa.rs`/`plexi.rs` (tube)
+or `randall.rs` (solid-state) files as a template — the shared building blocks
+(`FrontEnd`, `Bloom`, `CathodeBias`, `BrightCap`, `OutputTransformer`,
+`SpeakerLoad`, `VoiceBalance`, `Cached`/`ToneCache`) live in
+`src/dsp/amp/mod.rs`.
 
 To add one:
 
-1. Create `src/dsp/amp/<model>.rs` and declare/re-export it in
-   `src/dsp/amp/mod.rs`; add a field to `AmpBank` and a match arm in each of
-   `AmpBank::new`/`AmpBank::process`.
+1. Create `src/dsp/amp/<model>.rs` (the `Amplifier` impl + a `KNOBS` descriptor)
+   and declare/re-export it in `src/dsp/amp/mod.rs`; add a field to `AmpBank`
+   and a match arm in each of `AmpBank::new`/`AmpBank::process`.
 2. Register the model in the `AmpModel` enum in `src/dsp/mod.rs`: add the
-   variant, the `from_u8` discriminant, `name()`/`short_name()` display
-   strings, and splice it into the `next()`/`prev()` cycle ring.
-3. Add it to the amp-selector's literal array in `src/ui/draw.rs` (the amp
-   header row — cycling itself is generic over `AmpModel::next()`/`prev()`, live
-   on the **`A`** key, no `input.rs` match arm needed).
+   variant, append it to `ALL`, the `from_u8` discriminant, the `controls()` arm
+   returning its `KNOBS`, `name()`/`short_name()` display strings, and splice it
+   into the `next()`/`prev()` cycle ring. If it exposes more controls than any
+   current model, bump `AMP_MAX` in `src/dsp/amp/mod.rs` and add the matching
+   accessor rows/ranges in `src/ui/config.rs`.
+3. The amp panel (`src/ui/draw.rs`) and the `A` browser modal are model-aware
+   (driven by `controls()`/`ALL`), so no selector edits are needed; update the
+   `amp_choices` count assertions in `src/ui/input.rs`.
 4. Add the model's string in `src/preset.rs` — the `AmpSection.model` match arms
    in both `Preset::from_params` and `Preset::apply`.
 5. Add the new model to `each_amp()` (and `tube_amps()`, if it's a tube model)
-   in `src/dsp/amp/mod.rs`'s test module, and to the `every_amp_model_renders_its_name`
-   literal array and the `cycle_amp_*` tests in `src/ui/draw.rs`/`src/ui/input.rs`.
+   in `src/dsp/amp/mod.rs`'s test module, and tune its output trim until
+   `amps_are_loudness_matched` passes.
 6. Re-bless the UI golden snapshot (see [Working with snapshots](#working-with-snapshots)).
 7. Document the model on the docs site — see [Documenting a new amp
    model](#documenting-a-new-amp-model).
@@ -151,13 +158,13 @@ operationalizes this whole checklist end to end.
 
 ### Adding a new cabinet model
 
-Cabinet models live in `src/dsp/cab/`. Each model synthesizes its own IR (voiced EQ skeleton + comb reflections + modal resonances). Follow the existing Mesa/Marshall/Orange pattern.
+Cabinet models live in `src/dsp/cab/`. Each model synthesizes its own IR (voiced EQ skeleton + comb reflections + modal resonances). Follow the existing Mesa/Marshall/Orange pattern; pass a `CabLayout` to `BlendedCab::new` (`FourByTwelve` for a closed 4×12, `TwoByTwelve` for an open-back 2×12) so the neighbour-cone interference matches the box.
 
 Register in the `CabModel` enum (`src/dsp/mod.rs`), the `CabBank` in `src/dsp/cab/mod.rs`, the preset `"marshall"`/`"orange"`/`"wem"` match arms in `src/preset.rs`, and the cabinet-selector arrays in `src/ui/draw.rs`/`src/ui/input.rs`; add the new cab's `tests` module and re-bless the UI snapshot.
 
 ## Adding a bundled preset
 
-Drop a `.toml` file in `presets/`. Follow the schema in the README — all fields are optional except `name`. Test it by running the app and pressing `P`.
+Drop a `.toml` file in `presets/`. Follow the schema in `site/presets.md` — only `name`, `[tube_screamer]`, `[amp]`, and `[reverb]` are required; every other section is optional. Test it by running the app and pressing `P`.
 
 Bundled presets cannot be deleted by users, so only add presets that are genuinely useful and well-tuned.
 
@@ -215,9 +222,12 @@ is needed. Add the model in two places, reusing classes already defined in
    with 6 decorative knob-icon spans (`--r:` rotation degrees).
 2. A matching `<div class="tab-panel" data-panel="<id>">`: a `.specs` block
    (`Gain range`, `Tone stack`, `Rectifier & power`, `Gain stages`) and one
-   `.kv` row per knob (`Gain`, `Bass`, `Mid`, `Treble`, `Presence`, `Master`) —
-   short, technical sentences (frequencies, dB, component type), no marketing
-   fluff.
+   `.kv` row per control the model exposes, in the same order as its `KNOBS`
+   descriptor — short, technical sentences (frequencies, dB, component type), no
+   marketing
+   fluff. Note the fixed legacy `[amp]` preset fields are matched by role; a
+   model-specific control (Fender's Reverb, Vox's Cut) is stored under
+   `[amp.knobs]` keyed by its slug.
 
 If the model changes the tube-vs-solid-state split described in the section's
 closing paragraph, update that paragraph too. Then run `npm run build` (or

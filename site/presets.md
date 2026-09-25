@@ -38,10 +38,10 @@ Press <kbd>P</kbd> while playing to open the browser overlay. Move the cursor wi
 <div class="overlay">
   <div class="overlay__bar"><span class="dots"><i></i><i></i><i></i></span><span class="ttl">Presets</span></div>
   <div class="plist">
-    <div class="prow"><span class="prow__name">Eagles — Hotel California (Solo)</span><span class="prow__meta">Marshall JCM800 · Marshall Greenback</span></div>
+    <div class="prow"><span class="prow__name">Eagles — Hotel California (Solo)</span><span class="prow__meta">Marshall Plexi · Marshall Greenback</span></div>
     <div class="prow is-sel"><span class="prow__name">Pink Floyd — Comfortably Numb (Outro Solo)</span><span class="prow__meta">Hiwatt DR103 · WEM (Fane)</span></div>
     <div class="prow"><span class="prow__name">Pink Floyd — Time (Intro / Verse / Chorus)</span><span class="prow__meta">Hiwatt DR103 · WEM (Fane)</span></div>
-    <div class="prow"><span class="prow__name">Led Zeppelin — Stairway to Heaven (Solo)</span><span class="prow__meta">Marshall JCM800 · Marshall Greenback</span></div>
+    <div class="prow"><span class="prow__name">Led Zeppelin — Stairway to Heaven (Solo)</span><span class="prow__meta">Marshall Plexi · Marshall Greenback</span></div>
     <div class="prow"><span class="prow__name">my lead tone</span><span class="prow__meta">Mesa Dual Rectifier · Mesa V30</span><span class="prow__tag">user</span></div>
   </div>
   <div class="overlay__foot">
@@ -114,12 +114,21 @@ Share tones as plain `.toml` files — the same format described in [Writing you
 
 | File | Amp | Cabinet | Description |
 | ---- | --- | ------- | ----------- |
-| `eagles_hotel_california_solo.toml` | Marshall JCM800 | Marshall Greenback | Hotel California solo — TS boost, vocal mids, singing sustain, delay + hall |
+| `acdc_back_in_black.toml` | Marshall Plexi | Marshall Greenback | Back in Black rhythm — guitar straight into a cranked Plexi, no pedals, tight and dry |
+| `acdc_highway_to_hell.toml` | Marshall Plexi | Marshall Greenback | Highway to Hell — edge-of-breakup Plexi, jangly chords that bite when you dig in |
+| `eagles_hotel_california_clean.toml` | Fender Twin Reverb | Fender 2×12 (Jensen) | Hotel California clean intro — glassy Twin, onboard spring reverb, lush chorus |
+| `eagles_hotel_california_solo.toml` | Marshall Plexi | Marshall Greenback | Hotel California solo — TS boost, vocal mids, singing sustain, delay + hall |
+| `led_zeppelin_stairway_solo.toml` | Marshall Plexi | Marshall Greenback | Stairway solo — cranked-amp crunch, bright mids, Echoplex slap |
+| `led_zeppelin_whole_lotta_love.toml` | Marshall Plexi | Marshall Greenback | Whole Lotta Love — Tone Bender MkII fuzz into a cranked Plexi, thick and greasy |
+| `pink_floyd_another_brick_pt2.toml` | Hiwatt DR103 | WEM (Fane) | Another Brick in the Wall Pt. 2 solo — Big Muff, slow Phase 90, tape echo |
 | `pink_floyd_comfortably_numb_solo_1.toml` | Hiwatt DR103 | WEM (Fane) | Comfortably Numb first solo — light Big Muff, Dyna-Comp, Mistress shimmer, long Echorec |
 | `pink_floyd_comfortably_numb_solo_2.toml` | Hiwatt DR103 | WEM (Fane) | Comfortably Numb outro — thick Big Muff, Electric Mistress swirl, big hall |
+| `pink_floyd_money.toml` | Hiwatt DR103 | WEM (Fane) | Money — Fuzz Face into a Hiwatt with the wah rocking, Echorec-style tape echo |
+| `pink_floyd_shine_on_crazy_diamond.toml` | Hiwatt DR103 | WEM (Fane) | Shine On You Crazy Diamond — Ram's-Head Big Muff, Uni-Vibe swirl, long tape echo |
 | `pink_floyd_time_chorus.toml` | Hiwatt DR103 | WEM (Fane) | Dark Side "Time" intro/verse/chorus — clean, dry Hiwatt, whisper of Uni-Vibe, low dotted-eighth Echorec (no fuzz or compression) |
 | `pink_floyd_time_solo.toml` | Hiwatt DR103 | WEM (Fane) | Dark Side "Time" solo — Fuzz Face bite, Uni-Vibe swirl, Echorec delay |
-| `led_zeppelin_stairway_solo.toml` | Marshall JCM800 | Marshall Greenback | Stairway solo — cranked-amp crunch, bright mids, Echoplex slap |
+| `van_halen_aint_talkin_bout_love.toml` | Marshall Plexi | Marshall Greenback | Ain't Talkin' 'bout Love — dimed Plexi, Phase 90 swirl, MXR-style flange, tape slap |
+| `van_halen_brown_sound.toml` | Marshall Plexi | Marshall Greenback | Brown sound lead — dimed Plexi, gentle Phase 90, Echoplex slapback |
 
 ## Writing your own preset {#write}
 
@@ -166,7 +175,7 @@ mix  = 0.90         # 0.0 – 1.0  (dry/wet; a real wah is fully wet)
 # or include it with enabled = false to store values but keep it bypassed.
 [fuzz]
 enabled = false     # optional, defaults to true when the section is present
-type  = 0.0         # 0.0 = Big Muff, 1.0 = Fuzz Face
+type  = 0.0         # 0.0 = Big Muff, 0.5 = Fuzz Face, 1.0 = Tone Bender MkII
 fuzz  = 0.70        # 0.0 – 1.0  (sustain/gain)
 tone  = 0.50
 level = 0.60
@@ -212,16 +221,29 @@ depth = 0.60
 mix   = 0.50
 mode  = 0.00
 
+# The amp's front panel is model-specific. The fixed keys below are matched to the
+# model's controls by role — a model without that control simply ignores the key
+# (Vox and Fender have no Presence; the Plexi, Vox and Fender have no Master).
+# For controls the fixed keys don't cover — Hiwatt's Normal, Vox's Cut, Fender's
+# Reverb/Speed/Intensity — use the optional [amp.knobs] table, keyed by each
+# control's slug.
 [amp]
-model  = "marshall"   # "marshall" (default), "mesa", "randall", "vox", or "hiwatt"
-gain   = 0.65
+model  = "marshall"   # "marshall" | "mesa" | "randall" | "vox" | "hiwatt" | "plexi" | "fender"
+gain   = 0.65         # the model's primary gain control (Gain / Volume / Top Boost / Brilliant)
 bass   = 0.50
 mid    = 0.45
 treble = 0.65
-master = 0.55
+presence = 0.50       # ignored by models with no Presence control
+master = 0.55         # ignored by non-master models
+
+# Optional per-control overrides, keyed by slug. Example for a Fender Twin:
+# [amp.knobs]
+# reverb    = 0.30
+# speed     = 0.0
+# intensity = 0.0
 
 [cabinet]
-model     = "mesa"    # "mesa" (default), "marshall", "orange", or "wem"
+model     = "mesa"    # "mesa" | "marshall" | "orange" | "wem" | "vox" | "fender"
 mic_pos   = 0.5       # 0.0 = edge/dark, 0.5 = neutral, 1.0 = center/bright (default 0.5)
 mic_blend = 0.15      # 0.0 = SM57 dynamic, 1.0 = R121 ribbon (default 0.15)
 mic_room  = 0.15      # 0.0 = dry close mic, 1.0 = full room mic (default 0.15)
@@ -281,8 +303,9 @@ mode    = 0.00        # 0.0 = pure tremolo (amplitude), 1.0 = pure vibrato (pitc
 
 [delay]
 enabled  = true       # optional, defaults to true
+type     = 0.0        # 0.0 = digital ping-pong, 1.0 = tape (Echoplex-style)
 time     = 0.30       # 0.0 = 0 ms, 1.0 = 500 ms
-feedback = 0.40       # 0.0 – 1.0 (internally capped at 85%)
+feedback = 0.40       # 0.0 – 1.0 (internally capped at 85% digital / 70% tape)
 mix      = 0.30       # 0.0 = dry, 1.0 = fully wet
 
 [reverb]

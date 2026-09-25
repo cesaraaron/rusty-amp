@@ -105,6 +105,7 @@ mix      = 0.0
 # The dotted-eighth Echorec figure (~375 ms) that defines the intro and verses —
 # low in the mix so it reads as a rhythmic echo, not a wash.
 [delay]
+type     = 1.0   # tape (Echorec-style drum echo approximates as tape)
 enabled  = true
 time     = 0.75
 feedback = 0.28

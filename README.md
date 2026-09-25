@@ -2,7 +2,7 @@
 
 **A complete guitar amp and pedalboard rig that runs right in your terminal.**
 
-Plug in your guitar, pick an amp, and play. rusty-amp recreates classic tube and solid-state amplifiers, a full board of stompbox effects, and multi-mic'd 4×12 cabinets — all driven from a fast, keyboard-only interface with live metering. It ships with artist-inspired presets, so you can dial in a great tone in seconds and tweak from there.
+Plug in your guitar, pick an amp, and play. rusty-amp recreates classic tube and solid-state amplifiers, a full board of stompbox effects, and multi-mic'd cabinets — all driven from a fast, keyboard-only interface with live metering. It ships with artist-inspired presets, so you can dial in a great tone in seconds and tweak from there.
 
 ![Screenshot](/site/assets/screenshot.png)
 
@@ -27,9 +27,9 @@ On top of that sit complex effects which add width and depth to sound. All of it
 
 ## Highlights
 
-- 🔊 **5 amplifiers** — Marshall JCM800, Mesa Dual Rectifier, Randall Warhead, Vox AC30, and Hiwatt DR103, switchable while you play
-- 📦 **4 cabinets + your own IRs** — Mesa, Marshall, Orange, and WEM/Fane 4×12s, each captured with three blendable mics; load your own favourite external `wav` IR
-- 🎛️ **A full pedalboard** — noise gate, whammy pitch shifter, auto-wah, compressor, fuzz (Big Muff / Fuzz Face), Tube Screamer, DS-1, ML-2 Metal Core, graphic EQ, parametric EQ, Uni-Vibe, flanger, chorus, phaser, tremolo/vibrato, ping-pong delay, and stereo reverb; add, remove, and bypass on the fly
+- 🔊 **7 amplifiers** — Marshall JCM800 & Plexi, Mesa Dual Rectifier, Randall Warhead, Vox AC30, Hiwatt DR103, and Fender Twin Reverb, switchable while you play
+- 📦 **6 cabinets + your own IRs** — four closed 4×12s (Mesa, Marshall, Orange, WEM/Fane) and two open-back 2×12s (Vox Alnico, Fender Jensen), each captured with three blendable mics; load your own favourite external `wav` IR
+- 🎛️ **A full pedalboard** — noise gate, whammy pitch shifter, auto-wah, compressor, fuzz (Big Muff / Fuzz Face / Tone Bender MkII), Tube Screamer, DS-1, ML-2 Metal Core, graphic EQ, parametric EQ, Uni-Vibe, flanger, chorus, phaser, tremolo/vibrato, digital or tape delay, and stereo reverb; add, remove, and bypass on the fly
 - 🎧 **True studio-grade stereo** — wide, three-dimensional sound from the cab, delay, and reverb
 - 💾 **Ready-made presets** — instant tones for the Hotel California, Comfortably Numb, "Time", and Stairway to Heaven solos
 - 🔌 **CLAP plugin host** — drop a third-party CLAP effect into the chain and tweak its parameters from the TUI

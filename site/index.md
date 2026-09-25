@@ -3,7 +3,7 @@ layout: base.njk
 permalink: index.html
 title: "rusty-amp · a guitar amp & pedalboard rig in your terminal"
 ogTitle: "rusty-amp"
-description: "rusty-amp recreates classic tube and solid-state guitar amps, a full board of stompbox effects, and multi-mic'd 4×12 cabinets — all from a fast, keyboard-only terminal interface."
+description: "rusty-amp recreates classic tube and solid-state guitar amps, a full board of stompbox effects, and multi-mic'd cabinets — all from a fast, keyboard-only terminal interface."
 ---
 
 <header class="hero">
@@ -13,7 +13,7 @@ description: "rusty-amp recreates classic tube and solid-state guitar amps, a fu
     <p class="tagline">a guitar amp &amp; pedalboard rig in your <span class="term">terminal</span></p>
     <p class="blurb">
       Plug in your guitar, pick an amp, and play. rusty-amp recreates classic tube and
-      solid-state amplifiers, a full board of stompbox effects, and multi-mic'd 4×12
+      solid-state amplifiers, a full board of stompbox effects, and multi-mic'd
       cabinets — all driven from a fast, keyboard-only interface with live metering.
       It ships with artist-inspired presets, so you can dial in a great tone in seconds.
     </p>
@@ -96,9 +96,9 @@ description: "rusty-amp recreates classic tube and solid-state guitar amps, a fu
   <section>
     <h2>Highlights</h2>
     <div class="grid grid--3">
-      <div class="card"><div class="ico">🔊</div><h3>5 amplifiers</h3><p>Marshall JCM800, Mesa Dual Rectifier, Randall Warhead, Vox AC30, and Hiwatt DR103 — switchable while you play.</p></div>
-      <div class="card"><div class="ico">📦</div><h3>4 cabinets + your IRs</h3><p>Mesa, Marshall, Orange, and WEM/Fane 4×12s, each captured with three blendable mics. Load your own <code>.wav</code> IR and A/B it live.</p></div>
-      <div class="card"><div class="ico">🎛️</div><h3>Full pedalboard</h3><p>Gate, compressor, fuzz, Tube Screamer, DS-1, EQ, Uni-Vibe, ping-pong delay, and stereo reverb. Add, remove, and bypass on the fly.</p></div>
+      <div class="card"><div class="ico">🔊</div><h3>7 amplifiers</h3><p>Marshall JCM800 &amp; Plexi, Mesa Dual Rectifier, Randall Warhead, Vox AC30, Hiwatt DR103, and Fender Twin Reverb — switchable while you play.</p></div>
+      <div class="card"><div class="ico">📦</div><h3>6 cabinets + your IRs</h3><p>Four closed 4×12s and two open-back 2×12s — Mesa, Marshall, Orange, WEM/Fane, Vox Alnico, and Fender Jensen — each captured with three blendable mics. Load your own <code>.wav</code> IR and A/B it live.</p></div>
+      <div class="card"><div class="ico">🎛️</div><h3>Full pedalboard</h3><p>Gate, compressor, fuzz (Big Muff / Fuzz Face / Tone Bender), Tube Screamer, DS-1, EQ, Uni-Vibe, digital or tape delay, and stereo reverb. Add, remove, and bypass on the fly.</p></div>
       <div class="card"><div class="ico">🎧</div><h3>Studio-grade stereo</h3><p>Wide, three-dimensional sound from the cab, delay, and reverb — a real L/R image, not a faked widener.</p></div>
       <div class="card"><div class="ico">💾</div><h3>Ready-made presets</h3><p>Instant tones inspired by Pink Floyd, Led Zeppelin, and the Eagles — in the box and ready to play.</p></div>
       <div class="card"><div class="ico">🔌</div><h3>CLAP plugin host</h3><p>Drop a third-party CLAP effect into the chain and tweak its parameters without leaving the TUI.</p></div>
@@ -177,22 +177,26 @@ description: "rusty-amp recreates classic tube and solid-state guitar amps, a fu
     <h2>Amps &amp; cabinets</h2>
     <div class="grid grid--2">
       <div class="panel panel--accent" style="--accent:var(--rust)">
-        <span class="panel__label">5 amp models</span>
+        <span class="panel__label">7 amp models</span>
         <ul class="clean">
           <li><b>Marshall JCM800</b> — punchy, dynamic, touch-sensitive · dual 12AX7, passive FMV tone stack, tube sag.</li>
+          <li><b>Marshall Plexi</b> — cranked, power-amp grind, non-master · jumpered channels, tube-rectified sag.</li>
           <li><b>Mesa Dual Rectifier</b> — compressed, aggressive, modern · triple gain stage, silicon sag.</li>
           <li><b>Randall Warhead</b> — tight, crushing, solid-state · FET→BJT→rail-clip, active tone stack.</li>
           <li><b>Vox AC30</b> — chimey, touch-sensitive, Class A · dual 12AX7, passive FMV tone stack, no-NFB sag.</li>
           <li><b>Hiwatt DR103</b> — clean, hi-fi, high-headroom · dual 12AX7, flatter FMV tone stack, stiff solid-state sag.</li>
+          <li><b>Fender Twin Reverb</b> — glassy clean, high headroom · blackface stack, onboard spring reverb &amp; bias tremolo.</li>
         </ul>
       </div>
       <div class="panel panel--accent" style="--accent:var(--teal)">
-        <span class="panel__label">4 cabinets + IR loader</span>
+        <span class="panel__label">6 cabinets + IR loader</span>
         <ul class="clean">
           <li><b>Mesa 4×12 (V30)</b> — scooped, aggressive, forward-projecting.</li>
           <li><b>Marshall 4×12 (Greenback)</b> — warm, mid-forward, smooth top.</li>
           <li><b>Orange PPC412 (V30)</b> — thick, chunky, closed-back birch.</li>
           <li><b>WEM 4×12 (Fane Crescendo)</b> — bright, aggressive, open top.</li>
+          <li><b>Vox 2×12 (Alnico Blue)</b> — open-back, chimy, vocal upper-mids.</li>
+          <li><b>Fender 2×12 (Jensen)</b> — open-back, clean and sparkly.</li>
           <li>Load any <code>.wav</code> impulse response and A/B against the built-ins with <kbd>X</kbd>.</li>
         </ul>
       </div>

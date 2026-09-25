@@ -81,8 +81,8 @@ The order below is the shipped default, not a fixed circuit: press <kbd>1</kbd> 
 
   <div class="flow__stage" style="--c:var(--magenta)">
     <div class="flow__card">
-      <div class="flow__head"><span class="flow__name">Fuzz</span><span class="flow__tag">Big Muff / Fuzz Face</span><span class="flow__badge flow__badge--bypass">Bypassable</span></div>
-      <div class="flow__sig">DC block → 70 Hz HP → <span class="os">[4× OS: two cascaded asymmetric soft-clip stages]</span> → DC block → 700 Hz mid scoop (Big Muff) or no scoop with a softer germanium-style clip (Fuzz Face) → variable tone LP.</div>
+      <div class="flow__head"><span class="flow__name">Fuzz</span><span class="flow__tag">Big Muff / Fuzz Face / Tone Bender</span><span class="flow__badge flow__badge--bypass">Bypassable</span></div>
+      <div class="flow__sig">DC block → 70 Hz HP → <span class="os">[4× OS: two or three cascaded asymmetric soft-clip stages]</span> → DC block → 700 Hz mid scoop (Big Muff) or no scoop with a softer germanium-style clip (Fuzz Face) or a hotter, harder-kneed three-transistor chain (Tone Bender MkII) → variable tone LP.</div>
     </div>
   </div>
 
@@ -130,13 +130,15 @@ The order below is the shipped default, not a fixed circuit: press <kbd>1</kbd> 
       <div class="flow__sub"><b>Randall</b> — FET → BJT → rail-clip → active tone stack → stiff solid-state power section → static speaker load</div>
       <div class="flow__sub"><b>Vox AC30</b> — dual 12AX7 atan soft-clip → passive FMV tone stack (brighter, less scoop) → no-NFB Class A sag → speaker-load bloom</div>
       <div class="flow__sub"><b>Hiwatt DR103</b> — dual 12AX7 atan soft-clip → passive FMV tone stack (flatter mid, bright top) → stiff solid-state sag with a strong Partridge-style output transformer → speaker-load bloom</div>
+      <div class="flow__sub"><b>Plexi 1959</b> — dual 12AX7 atan soft-clip (lower preamp gain) + grid-blocking → jumpered Bright/Normal channels → passive FMV tone stack → tube-rectified sag with 100 Hz supply ripple → early output-transformer saturation → dynamic speaker-load bloom</div>
+      <div class="flow__sub"><b>Fender Twin</b> — dual 12AX7 atan soft-clip (high headroom) + grid-blocking → blackface passive FMV tone stack → onboard spring reverb → bias tremolo → clean 6L6 power section → speaker-load bloom</div>
     </div>
   </div>
 
   <div class="flow__stage" style="--c:var(--amber)">
     <div class="flow__card">
       <div class="flow__head"><span class="flow__name">Cabinet</span><span class="flow__badge flow__badge--mono">Mono → Stereo</span><span class="flow__badge flow__badge--live">Switchable live</span></div>
-      <div class="flow__sig">Nonlinear speaker drive (excursion-driven motor droop · cone breakup · thermal power compression · Doppler FM growl — calibrated to engage at real amp levels) → neighbour-cone interference from real 4×12 geometry → dust-cap &amp; grille echoes (2–8 kHz presence/air comb) → blended multi-mic impulse-response convolution of a 4×12 — close SM57 dynamic + R121 ribbon + room mic, each a ~93 ms voiced-EQ skeleton + dense reflection tail + cone-resonance ring + mid/breakup scatter texture; mono-solid close blend + decorrelated room pair → solid centre with natural width · mic-position shelf.</div>
+      <div class="flow__sig">Nonlinear speaker drive (excursion-driven motor droop · cone breakup · thermal power compression · Doppler FM growl — calibrated to engage at real amp levels) → neighbour-cone interference from the box's real geometry (three cones on a 4×12, one stacked partner on a 2×12) → dust-cap &amp; grille echoes (2–8 kHz presence/air comb) → blended multi-mic impulse-response convolution — close SM57 dynamic + R121 ribbon + room mic, each a ~93 ms voiced-EQ skeleton + dense reflection tail + cone-resonance ring + mid/breakup scatter texture; mono-solid close blend + decorrelated room pair → solid centre with natural width · mic-position shelf.</div>
     </div>
   </div>
 
@@ -185,7 +187,7 @@ The order below is the shipped default, not a fixed circuit: press <kbd>1</kbd> 
   <div class="flow__stage" style="--c:var(--purple)">
     <div class="flow__card">
       <div class="flow__head"><span class="flow__name">Delay</span><span class="flow__badge flow__badge--bypass">Bypassable</span></div>
-      <div class="flow__sig">Stereo ping-pong — repeats bounce L↔R · TIME 0–500 ms · FEEDBACK 0–85% · dry/wet MIX.</div>
+      <div class="flow__sig">Digital: stereo ping-pong — repeats bounce L↔R. Tape: same-channel repeats with wow/flutter transport drift, feedback high-cut and soft saturation. TIME 0–500 ms · FEEDBACK 0–70/85% · dry/wet MIX.</div>
     </div>
   </div>
 
@@ -220,17 +222,19 @@ For the per-knob behaviour of each pedal, see [Pedals & effects](pedals.html).
 
 ## The amp stages {#amp}
 
-All five amps share an **8× oversampled** nonlinear core with a linear-phase polyphase-FIR anti-alias filter, plus a dynamic grid-bias "bloom" that makes the gain respond to how hard you play. Beyond that, each model diverges:
+All seven amps share an **8× oversampled** nonlinear core with a linear-phase polyphase-FIR anti-alias filter, plus a dynamic grid-bias "bloom" that makes the gain respond to how hard you play. Beyond that, each model diverges:
 
 | Model | Character | Tone stack | Rectifier / power | Gain stages |
 | ----- | --------- | ---------- | ----------------- | ----------- |
 | **Marshall JCM800** | Punchy, dynamic, touch-sensitive | Passive FMV (Marshall values) | Tube sag (5 ms / 150 ms) + 100 Hz supply ripple + dynamic speaker-load bloom | 2 × 12AX7 atan soft-clip |
+| **Marshall Plexi** | Cranked, power-amp grind, non-master | Passive FMV (Marshall values) | Tube-rectified sag (6.7 ms / 200 ms) + 100 Hz supply ripple + early output-transformer saturation + dynamic speaker-load bloom | 2 × 12AX7 atan soft-clip (lower preamp gain) |
 | **Mesa Dual Rectifier** | Compressed, aggressive, modern | Passive FMV (Fender values) | Silicon sag (0.5 ms / 80 ms) + 120 Hz supply ripple + dynamic speaker-load bloom | 3-stage: atan → atan → exponential |
 | **Randall Warhead** | Tight, crushing, solid-state | Active, independent bands + fixed +3 dB presence | No sag — stiff solid-state rails + static speaker resonance | FET (x/√(1+x²)) → BJT (tanh) → rail-clip |
 | **Vox AC30** | Chimey, touch-sensitive, Class A | Passive FMV (Vox values — lighter scoop, brighter) | Class A sag (3.8 ms / 260 ms, no NFB) + dynamic speaker-load bloom | 2 × 12AX7 atan soft-clip |
 | **Hiwatt DR103** | Clean, hi-fi, high-headroom | Passive FMV (Hiwatt values — flatter mid, bright top) | Stiff solid-state sag (4 ms / 90 ms) + strong Partridge-style output transformer + dynamic speaker-load bloom | 2 × 12AX7 atan soft-clip |
+| **Fender Twin Reverb** | Glassy clean, high-headroom | Passive FMV (Fender blackface values) | 6L6 clean sag (5.3 ms / 125 ms) + big output transformer + dynamic speaker-load bloom | 2 × 12AX7 atan soft-clip + onboard spring reverb &amp; bias tremolo |
 
-The **passive FMV tone stack** is a single RC network where bass, mid, and treble interact and the mids inherently scoop — exactly like a real amp — followed by a **power-amp ↔ speaker interaction** model: the speaker's impedance resonance blooms the low end dynamically as the supply sags under hard playing. The Vox has no global negative-feedback loop, so it sags more readily and blooms harder than the Marshall/Mesa; the Hiwatt's stiff solid-state-rectified supply sags the least and stays tight and clean. The Randall keeps an active, independent-band stack and a small static speaker resonance, true to its stiff solid-state design. See [Amps & cabinets](amps-cabs.html#amp) for the per-knob breakdown.
+The **passive FMV tone stack** is a single RC network where bass, mid, and treble interact and the mids inherently scoop — exactly like a real amp — followed by a **power-amp ↔ speaker interaction** model: the speaker's impedance resonance blooms the low end dynamically as the supply sags under hard playing. The Vox has no global negative-feedback loop, so it sags more readily and blooms harder than the Marshall/Mesa; the Hiwatt's stiff solid-state-rectified supply sags the least and stays tight and clean; the Plexi's tube rectifier sags the most for its elastic cranked grind. The Randall keeps an active, independent-band stack and a small static speaker resonance, true to its stiff solid-state design. See [Amps & cabinets](amps-cabs.html#amp) for the per-knob breakdown.
 
 Three further pieces of tube-amp physics live in the tube models:
 
@@ -256,6 +260,6 @@ The **Mic** knob applies a high-shelf filter (±6 dB at 5 kHz) per channel after
 
 ### Neighbour cones and the last drop of iron
 
-A close mic on one cone of a 4×12 also hears the **three neighbouring cones** — the same signal arriving late and dull (heard far off-axis, where a 12" cone beams its top end away). rusty-amp derives these arrivals from the actual box geometry: 12" drivers on a ~28 cm pitch with the mic capsule ~10 cm from the near cone ("an inch from the grille" plus the grille standoff and the cone's recess) put the two adjacent cones ~0.6 ms late and the diagonal one ~0.9 ms late, each lowpassed above ~2.2 kHz and 13–23 dB down. Each neighbour is an **extended source** — a 12" cone, not a point — so its arrival is smeared across a short cluster of sub-taps: the comb ripples the body by a couple of dB, like the echo scans of real 4×12 captures, instead of carving a deep notch through the 0.5–1 kHz body the way a single point tap measures.
+A close mic on one cone of a 4×12 also hears the **three neighbouring cones** — the same signal arriving late and dull (heard far off-axis, where a 12" cone beams its top end away). rusty-amp derives these arrivals from the actual box geometry: 12" drivers on a ~28 cm pitch with the mic capsule ~10 cm from the near cone ("an inch from the grille" plus the grille standoff and the cone's recess) put the two adjacent cones ~0.6 ms late and the diagonal one ~0.9 ms late, each lowpassed above ~2.2 kHz and 13–23 dB down. An open-back 2×12 has just one stacked partner at a slightly wider pitch. Each neighbour is an **extended source** — a 12" cone, not a point — so its arrival is smeared across a short cluster of sub-taps: the comb ripples the body by a couple of dB, like the echo scans of real captures, instead of carving a deep notch through the 0.5–1 kHz body the way a single point tap measures.
 
 An octave higher, the last acoustic surfaces between the cone and the capsule add their own **dust-cap & grille echoes**. The metal front grille sits a couple of cm proud of the cone, so treble radiated forward reflects off it and back to the mic — a ~0.13 ms round-trip echo that combs the presence band (peak ~3.9 kHz, null ~7.8 kHz). Long wavelengths simply diffract past the perforations, so the reflected copy is highpassed and only the top is combed — the metallic sheen a close capture picks up off the grille (the effect God's Cab's *grill* captures lean on). A second, much shorter reflection — ~45 µs off the rigid central dust cap, which sits proud of the surrounding cone and beams the extreme top from nearer the capsule — ripples only the very top. Both are power-normalised so they add 2–8 kHz comb *structure*, not level, and their depth is kept gentle: measured against the reference captures, a hotter grille bounce starts carving the 1.6–2.6 kHz octave real IRs hold. Finally, a genuinely tiny **mic/transformer saturation** (the SM57's output iron, the ribbon's step-up transformer) squeezes the hottest peaks by a fraction of a dB — the last, subtlest nonlinearity in the capture chain.

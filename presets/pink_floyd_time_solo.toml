@@ -105,6 +105,7 @@ mix      = 0.0
 # Echorec-style ~310 ms repeats, present enough to fill the gaps between the
 # clipped phrases without washing them together.
 [delay]
+type     = 1.0   # tape (Echorec-style drum echo approximates as tape)
 enabled  = true
 time     = 0.62
 feedback = 0.34

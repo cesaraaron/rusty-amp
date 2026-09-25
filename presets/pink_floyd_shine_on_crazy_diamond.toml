@@ -1,0 +1,119 @@
+name        = "Pink Floyd — Shine On You Crazy Diamond"
+description = "The Wish You Were Here lead: a Ram's-Head Big Muff into a Hiwatt and Fane 4×12, with the Uni-Vibe swirl and a long tape echo. Singing, wide and mournful."
+
+# ── Noise Gate ────────────────────────────────────────────────────────────────
+# Light and slow — long sustained bends must never be gated.
+[noise_gate]
+enabled   = true
+threshold = 0.10
+release   = 0.50
+
+[compressor]
+enabled = true
+sustain = 0.34
+attack  = 0.40
+level   = 0.52
+
+# ── Big Muff ──────────────────────────────────────────────────────────────────
+# type 0.0 = the scooped, wall-of-sound Ram's-Head Muff that carries the lead.
+[fuzz]
+enabled = true
+type    = 0.0   # 0 = Big Muff, 0.5 = Fuzz Face, 1 = Tone Bender
+fuzz    = 0.66
+tone    = 0.54
+level   = 0.58
+
+# ── Tube Screamer ─────────────────────────────────────────────────────────────
+# A touch of mid push after the Muff to keep the lead vocal.
+[tube_screamer]
+enabled = true
+drive = 0.16
+tone  = 0.56
+level = 0.66
+
+[distortion]
+enabled = false
+drive = 0.40
+tone  = 0.50
+level = 0.65
+
+# ── Pre-amp EQ ────────────────────────────────────────────────────────────────
+# Mids lifted to restore what the Muff scoops out.
+[preamp_eq]
+enabled = true
+low  = 0.42
+mid  = 0.62
+high = 0.56
+
+# ── Uni-Vibe ──────────────────────────────────────────────────────────────────
+# The slow, deep swirl under the lead — chorus mode, fairly wet.
+[uni_vibe]
+enabled = true
+rate    = 0.22
+depth   = 0.55
+mix     = 0.50
+mode    = 0.0
+
+# ── Amp ───────────────────────────────────────────────────────────────────────
+# Hiwatt DR103, clean and tight, letting the Muff and Uni-Vibe define the voice.
+[amp]
+model  = "hiwatt"
+gain   = 0.44
+bass   = 0.42
+treble = 0.60
+mid    = 0.58
+presence = 0.56
+master = 0.56
+
+# ── Cabinet ───────────────────────────────────────────────────────────────────
+# WEM 4×12 with Fane Crescendos — bright and open under the fuzz.
+[cabinet]
+model     = "wem"
+mic_pos   = 0.54
+mic_blend = 0.22
+mic_room  = 0.24
+
+# ── Parametric EQ ─────────────────────────────────────────────────────────────
+# Mid-forward finish, lows in check.
+[eq]
+enabled = true
+low  = 0.42
+mid  = 0.58
+high = 0.58
+
+[chorus]
+enabled = false
+rate  = 0.22
+depth = 0.40
+mix   = 0.0
+
+[flanger]
+enabled  = false
+rate     = 0.20
+depth    = 0.30
+feedback = 0.20
+mix      = 0.0
+
+[phaser]
+enabled  = false
+rate     = 0.28
+depth    = 0.50
+feedback = 0.30
+mix      = 0.0
+
+# ── Delay ─────────────────────────────────────────────────────────────────────
+# A long Echorec-style tape echo — the repeats that bloom behind the lead.
+[delay]
+enabled  = true
+type     = 1.0
+time     = 0.66
+feedback = 0.40
+mix      = 0.26
+
+# ── Reverb ────────────────────────────────────────────────────────────────────
+# A wide medium room to hold the long notes.
+[reverb]
+enabled = true
+room = 0.52
+damp = 0.48
+mix  = 0.20

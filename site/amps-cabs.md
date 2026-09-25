@@ -3,10 +3,10 @@ layout: page.njk
 permalink: amps-cabs.html
 title: "Amps, cabinets & IRs · rusty-amp"
 ogTitle: "rusty-amp · amps, cabinets & IRs"
-description: "The five rusty-amp amp models and cabinets, the cabinet-mic controls, and how to load your own external .wav impulse responses."
+description: "The seven rusty-amp amp models and six cabinets, the cabinet-mic controls, and how to load your own external .wav impulse responses."
 eyebrow: "Amps, cabinets & IRs"
 heading: "The amp head & cabinet"
-lead: "Five switchable amps, four multi-mic'd 4×12 cabinets, and a loader for your own impulse responses."
+lead: "Seven switchable amps, six multi-mic'd cabinets, and a loader for your own impulse responses."
 toc:
   - { href: "#amp", label: "Amplifiers" }
   - { href: "#external-amp", label: "External amp plugins" }
@@ -20,7 +20,7 @@ next: { href: "presets.html", label: "Presets" }
 
 ## Amplifiers {#amp}
 
-Five amp models, switchable live with <kbd>A</kbd> — the cabinet state is preserved when you switch. Pick one to see its voicing and per-knob behaviour.
+Seven amp models, switchable live with <kbd>A</kbd> — the cabinet state is preserved when you switch. Pick one to see its voicing and per-knob behaviour.
 
 <div class="selector" style="--c:var(--rust)" data-tabs>
   <div class="tiles" role="tablist" aria-label="Amplifier models">
@@ -48,6 +48,16 @@ Five amp models, switchable live with <kbd>A</kbd> — the cabinet state is pres
       <div class="tile__name">Hiwatt DR103</div>
       <div class="tile__sub">Clean · hi-fi · high-headroom</div>
       <div class="tile__amp"><i style="--r:-55deg"></i><i style="--r:-25deg"></i><i style="--r:5deg"></i><i style="--r:35deg"></i><i style="--r:60deg"></i><i style="--r:85deg"></i></div>
+    </button>
+    <button class="tile" role="tab" aria-selected="false" data-tab="plexi">
+      <div class="tile__name">Marshall Plexi</div>
+      <div class="tile__sub">Cranked · power-amp grind · non-master</div>
+      <div class="tile__amp"><i style="--r:-60deg"></i><i style="--r:-30deg"></i><i style="--r:0deg"></i><i style="--r:30deg"></i><i style="--r:60deg"></i><i style="--r:88deg"></i></div>
+    </button>
+    <button class="tile" role="tab" aria-selected="false" data-tab="fender">
+      <div class="tile__name">Fender Twin Reverb</div>
+      <div class="tile__sub">Glassy clean · high headroom · spring reverb</div>
+      <div class="tile__amp"><i style="--r:-45deg"></i><i style="--r:-18deg"></i><i style="--r:8deg"></i><i style="--r:32deg"></i><i style="--r:58deg"></i><i style="--r:82deg"></i></div>
     </button>
   </div>
 
@@ -125,15 +135,47 @@ Five amp models, switchable live with <kbd>A</kbd> — the cabinet state is pres
     <div class="kv"><span class="kv__k">Presence</span><span class="kv__v">Dynamic NFB shelf at 4 kHz (+2 dB fixed offset, ±6 dB) — the stiffer loop holds its authority longer than the JCM800's.</span></div>
     <div class="kv"><span class="kv__k">Master</span><span class="kv__v">Post-amp output level.</span></div>
   </div>
+
+  <div class="tab-panel" role="tabpanel" data-panel="plexi">
+    <div class="specs">
+      <div class="spec"><div class="spec__k">Gain range</div><div class="spec__v">1×–25× into dual 12AX7</div></div>
+      <div class="spec"><div class="spec__k">Tone stack</div><div class="spec__v">Passive FMV (Marshall values)</div></div>
+      <div class="spec"><div class="spec__k">Rectifier &amp; power</div><div class="spec__v">Tube-rectified sag (6.7 ms / 200 ms) + 100 Hz supply ripple + early output-transformer saturation + dynamic speaker-load bloom</div></div>
+      <div class="spec"><div class="spec__k">Gain stages</div><div class="spec__v">2 × 12AX7 atan soft-clip + grid blocking</div></div>
+    </div>
+    <div class="kv"><span class="kv__k">Gain</span><span class="kv__v">Volume II — the Bright channel's volume; at full up it drives the phase inverter and power section into the cranked-Plexi grind.</span></div>
+    <div class="kv"><span class="kv__k">Normal</span><span class="kv__v">Volume I — the darker Normal channel, jumpered in as a parallel feed (0 = Bright channel only).</span></div>
+    <div class="kv"><span class="kv__k">Bass</span><span class="kv__v">Passive FMV tone stack (Marshall values).</span></div>
+    <div class="kv"><span class="kv__k">Mid</span><span class="kv__v">Sets the depth of the stack's inherent scoop.</span></div>
+    <div class="kv"><span class="kv__k">Treble</span><span class="kv__v">Interacts with mid/bass; the bright cap adds top at low volumes.</span></div>
+    <div class="kv"><span class="kv__k">Presence</span><span class="kv__v">Dynamic NFB shelf at 3.8 kHz (+2 dB fixed offset, ±6 dB) — its authority shrinks as the power amp is driven.</span></div>
+    <div class="kv"><span class="kv__k">Master</span><span class="kv__v">None — the 1959 has no master volume; the channel volumes are the gain.</span></div>
+  </div>
+
+  <div class="tab-panel" role="tabpanel" data-panel="fender">
+    <div class="specs">
+      <div class="spec"><div class="spec__k">Gain range</div><div class="spec__v">1×–13× into dual 12AX7</div></div>
+      <div class="spec"><div class="spec__k">Tone stack</div><div class="spec__v">Passive FMV (Fender blackface values)</div></div>
+      <div class="spec"><div class="spec__k">Rectifier &amp; power</div><div class="spec__v">6L6 clean sag (5.3 ms / 125 ms) + big output transformer + dynamic speaker-load bloom</div></div>
+      <div class="spec"><div class="spec__k">Gain stages</div><div class="spec__v">2 × 12AX7 atan soft-clip + onboard spring reverb &amp; bias tremolo</div></div>
+    </div>
+    <div class="kv"><span class="kv__k">Volume</span><span class="kv__v">Preamp volume 1×–13× — the Twin stays clean well up the knob and compresses softly rather than clamping.</span></div>
+    <div class="kv"><span class="kv__k">Treble</span><span class="kv__v">Passive FMV stack with the blackface bright cap for the glassy top.</span></div>
+    <div class="kv"><span class="kv__k">Middle</span><span class="kv__v">Blackface scoop — lower than the JCM800's Mid, the Twin's hollow clean.</span></div>
+    <div class="kv"><span class="kv__k">Bass</span><span class="kv__v">Fuller lows than the Marshall stack, kept tight by the 6L6 output section.</span></div>
+    <div class="kv"><span class="kv__k">Reverb</span><span class="kv__v">Onboard spring reverb (in-amp, not the rack pedal).</span></div>
+    <div class="kv"><span class="kv__k">Speed</span><span class="kv__v">Onboard bias-tremolo rate, 0.5–14 Hz.</span></div>
+    <div class="kv"><span class="kv__k">Intensity</span><span class="kv__v">Onboard bias-tremolo depth.</span></div>
+  </div>
 </div>
 
-The tube amps (Marshall, Mesa, Vox, Hiwatt) drive a **passive FMV tone stack** — a single RC network where the three controls interact and the mids inherently scoop, exactly like a real amp — followed by a **power-amp ↔ speaker interaction** model: the speaker's impedance resonance blooms the low end dynamically as the supply sags under hard playing. The Vox has no global negative-feedback loop, so it sags more readily and blooms harder than the Marshall/Mesa; the Hiwatt's stiff solid-state-rectified supply and big Partridge-style transformer sag the least, so it stays tight and clean. The Randall keeps an active (independent-band) stack and a small static speaker resonance, true to its stiff solid-state design.
+The tube amps (Marshall, Mesa, Vox, Hiwatt, Plexi, Fender) drive a **passive FMV tone stack** — a single RC network where the three controls interact and the mids inherently scoop, exactly like a real amp — followed by a **power-amp ↔ speaker interaction** model: the speaker's impedance resonance blooms the low end dynamically as the supply sags under hard playing. The Vox has no global negative-feedback loop, so it sags more readily and blooms harder than the Marshall/Mesa; the Hiwatt's stiff solid-state-rectified supply and big Partridge-style transformer sag the least, so it stays tight and clean; the Plexi's tube rectifier sags the most, giving its cranked, elastic grind. The Fender's high-headroom 6L6 section stays clean and carries its own spring reverb and bias tremolo. The Randall keeps an active (independent-band) stack and a small static speaker resonance, true to its stiff solid-state design.
 
 The tube models also carry three deeper pieces of power- and preamp physics: **supply-ripple ghost notes** (rectified-mains ripple — 100 Hz UK, 120 Hz US — rides on the sagging rail and puts faint sidebands around every note when the amp works hard), **grid-blocking distortion** (a truly slammed input chokes the first stage near-instantly and recovers over the ~30 ms grid-leak RC — the classic crackle-then-recover, untouched by ordinary playing), and **dynamic presence** (the presence shelf lives in the power-amp feedback loop, so its range shrinks and drifts toward the open-loop lift as the amp is driven). See [How it works](how-it-works.html#amp) for the physics.
 
 ## External amp plugins <span class="muted">(macOS · <kbd>U</kbd> · <kbd>Z</kbd>)</span> {#external-amp}
 
-Beyond the five built-in amps, on macOS you can load a third-party **Audio Unit amp sim** — for example a Marshall plugin — and use it *in place of* the built-in amp. Press <kbd>U</kbd> to browse the Audio Units installed on your system and load one.
+Beyond the seven built-in amps, on macOS you can load a third-party **Audio Unit amp sim** — for example a Marshall plugin — and use it *in place of* the built-in amp. Press <kbd>U</kbd> to browse the Audio Units installed on your system and load one.
 
 A loaded AU is an **amp-position override**: your pedal chain feeds into it. By default the AU is treated as a full **amp + cab** — it brings its own cabinet, so the built-in cab and any loaded IR are bypassed (the cabinet panel reads `PLUGIN CAB` and the mic knobs dim). The signal ribbon shows <code>AU: …</code> in place of the <code>AMP+CAB</code> stage, the tone-stack knobs dim, and <kbd>Z</kbd> A/Bs the AU against the built-in amp live — no reload. Picking any built-in model from the <kbd>A</kbd> browser returns to the built-in amp.
 
@@ -145,7 +187,7 @@ See <a href="plugins.html#au">Plugins → Audio Unit amps</a> for the full walkt
 
 ## Cabinet mics {#mics}
 
-Three controls model a multi-mic'd 4×12 — the close mic's position, a blend from a dynamic to a ribbon, and a room mic for depth. The blend is a weighted sum of the three mics' impulse responses, so it costs no extra per-sample CPU.
+Three controls model a multi-mic'd cabinet — the close mic's position, a blend from a dynamic to a ribbon, and a room mic for depth. The blend is a weighted sum of the three mics' impulse responses, so it costs no extra per-sample CPU.
 
 <div class="miccards">
   <div class="miccard">
@@ -184,7 +226,7 @@ Three controls model a multi-mic'd 4×12 — the close mic's position, a blend f
 
 ## Cabinets {#cabs}
 
-Four multi-mic'd 4×12s, switchable live with <kbd>C</kbd> — the browser also lists a loaded external IR when one is installed. Pick one to see its character and voiced frequency bands.
+Six multi-mic'd cabinets — four closed 4×12s and two open-back 2×12s — switchable live with <kbd>C</kbd>; the browser also lists a loaded external IR when one is installed. Pick one to see its character and voiced frequency bands.
 
 <div class="selector" style="--c:var(--teal)" data-tabs>
   <div class="tiles" role="tablist" aria-label="Cabinet models">
@@ -206,6 +248,16 @@ Four multi-mic'd 4×12s, switchable live with <kbd>C</kbd> — the browser also 
     <button class="tile" role="tab" aria-selected="false" data-tab="cab-wem">
       <div class="tile__name">WEM 4×12 (Fane)</div>
       <div class="tile__sub">Bright · aggressive · open top</div>
+      <div class="tile__cab"></div>
+    </button>
+    <button class="tile" role="tab" aria-selected="false" data-tab="cab-vox">
+      <div class="tile__name">Vox 2×12 (Alnico Blue)</div>
+      <div class="tile__sub">Chimy · open-back · vocal mids</div>
+      <div class="tile__cab"></div>
+    </button>
+    <button class="tile" role="tab" aria-selected="false" data-tab="cab-fender">
+      <div class="tile__name">Fender 2×12 (Jensen)</div>
+      <div class="tile__sub">Clean · scooped · sparkly top</div>
       <div class="tile__cab"></div>
     </button>
   </div>
@@ -245,11 +297,28 @@ Four multi-mic'd 4×12s, switchable live with <kbd>C</kbd> — the browser also 
       <span class="freq"><b>+4.5 dB</b> @ 5 kHz · open, extended top</span>
     </div>
   </div>
+  <div class="tab-panel" role="tabpanel" data-panel="cab-vox">
+    <p class="muted" style="margin:2px 0 4px">Open-back 2×12 with Alnico Blue chime — a small low resonance and a vocal upper-mid bark, the AC30's voice.</p>
+    <div class="freqs">
+      <span class="freq"><b>+5 dB</b> @ 105 Hz · modest depth hump</span>
+      <span class="freq"><b>+2 dB</b> @ 250 Hz · lean body</span>
+      <span class="freq"><b>−3.5 dB</b> @ 900 Hz · mid scoop</span>
+      <span class="freq"><b>+3 dB</b> @ 2 kHz &amp; <b>+3.5 dB</b> @ 3.2 kHz · vocal chime</span>
+    </div>
+  </div>
+  <div class="tab-panel" role="tabpanel" data-panel="cab-fender">
+    <p class="muted" style="margin:2px 0 4px">Open-back 2×12 with Jensen-style speakers — clean, scooped and sparkly, the blackface combo voice.</p>
+    <div class="freqs">
+      <span class="freq"><b>+4 dB</b> @ 100 Hz · modest depth hump</span>
+      <span class="freq"><b>−3 dB</b> @ 800 Hz · blackface scoop</span>
+      <span class="freq"><b>+2.5 dB</b> @ 2.5 kHz &amp; <b>+3 dB</b> @ 4 kHz · sparkle, open to 8 kHz</span>
+    </div>
+  </div>
 </div>
 
-Each cabinet is rendered by **impulse-response convolution** rather than a plain EQ. The built-in IRs are synthesized in-code (nothing to ship or download): the model's voiced EQ provides the magnitude skeleton — including the low resonant hump near 120 Hz and the broad 120–600 Hz body plateau that give a real close-mic'd 4×12 its depth — then early reflections, a dense 6–21 ms reflection tail, speaker modal resonances with a short, controlled cone "thump" ring, and two seeded scatter clusters (fine 0.5–2.3 kHz reflection ripple plus jagged cone-breakup texture) add the time-domain structure real captures show. Each IR runs ~93 ms (~4500 taps at 48 kHz). The close-mic textures are shared between left and right — real close captures are effectively mono, and heavy decorrelation reads as phasey rather than wide — with only the scatter seeds differing per side, plus a genuinely decorrelated stereo room-mic pair for width over a solid centre.
+Each cabinet is rendered by **impulse-response convolution** rather than a plain EQ. The built-in IRs are synthesized in-code (nothing to ship or download): the model's voiced EQ provides the magnitude skeleton — including the low resonant hump near 120 Hz and the broad 120–600 Hz body plateau that give a real close-mic'd cabinet its depth — then early reflections, a dense 6–21 ms reflection tail, speaker modal resonances with a short, controlled cone "thump" ring, and two seeded scatter clusters (fine 0.5–2.3 kHz reflection ripple plus jagged cone-breakup texture) add the time-domain structure real captures show. Each IR runs ~93 ms (~4500 taps at 48 kHz). The close-mic textures are shared between left and right — real close captures are effectively mono, and heavy decorrelation reads as phasey rather than wide — with only the scatter seeds differing per side, plus a genuinely decorrelated stereo room-mic pair for width over a solid centre.
 
-Before the mics, the drive signal passes the **nonlinear speaker stage** — excursion-driven motor droop, cone breakup, thermal power compression and Doppler "growl", with its operating point calibrated to the levels the amps actually deliver so a cranked amp genuinely pushes back. It also picks up **neighbour-cone interference** derived from real 4×12 geometry: the close mic hears the three other cones arriving ~0.6–0.9 ms late, lowpassed above ~2 kHz and 13–23 dB down. Each neighbour is an extended source (a 12" cone, not a point), so its arrival is smeared across a short sub-tap cluster — the comb ripples the body by a couple of dB like a real echo scan instead of carving a notch through it. One octave up, **dust-cap & grille echoes** add the presence/air sheen a close capture picks up off the speaker's own front geometry: a ~0.13 ms round-trip reflection off the metal grille (highpassed — the lows diffract past the perforations, so only the treble is combed) and a ~45 µs ripple off the proud central dust cap. Both are highpassed and power-normalised so they comb only the 2–8 kHz band and never touch the body. After the mics, a genuinely tiny **mic/transformer saturation** squeezes only the hottest peaks.
+Before the mics, the drive signal passes the **nonlinear speaker stage** — excursion-driven motor droop, cone breakup, thermal power compression and Doppler "growl", with its operating point calibrated to the levels the amps actually deliver so a cranked amp genuinely pushes back. It also picks up **neighbour-cone interference** derived from the box's real geometry: on a closed 4×12 the close mic hears the three other cones — two adjacent ~0.6 ms late and the diagonal ~0.9 ms late — while an open-back 2×12 hears its single stacked partner, lowpassed above ~2 kHz and 13–23 dB down. Each neighbour is an extended source (a 12" cone, not a point), so its arrival is smeared across a short sub-tap cluster — the comb ripples the body by a couple of dB like a real echo scan instead of carving a notch through it. One octave up, **dust-cap & grille echoes** add the presence/air sheen a close capture picks up off the speaker's own front geometry: a ~0.13 ms round-trip reflection off the metal grille (highpassed — the lows diffract past the perforations, so only the treble is combed) and a ~45 µs ripple off the proud central dust cap. Both are highpassed and power-normalised so they comb only the 2–8 kHz band and never touch the body. After the mics, a genuinely tiny **mic/transformer saturation** squeezes only the hottest peaks.
 
 Pick a cabinet with <kbd>C</kbd> at any time — picking a built-in returns from an external IR (which stays loaded for <kbd>X</kbd>). The **Mic** knob applies a ±6 dB high shelf at 5 kHz per channel after convolution, modelling on-axis vs off-axis placement. For the partitioned-FFT convolution engine, see [How it works](how-it-works.html#cabinet).
 
