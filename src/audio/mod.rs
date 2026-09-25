@@ -146,6 +146,15 @@ pub struct AudioEngine {
     ext_amp_tx: Producer<ExtAmpCommand>,
     /// Receives external amps the audio thread displaced, for off-thread disposal.
     ext_amp_dropped_rx: Consumer<Box<dyn StereoInsert>>,
+    /// Take-bus mirror of the plugin insert (a second plugin instance).
+    take_insert_tx: Producer<InsertCommand>,
+    take_insert_dropped_rx: Consumer<Box<dyn StereoInsert>>,
+    /// Take-bus mirror of the external-IR cab.
+    take_ext_cab_tx: Producer<ExtCabCommand>,
+    take_ext_cab_dropped_rx: Consumer<Box<ExternalIrCab>>,
+    /// Take-bus mirror of the external amp.
+    take_ext_amp_tx: Producer<ExtAmpCommand>,
+    take_ext_amp_dropped_rx: Consumer<Box<dyn StereoInsert>>,
     /// Sends timeline track commands to the audio thread.
     track_tx: Producer<TrackCommand>,
     /// Receives tracks the audio thread displaced, for off-thread disposal.
@@ -205,6 +214,37 @@ impl AudioEngine {
         self.ext_amp_tx
             .push(amp)
             .map_err(|_| anyhow!("external-amp command queue is full"))
+    }
+
+    /// Take-bus counterparts of the three external-rig installers. The UI builds a
+    /// **second** plugin/cab instance (never sharing one processor across two
+    /// chains) and installs it here so finished raw takes are re-amped through the
+    /// same external rig as the live guitar.
+    pub fn set_plugin_insert_take(&mut self, insert: InsertCommand) -> Result<()> {
+        while let Ok(old) = self.take_insert_dropped_rx.pop() {
+            drop(old);
+        }
+        self.take_insert_tx
+            .push(insert)
+            .map_err(|_| anyhow!("take plugin-insert command queue is full"))
+    }
+
+    pub fn set_external_cab_take(&mut self, cab: ExtCabCommand) -> Result<()> {
+        while let Ok(old) = self.take_ext_cab_dropped_rx.pop() {
+            drop(old);
+        }
+        self.take_ext_cab_tx
+            .push(cab)
+            .map_err(|_| anyhow!("take external-cab command queue is full"))
+    }
+
+    pub fn set_external_amp_take(&mut self, amp: ExtAmpCommand) -> Result<()> {
+        while let Ok(old) = self.take_ext_amp_dropped_rx.pop() {
+            drop(old);
+        }
+        self.take_ext_amp_tx
+            .push(amp)
+            .map_err(|_| anyhow!("take external-amp command queue is full"))
     }
 
     /// Install (or replace) a timeline track.
@@ -657,6 +697,12 @@ struct InputState {
     ext_dropped_tx: Producer<Box<ExternalIrCab>>,
     ext_amp_rx: Consumer<ExtAmpCommand>,
     ext_amp_dropped_tx: Producer<Box<dyn StereoInsert>>,
+    take_insert_rx: Consumer<InsertCommand>,
+    take_insert_dropped_tx: Producer<Box<dyn StereoInsert>>,
+    take_ext_cab_rx: Consumer<ExtCabCommand>,
+    take_ext_cab_dropped_tx: Producer<Box<ExternalIrCab>>,
+    take_ext_amp_rx: Consumer<ExtAmpCommand>,
+    take_ext_amp_dropped_tx: Producer<Box<dyn StereoInsert>>,
     track_rx: Consumer<TrackCommand>,
     track_dropped_tx: Producer<PlayerTrack>,
     track_ack_tx: Producer<TrackAck>,
@@ -702,6 +748,22 @@ impl InputState {
         while let Ok(cmd) = self.ext_amp_rx.pop() {
             if let Some(old) = self.chain.replace_ext_amp(cmd) {
                 let _ = self.ext_amp_dropped_tx.push(old);
+            }
+        }
+        // The take bus mirrors the same external rig with its own instances.
+        while let Ok(cmd) = self.take_insert_rx.pop() {
+            if let Some(old) = self.take_chain.replace_insert(cmd) {
+                let _ = self.take_insert_dropped_tx.push(old);
+            }
+        }
+        while let Ok(cmd) = self.take_ext_cab_rx.pop() {
+            if let Some(old) = self.take_chain.replace_external_cab(cmd) {
+                let _ = self.take_ext_cab_dropped_tx.push(old);
+            }
+        }
+        while let Ok(cmd) = self.take_ext_amp_rx.pop() {
+            if let Some(old) = self.take_chain.replace_ext_amp(cmd) {
+                let _ = self.take_ext_amp_dropped_tx.push(old);
             }
         }
         // Timeline track commands: apply every pending add/remove/gain/mute at
@@ -1030,6 +1092,16 @@ fn build_engine(
     let (ext_amp_tx, ext_amp_rx) = RingBuffer::<ExtAmpCommand>::new(INSERT_QUEUE_CAP);
     let (ext_amp_dropped_tx, ext_amp_dropped_rx) =
         RingBuffer::<Box<dyn StereoInsert>>::new(INSERT_QUEUE_CAP);
+    // Take-bus mirror rings (a second plugin/IR instance per external rig slot).
+    let (take_insert_tx, take_insert_rx) = RingBuffer::<InsertCommand>::new(INSERT_QUEUE_CAP);
+    let (take_insert_dropped_tx, take_insert_dropped_rx) =
+        RingBuffer::<Box<dyn StereoInsert>>::new(INSERT_QUEUE_CAP);
+    let (take_ext_cab_tx, take_ext_cab_rx) = RingBuffer::<ExtCabCommand>::new(INSERT_QUEUE_CAP);
+    let (take_ext_cab_dropped_tx, take_ext_cab_dropped_rx) =
+        RingBuffer::<Box<ExternalIrCab>>::new(INSERT_QUEUE_CAP);
+    let (take_ext_amp_tx, take_ext_amp_rx) = RingBuffer::<ExtAmpCommand>::new(INSERT_QUEUE_CAP);
+    let (take_ext_amp_dropped_tx, take_ext_amp_dropped_rx) =
+        RingBuffer::<Box<dyn StereoInsert>>::new(INSERT_QUEUE_CAP);
     // Timeline-track handoff: commands flow UI → audio, displaced tracks flow back
     // to the control thread so their buffers are never freed in the callback, and
     // install acknowledgements flow audio → UI.
@@ -1077,6 +1149,12 @@ fn build_engine(
         ext_dropped_tx,
         ext_amp_rx,
         ext_amp_dropped_tx,
+        take_insert_rx,
+        take_insert_dropped_tx,
+        take_ext_cab_rx,
+        take_ext_cab_dropped_tx,
+        take_ext_amp_rx,
+        take_ext_amp_dropped_tx,
         track_rx,
         track_dropped_tx,
         track_ack_tx,
@@ -1147,6 +1225,12 @@ fn build_engine(
         ext_dropped_rx,
         ext_amp_tx,
         ext_amp_dropped_rx,
+        take_insert_tx,
+        take_insert_dropped_rx,
+        take_ext_cab_tx,
+        take_ext_cab_dropped_rx,
+        take_ext_amp_tx,
+        take_ext_amp_dropped_rx,
         track_tx,
         track_dropped_rx,
         track_ack_rx,

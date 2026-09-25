@@ -716,7 +716,6 @@ impl PracticeUi {
 
     /// Render the timeline pane. `focused` is true while the pane owns focus;
     /// `recording` drives the transport REC lamp.
-    #[allow(clippy::too_many_arguments)]
     pub(super) fn render(
         &self,
         f: &mut Frame,
@@ -725,7 +724,6 @@ impl PracticeUi {
         focused: bool,
         blink: bool,
         recording: bool,
-        takes_builtin: bool,
     ) {
         if area.height < 2 || area.width < 4 {
             return;
@@ -756,7 +754,7 @@ impl PracticeUi {
 
         self.render_transport(f, rows[0], practice, focused, blink, recording);
         self.render_tracks(f, rows[1], practice, focused);
-        self.render_hint(f, rows[2], focused, takes_builtin);
+        self.render_hint(f, rows[2], focused);
     }
 
     fn render_transport(
@@ -977,18 +975,7 @@ impl PracticeUi {
         Line::from(spans)
     }
 
-    fn render_hint(&self, f: &mut Frame, area: Rect, focused: bool, takes_builtin: bool) {
-        if takes_builtin {
-            let note = Line::from(vec![
-                Span::styled("⚠ ", Style::default().fg(WARN)),
-                Span::styled(
-                    "takes monitor through the built-in amp/cab (external rig is not mirrored yet)",
-                    Style::default().fg(WARN),
-                ),
-            ]);
-            f.render_widget(Paragraph::new(note).alignment(Alignment::Left), area);
-            return;
-        }
+    fn render_hint(&self, f: &mut Frame, area: Rect, focused: bool) {
         let hint = if focused {
             Line::from(vec![
                 Span::styled("Space", Style::default().fg(AMBER)),

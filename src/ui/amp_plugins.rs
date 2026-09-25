@@ -27,6 +27,16 @@ enum View {
     Edit,
 }
 
+/// One loaded AU, instantiated once per chain so the live guitar and the raw-take
+/// bus each own an independent processor. Parameters are kept in sync by the
+/// browser.
+struct AmpPair {
+    live: LoadedAu,
+    /// The take-bus instance, absent if the second instantiation failed (takes
+    /// then fall back to the built-in amp).
+    take: Option<LoadedAu>,
+}
+
 /// All amp-plugin browser state, kept on the UI thread.
 pub(super) struct AmpBrowser {
     pub(super) open: bool,
@@ -34,8 +44,8 @@ pub(super) struct AmpBrowser {
     cursor: usize,
     param_cursor: usize,
     plugins: Vec<DiscoveredAu>,
-    /// The currently loaded AU's UI-side handle, kept alive while in use.
-    loaded: Option<LoadedAu>,
+    /// The currently loaded AU's UI-side handles (live + take bus).
+    loaded: Option<AmpPair>,
     message: Option<String>,
     sample_rate: f32,
     max_block: u32,
@@ -66,7 +76,7 @@ impl AmpBrowser {
 
     /// Name of the loaded AU, for the main status line.
     pub(super) fn loaded_name(&self) -> Option<&str> {
-        self.loaded.as_ref().map(|p| p.name.as_str())
+        self.loaded.as_ref().map(|p| p.live.name.as_str())
     }
 
     pub(super) fn handle_key(&mut self, code: KeyCode, engine: &mut AudioEngine, params: &Params) {
@@ -107,7 +117,7 @@ impl AmpBrowser {
             self.view = View::Browse;
             return;
         };
-        let count = loaded.params().len();
+        let count = loaded.live.params().len();
         match code {
             KeyCode::Up => self.param_cursor = self.param_cursor.saturating_sub(1),
             KeyCode::Down if count > 0 => {
@@ -127,7 +137,7 @@ impl AmpBrowser {
         let Some(loaded) = self.loaded.as_mut() else {
             return;
         };
-        let Some(param) = loaded.params().get(self.param_cursor) else {
+        let Some(param) = loaded.live.params().get(self.param_cursor) else {
             return;
         };
         let step = if param.is_stepped() {
@@ -136,12 +146,17 @@ impl AmpBrowser {
             (param.max - param.min) / 20.0
         };
         let target = param.value + f64::from(dir) * step;
-        loaded.set_param(self.param_cursor, target);
+        loaded.live.set_param(self.param_cursor, target);
+        if let Some(take) = loaded.take.as_mut() {
+            take.set_param(self.param_cursor, target);
+        }
     }
 
     fn activate_selection(&mut self, engine: &mut AudioEngine, params: &Params) {
         if self.cursor == 0 {
-            self.message = match engine.set_external_amp(None) {
+            let live = engine.set_external_amp(None);
+            let _ = engine.set_external_amp_take(None);
+            self.message = match live {
                 Ok(()) => {
                     self.loaded = None;
                     params.amp_external_loaded.store(false, Relaxed);
@@ -160,11 +175,25 @@ impl AmpBrowser {
             return;
         };
 
+        // Instantiate twice: one processor for the live chain, one for the take bus.
         self.message = match au::load(plugin, self.sample_rate, self.max_block) {
-            Ok((loaded, insert)) => match engine.set_external_amp(Some(insert)) {
+            Ok((live, live_insert)) => match engine.set_external_amp(Some(live_insert)) {
                 Ok(()) => {
-                    let name = loaded.name.clone();
-                    let has_params = !loaded.params().is_empty();
+                    let name = live.name.clone();
+                    let has_params = !live.params().is_empty();
+                    // The take-bus instance is best-effort: a failure only means takes
+                    // audition through the built-in amp.
+                    let take = match au::load(plugin, self.sample_rate, self.max_block) {
+                        Ok((take, take_insert)) => {
+                            if engine.set_external_amp_take(Some(take_insert)).is_ok() {
+                                Some(take)
+                            } else {
+                                None
+                            }
+                        }
+                        Err(_) => None,
+                    };
+                    let take_ok = take.is_some();
                     // Loading makes the AU the active amp (built-in amp+cab bypassed by
                     // default). Publish its latency so the built-in path can align, and
                     // reset the amp-only routing to the default (AU brings its own cab).
@@ -173,15 +202,19 @@ impl AmpBrowser {
                     params.amp_external_amp_only.store(false, Relaxed);
                     params
                         .amp_external_latency
-                        .store(loaded.latency_frames, Relaxed);
-                    self.loaded = Some(loaded);
+                        .store(live.latency_frames, Relaxed);
+                    self.loaded = Some(AmpPair { live, take });
                     if has_params {
                         self.view = View::Edit;
                         self.param_cursor = 0;
                     } else {
                         self.open = false;
                     }
-                    Some(format!("Loaded {name}"))
+                    if take_ok {
+                        Some(format!("Loaded {name}"))
+                    } else {
+                        Some(format!("Loaded {name} (take bus uses built-in amp)"))
+                    }
                 }
                 Err(e) => Some(format!("Load failed: {e}")),
             },
@@ -262,7 +295,7 @@ impl AmpBrowser {
                 Style::default().fg(SAFE).add_modifier(Modifier::BOLD),
             )),
             (None, Some(name)) => {
-                let latency_ms = self.loaded.as_ref().map_or(0.0, |l| l.latency_ms);
+                let latency_ms = self.loaded.as_ref().map_or(0.0, |p| p.live.latency_ms);
                 let cab = if amp_only {
                     "built-in cab"
                 } else {
@@ -308,7 +341,7 @@ impl AmpBrowser {
         let Some(loaded) = self.loaded.as_ref() else {
             return;
         };
-        let params = loaded.params();
+        let params = loaded.live.params();
         if params.is_empty() {
             f.render_widget(
                 Paragraph::new(Span::styled(

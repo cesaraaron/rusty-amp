@@ -23,6 +23,15 @@ enum View {
     Edit,
 }
 
+/// One loaded plugin, instantiated once per chain so the live guitar and the
+/// raw-take bus each own an independent processor. Parameters are kept in sync by
+/// the browser.
+struct PluginPair {
+    live: LoadedPlugin,
+    /// The take-bus instance, absent if the second instantiation failed.
+    take: Option<LoadedPlugin>,
+}
+
 /// All plugin-browser state, kept on the UI thread.
 pub(super) struct PluginBrowser {
     /// Whether the modal is currently shown.
@@ -32,8 +41,8 @@ pub(super) struct PluginBrowser {
     /// Selected parameter in the Edit view.
     param_cursor: usize,
     plugins: Vec<DiscoveredPlugin>,
-    /// The currently loaded plugin's main-thread handle, kept alive while in use.
-    loaded: Option<LoadedPlugin>,
+    /// The currently loaded plugin's main-thread handles (live + take bus).
+    loaded: Option<PluginPair>,
     /// Last action result, surfaced in the modal footer.
     message: Option<String>,
     sample_rate: f32,
@@ -65,7 +74,7 @@ impl PluginBrowser {
 
     /// Name of the loaded plugin, for the main status line.
     pub(super) fn loaded_name(&self) -> Option<&str> {
-        self.loaded.as_ref().map(|p| p.name.as_str())
+        self.loaded.as_ref().map(|p| p.live.name.as_str())
     }
 
     /// Handle a keypress while the modal is open. Loading/clearing and parameter
@@ -99,7 +108,7 @@ impl PluginBrowser {
             self.view = View::Browse;
             return;
         };
-        let count = loaded.params().len();
+        let count = loaded.live.params().len();
         match code {
             KeyCode::Up => self.param_cursor = self.param_cursor.saturating_sub(1),
             KeyCode::Down if count > 0 => {
@@ -118,17 +127,22 @@ impl PluginBrowser {
         let Some(loaded) = self.loaded.as_mut() else {
             return;
         };
-        let Some(param) = loaded.params().get(self.param_cursor) else {
+        let Some(param) = loaded.live.params().get(self.param_cursor) else {
             return;
         };
         let step = (param.max - param.min) / 20.0;
         let target = param.value + f64::from(dir) * step;
-        loaded.set_param(self.param_cursor, target);
+        loaded.live.set_param(self.param_cursor, target);
+        if let Some(take) = loaded.take.as_mut() {
+            take.set_param(self.param_cursor, target);
+        }
     }
 
     fn activate_selection(&mut self, engine: &mut AudioEngine) {
         if self.cursor == 0 {
-            self.message = match engine.set_plugin_insert(None) {
+            let live = engine.set_plugin_insert(None);
+            let _ = engine.set_plugin_insert_take(None);
+            self.message = match live {
                 Ok(()) => {
                     self.loaded = None;
                     Some("Insert cleared".to_owned())
@@ -143,14 +157,28 @@ impl PluginBrowser {
             return;
         };
 
+        // Instantiate twice: one processor for the live chain, one for the take bus.
         self.message = match host::load(plugin, self.sample_rate, self.max_block) {
             Ok((loaded, insert)) => match engine.set_plugin_insert(Some(insert)) {
                 Ok(()) => {
                     let name = loaded.name.clone();
                     let has_params = !loaded.params().is_empty();
+                    // The take-bus instance is best-effort: a failure only means takes
+                    // audition without the insert.
+                    let take = match host::load(plugin, self.sample_rate, self.max_block) {
+                        Ok((take, take_insert)) => {
+                            if engine.set_plugin_insert_take(Some(take_insert)).is_ok() {
+                                Some(take)
+                            } else {
+                                None
+                            }
+                        }
+                        Err(_) => None,
+                    };
+                    let take_ok = take.is_some();
                     // Replacing keeps the old handle alive only until here; the audio
                     // thread already holds the processor's own ref, so this is safe.
-                    self.loaded = Some(loaded);
+                    self.loaded = Some(PluginPair { live: loaded, take });
                     // Jump straight into the parameter editor if there's anything to edit.
                     if has_params {
                         self.view = View::Edit;
@@ -158,7 +186,11 @@ impl PluginBrowser {
                     } else {
                         self.open = false;
                     }
-                    Some(format!("Loaded {name}"))
+                    if take_ok {
+                        Some(format!("Loaded {name}"))
+                    } else {
+                        Some(format!("Loaded {name} (take bus without insert)"))
+                    }
                 }
                 Err(e) => Some(format!("Load failed: {e}")),
             },
@@ -270,7 +302,7 @@ impl PluginBrowser {
         let Some(loaded) = self.loaded.as_ref() else {
             return;
         };
-        let params = loaded.params();
+        let params = loaded.live.params();
         if params.is_empty() {
             f.render_widget(
                 Paragraph::new(Span::styled(

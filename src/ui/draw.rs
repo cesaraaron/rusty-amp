@@ -94,14 +94,6 @@ pub(super) fn draw(
     }
     if show_timeline {
         if let Some((practice, ui)) = timeline {
-            // D1: the take bus runs the built-in rig only. Warn while an external
-            // amp or IR is selected so the mismatch is never silent.
-            let takes_builtin = params
-                .amp_external_active
-                .load(std::sync::atomic::Ordering::Relaxed)
-                || params
-                    .cab_external_active
-                    .load(std::sync::atomic::Ordering::Relaxed);
             ui.render(
                 f,
                 rows[i],
@@ -109,7 +101,6 @@ pub(super) fn draw(
                 focus == Some(PRACTICE_TILE),
                 blink,
                 recording,
-                takes_builtin,
             );
         }
         i += 1;

@@ -116,6 +116,8 @@ By default the AU is treated as a full **amp + cab** — it supplies its own cab
 
 rusty-amp reads the AU's reported processing latency and shows it in the AU modal status line (e.g. `active: NAME   5.2 ms · plugin cab`). While an AU is loaded, the built-in amp path is delayed by the same amount, so switching built-in↔AU with <kbd>Z</kbd> stays time-coherent and recordings line up. (Processing latency itself can't be removed from a live monitoring signal — this only keeps the two amp sources aligned with each other.)
 
+When an AU, CLAP insert or external IR is loaded, rusty-amp instantiates a **second copy for the raw-take bus**, so re-amping a take uses the same external rig as the live guitar without sharing processor state. That roughly doubles the plugin's CPU cost while the timeline holds takes; clearing the plugin releases both instances.
+
 ## AU limitations {#au-limits}
 
 <ul class="clean">

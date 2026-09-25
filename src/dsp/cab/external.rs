@@ -47,6 +47,19 @@ pub struct LoadedIr {
     pub name: String,
 }
 
+impl LoadedIr {
+    /// Deep-copy the conditioned IR so a second [`ExternalIrCab`] can be built for
+    /// the take bus without re-reading the file. The buffers are bounded by
+    /// [`MAX_IR_LEN`](super::MAX_IR_LEN), and this runs on the control thread.
+    pub fn duplicate(&self) -> Self {
+        Self {
+            l: self.l.clone(),
+            r: self.r.clone(),
+            name: self.name.clone(),
+        }
+    }
+}
+
 /// Decode and condition a `.wav` impulse response for use at `target_sr`.
 ///
 /// Runs entirely off the audio thread (file IO, an offline resample and a couple of
@@ -312,10 +325,7 @@ mod tests {
 
         let sr = 48_000.0;
         // Two cabs fed identical input but different (ignored) mic params.
-        let mk = || {
-            let l = load_clone(&loaded);
-            ExternalIrCab::new(sr, l)
-        };
+        let mk = || ExternalIrCab::new(sr, loaded.duplicate());
         let mut a = mk();
         let mut b = mk();
         let mut max_abs = 0.0f32;
@@ -328,15 +338,5 @@ mod tests {
             max_abs = max_abs.max(al.abs()).max(ar.abs());
         }
         assert!(max_abs < 3.0, "external cab runaway: {max_abs}");
-    }
-
-    /// `LoadedIr` isn't `Clone` (it's a one-shot handoff), so deep-copy by hand for
-    /// the twin-cab inertness test.
-    fn load_clone(src: &LoadedIr) -> LoadedIr {
-        LoadedIr {
-            l: src.l.clone(),
-            r: src.r.clone(),
-            name: src.name.clone(),
-        }
     }
 }

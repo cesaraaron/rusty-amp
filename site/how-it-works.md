@@ -217,7 +217,7 @@ The order below is the shipped default, not a fixed circuit: press <kbd>1</kbd> 
 For the per-knob behaviour of each pedal, see [Pedals & effects](pedals.html).
 
 <div class="note note--info">
-<b>Two rigs, one monitor.</b> The live guitar feeds the main rig. Finished <b>raw takes</b> are summed into a single guitar bus and run through a <b>second, independent rig instance</b> that shares the same knob settings but keeps separate DSP state — so your takes are re-amped live by the current pedals, amp and cab, while their reverb/delay tails never leak into the live signal. Imported <b>backing tracks</b> and the practice <b>metronome</b> stay monitor-only and are summed in after the capture tap, so they are never recorded. A raw take captures the <b>dry</b> selected input channel before the gate and pedals, which is why changing the rig changes the take non-destructively.
+<b>Two rigs, one monitor.</b> The live guitar feeds the main rig. Finished <b>raw takes</b> are summed into a single guitar bus and run through a <b>second, independent rig instance</b> that shares the same knob settings but keeps separate DSP state — so your takes are re-amped live by the current pedals, amp and cab, while their reverb/delay tails never leak into the live signal. A loaded external IR, AU amp or CLAP insert is instantiated a second time for that bus, so takes hear the same external rig as the live guitar. Imported <b>backing tracks</b> and the practice <b>metronome</b> stay monitor-only and are summed in after the capture tap, so they are never recorded. A raw take captures the <b>dry</b> selected input channel before the gate and pedals, which is why changing the rig changes the take non-destructively.
 </div>
 
 ## The amp stages {#amp}

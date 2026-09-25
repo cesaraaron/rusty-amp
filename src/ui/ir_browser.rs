@@ -114,8 +114,10 @@ impl IrBrowser {
             return;
         }
         if self.cursor == 0 {
-            // Clear the external IR and fall back to the built-in cabs.
-            self.message = match engine.set_external_cab(None) {
+            // Clear the external IR from both chains and fall back to the built-in cabs.
+            let live = engine.set_external_cab(None);
+            let _ = engine.set_external_cab_take(None);
+            self.message = match live {
                 Ok(()) => {
                     params.cab_external_active.store(false, Relaxed);
                     params.cab_external_loaded.store(false, Relaxed);
@@ -135,14 +137,21 @@ impl IrBrowser {
         self.message = match load_ir(&file.path, self.sample_rate, MAX_IR_LEN) {
             Ok(loaded) => {
                 let name = loaded.name.clone();
-                let cab = Box::new(ExternalIrCab::new(self.sample_rate, loaded));
-                match engine.set_external_cab(Some(cab)) {
+                // A second cab for the take bus so takes re-amp through the same IR.
+                let live_cab = Box::new(ExternalIrCab::new(self.sample_rate, loaded.duplicate()));
+                let take_cab = Box::new(ExternalIrCab::new(self.sample_rate, loaded));
+                match engine.set_external_cab(Some(live_cab)) {
                     Ok(()) => {
+                        let take_ok = engine.set_external_cab_take(Some(take_cab)).is_ok();
                         params.cab_external_loaded.store(true, Relaxed);
                         params.cab_external_active.store(true, Relaxed);
                         self.loaded = Some(name.clone());
                         self.open = false;
-                        Some(format!("Loaded {name}"))
+                        if take_ok {
+                            Some(format!("Loaded {name}"))
+                        } else {
+                            Some(format!("Loaded {name} (take bus uses built-in cab)"))
+                        }
                     }
                     Err(e) => Some(format!("Load failed: {e}")),
                 }

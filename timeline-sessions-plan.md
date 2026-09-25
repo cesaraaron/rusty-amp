@@ -207,6 +207,18 @@ Branch `timeline-sessions`, cut from `main`. The first increment is the
 "playback + dry capture vertical slice"; session save/load, recovery indexing,
 offline export and plugin-state parity remain follow-ups (sections 6–8).
 
+**Done — D2 (external-rig mirroring):**
+
+- `src/audio/mod.rs` — parallel take-bus rings and `set_plugin_insert_take` /
+  `set_external_cab_take` / `set_external_amp_take`; the callback applies the same
+  swaps to the take `DspChain` with displaced instances returned for off-thread
+  disposal.
+- `src/ui/plugins.rs`, `src/ui/amp_plugins.rs` — each load instantiates **two**
+  processors (live + take bus) and keeps their parameters in sync; a failed
+  second instantiation falls back to the built-in rig with a visible message.
+- `src/ui/ir_browser.rs` + `LoadedIr::duplicate` — the active IR is installed on
+  both chains.
+
 **Done — D1 (built-in take bus):**
 
 - `src/session.rs` — canonical `Session`/`Track` model, project-tick time base
@@ -227,7 +239,7 @@ offline export and plugin-state parity remain follow-ups (sections 6–8).
   the playhead, `R` arms/stops a raw take, `+`/`-` seek step, `G` gain modal,
   `Del` remove. Help text and the docs site updated.
 
-**Deferred — D2 and later:** mirror the active external IR, AU amp and CLAP
-insert onto the take bus (a second plugin instance per host); persist and restore
-plugin identity/state. Until D2 lands the timeline shows a warning whenever an
-external amp/IR is active, because takes are monitored through the built-in rig.
+**Deferred — later increments:** session save/load + recovery indexing,
+offline export, and persisting/restoring plugin identity and state (section 6–8).
+Plugin-state capture is the remaining piece needed for a faithful offline render;
+live take-bus mirroring is now in place.
