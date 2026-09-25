@@ -1,0 +1,13 @@
+rusty-riff
+Copyright 2026 Cesar Sosa
+
+This product is a modified fork of rusty-amp, originally created by
+Danylo Kravchenko and published at:
+    https://github.com/danylokravchenko/rusty-amp
+
+Portions of this software are derived from that project and are redistributed
+under the Apache License, Version 2.0 (see LICENSE). The original work is
+Copyright Danylo Kravchenko and its contributors.
+
+Modifications, the rusty-riff name, and all subsequent work are
+Copyright 2026 Cesar Sosa.
