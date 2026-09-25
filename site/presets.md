@@ -132,14 +132,16 @@ Share tones as plain `.toml` files — the same format described in [Writing you
 
 ## Writing your own preset {#write}
 
-A preset is a TOML file. Every section except `[tube_screamer]`, `[amp]`, and `[reverb]` is optional — omitting a section leaves that effect's current state unchanged. All knob values are normalised `0.0–1.0`.
+A preset is a TOML file. Only `[tube_screamer]`, `[amp]`, and `[reverb]` are required. For the optional effect sections, **omitting the section turns that effect off** (its stored knob values are left untouched); include the section with `enabled = false` to store values while keeping it bypassed. Two sections behave differently: an omitted `[noise_gate]` or `[cabinet]` leaves the current gate or cabinet/mic settings **unchanged**. An omitted `[chain]` resets the signal-chain order to the shipped default. All knob values are normalised `0.0–1.0`.
 
 ```toml
 name        = "My Preset"
 description = "Optional one-line description shown in the preset browser."
 
-# All sections except [tube_screamer], [amp], and [reverb] are optional.
-# Omitting a section leaves that effect's current state unchanged.
+# Only [tube_screamer], [amp], and [reverb] are required.
+# Omitting an optional effect section turns that effect off; add it with
+# enabled = false to keep its values while bypassed. [noise_gate] and
+# [cabinet] are the exceptions — omitting them leaves current settings as-is.
 
 [noise_gate]
 enabled   = true    # optional, defaults to true
@@ -242,6 +244,7 @@ master = 0.55         # ignored by non-master models
 # speed     = 0.0
 # intensity = 0.0
 
+# Omit [cabinet] entirely and the current cabinet/mic settings are kept as-is.
 [cabinet]
 model     = "mesa"    # "mesa" | "marshall" | "orange" | "wem" | "vox" | "fender"
 mic_pos   = 0.5       # 0.0 = edge/dark, 0.5 = neutral, 1.0 = center/bright (default 0.5)

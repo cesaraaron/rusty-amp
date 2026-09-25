@@ -40,7 +40,7 @@ next: { href: "https://github.com/danylokravchenko/rusty-amp/blob/main/CONTRIBUT
 
 Every block below is processed per sample. Bracketed stages are `[bypassable]` — remove or bypass them and they drop out of the path entirely.
 
-The order below is the shipped default, not a fixed circuit: press <kbd>1</kbd> for the live-order ribbon, pick a stage with <kbd>←</kbd>/<kbd>→</kbd>, and move it earlier or later with <kbd>[</kbd> / <kbd>]</kbd> — the amp+cab block moves as one (amp and cab always travel together). The ribbon at the top of the app always shows the live order. A mono pedal placed on a stereo signal sums to mono and duplicates back out; a stereo pedal placed before the amp+cab block promotes the signal to dual mono — so putting e.g. the compressor after the cabinet is fair game. Custom orders are saved into [presets](presets.html#chain).
+The order below is the shipped default, not a fixed circuit: press <kbd>1</kbd> for the live-order ribbon, pick a stage with <kbd>←</kbd>/<kbd>→</kbd>, and move it earlier or later with <kbd>[</kbd> / <kbd>]</kbd> — the amp+cab block moves as one (amp and cab always travel together). The ribbon at the top of the app always shows the live order. A mono pedal placed on a stereo signal sums to mono and duplicates back out; a stereo pedal placed before the amp+cab block promotes the signal to dual mono — so putting e.g. the compressor after the cabinet is fair game. Only a **live** effect does that conversion: a bypassed stage is wire-transparent, passing the signal through untouched in whatever domain it arrived, so moving a bypassed pedal never changes the stereo image. Custom orders are saved into [presets](presets.html#chain).
 
 <div class="flow">
 
