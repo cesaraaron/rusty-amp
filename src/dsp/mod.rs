@@ -16,7 +16,10 @@ pub use tuner::Tuner;
 
 use atomic_float::AtomicF32;
 use std::sync::Arc;
-use std::sync::atomic::{AtomicBool, AtomicU8, AtomicUsize, Ordering::Relaxed};
+use std::sync::atomic::{
+    AtomicBool, AtomicU8, AtomicU64, AtomicUsize,
+    Ordering::{Relaxed, SeqCst},
+};
 
 use amp::{AMP_MAX, AmpBank, AmpKnob};
 use cab::{CabBank, ExternalIrCab};
@@ -710,10 +713,16 @@ pub struct Params {
     // different numbers of controls, so trailing slots of a bank are unused.
     pub amp_params: [[Arc<AtomicF32>; AMP_MAX]; AmpModel::ALL.len()],
 
-    // Reorderable signal-chain order, one [`ChainStage`] id per slot. Each slot
-    // is its own atomic so the UI thread can swap stages while the audio thread
-    // reads the order lock-free, sample by sample.
+    // Reorderable signal-chain order, one [`ChainStage`] id per slot, published
+    // as a **seqlock** so the audio thread always sees a whole, coherent order.
+    // `chain_seq` guards the slot array: writers bump it odd, write the slots,
+    // then bump it even; readers snapshot the slots and accept the read only if
+    // the sequence is unchanged and even, otherwise retry. This closes the old
+    // window where a concurrent swap could be observed half-applied (a stage
+    // duplicated or missing). The audio thread reads once per block, not per
+    // sample, so the retry cost is off the hot per-sample path.
     pub chain_order: Arc<[AtomicU8; CHAIN_LEN]>,
+    pub chain_seq: Arc<AtomicU64>,
 }
 
 impl Default for Params {
@@ -859,6 +868,7 @@ impl Params {
             }),
 
             chain_order: Arc::new(ChainStage::default_order().map(AtomicU8::new)),
+            chain_seq: Arc::new(AtomicU64::new(0)),
         }
     }
 
@@ -1047,20 +1057,42 @@ impl Params {
         }
     }
 
-    /// Snapshot the chain order (one atomic load per slot) for the audio thread.
+    /// Snapshot the whole chain order as one coherent value via the seqlock.
+    ///
+    /// Retries only while a writer holds the sequence odd or completes a write
+    /// between the two sequence reads; each write is 19 byte stores, so at most
+    /// a couple of retries. Call this once per audio block (or per `process`
+    /// call), never per sample.
     pub fn chain_slots(&self) -> [u8; CHAIN_LEN] {
-        std::array::from_fn(|i| self.chain_order[i].load(Relaxed))
+        loop {
+            let before = self.chain_seq.load(SeqCst);
+            if before & 1 != 0 {
+                std::hint::spin_loop();
+                continue;
+            }
+            let slots = std::array::from_fn(|i| self.chain_order[i].load(SeqCst));
+            let after = self.chain_seq.load(SeqCst);
+            if before == after {
+                return slots;
+            }
+            std::hint::spin_loop();
+        }
     }
 
-    /// Install a full chain order (UI move / preset apply). Callers pass
-    /// sanitized orders containing every stage exactly once (see
-    /// `sanitize_chain_order`); unknown slots are skipped, never stored.
+    /// Install a full chain order (UI move / preset apply), publishing it
+    /// atomically through the seqlock. Callers pass sanitized orders containing
+    /// every stage exactly once (see `sanitize_chain_order`); unknown slots are
+    /// skipped, never stored.
     pub fn set_chain_order(&self, order: &[u8; CHAIN_LEN]) {
+        // Odd sequence: the slots are now mid-write and must not be read.
+        self.chain_seq.fetch_add(1, SeqCst);
         for (slot, &v) in self.chain_order.iter().zip(order.iter()) {
             if ChainStage::from_u8(v).is_some() {
-                slot.store(v, Relaxed);
+                slot.store(v, SeqCst);
             }
         }
+        // Even again: the new order is fully published.
+        self.chain_seq.fetch_add(1, SeqCst);
     }
 }
 
@@ -1287,10 +1319,12 @@ impl DspChain {
     /// The plugin insert and the master-bus widen + soft-limit run *after* this; in
     /// the live block path they run in [`process_block`], while the per-sample
     /// [`process`](Self::process) wrapper applies the master bus directly.
+    ///
+    /// `order` is snapshotted by the caller so the whole chain is read once per
+    /// block, not once per sample.
     #[inline]
-    fn process_core(&mut self, sample: f32) -> (f32, f32) {
-        let order = self.params.chain_slots();
-        self.run_full(sample, &order)
+    fn process_core(&mut self, sample: f32, order: &[u8; CHAIN_LEN]) -> (f32, f32) {
+        self.run_full(sample, order)
     }
 
     /// Built-in amp then cabinet: mono in, stereo out.
@@ -1578,7 +1612,8 @@ impl DspChain {
     /// the optional plugin insert between the two.
     #[inline]
     pub fn process(&mut self, sample: f32) -> (f32, f32) {
-        let (l, r) = self.process_core(sample);
+        let order = self.params.chain_slots();
+        let (l, r) = self.process_core(sample, &order);
         master_bus(l, r)
     }
 
@@ -1610,9 +1645,10 @@ impl DspChain {
         let p = &self.params;
         let amp_loaded = self.ext_amp.is_some();
         let use_ext_amp = amp_loaded && p.amp_external_active.load(Relaxed);
+        // One coherent snapshot of the whole order for the entire block.
+        let order = p.chain_slots();
         if use_ext_amp {
             let amp_only = p.amp_external_amp_only.load(Relaxed);
-            let order = p.chain_slots();
             // External amp path: ordered pre stages (mono) → duplicate to stereo
             // → hosted plugin. Separate loops so the `ext_amp` borrow doesn't
             // overlap `self` method calls.
@@ -1640,7 +1676,7 @@ impl DspChain {
         } else {
             // Normal path: the full built-in core chain, per sample.
             for ((&x, l), r) in input.iter().zip(out_l.iter_mut()).zip(out_r.iter_mut()) {
-                let (lv, rv) = self.process_core(x);
+                let (lv, rv) = self.process_core(x, &order);
                 *l = lv;
                 *r = rv;
             }
@@ -1913,6 +1949,41 @@ mod tests {
         assert_eq!(params.chain_slots(), swapped);
         params.reset_to_defaults();
         assert_eq!(params.chain_slots(), ChainStage::default_order());
+    }
+
+    /// A snapshot must always be one whole, valid order — never a torn mix of
+    /// two concurrent swaps. Two distinct permutations are published in a tight
+    /// loop while the reader snapshots; every read must equal one of them. This
+    /// is the coherence guarantee the seqlock exists for.
+    #[test]
+    fn chain_order_snapshot_is_never_torn_under_concurrent_swaps() {
+        let params = Arc::new(Params::new());
+        let mut a = ChainStage::default_order();
+        a.swap(0, 18);
+        let mut b = ChainStage::default_order();
+        b.swap(3, 4);
+        assert_ne!(a, b, "the two permutations must differ");
+        // Seed one permutation so the only coherent values are `a` and `b`
+        // (otherwise the initial boot order is a valid third value).
+        params.set_chain_order(&a);
+
+        let writer = {
+            let params = Arc::clone(&params);
+            std::thread::spawn(move || {
+                for i in 0..200_000u32 {
+                    params.set_chain_order(if i & 1 == 0 { &a } else { &b });
+                }
+            })
+        };
+
+        for _ in 0..200_000 {
+            let snap = params.chain_slots();
+            assert!(
+                snap == a || snap == b,
+                "reader observed a torn/partial order: {snap:?}"
+            );
+        }
+        writer.join().expect("writer thread panicked");
     }
 
     /// Sanitizing drops unknowns/dupes and appends missing stages in default order.
