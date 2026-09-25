@@ -1,4 +1,4 @@
-# Implementation notes — routing correctness (Phases 1–2)
+# Implementation notes — routing, topology, and Phase 0 scaffold
 
 This file tracks work done against [`plan.md`](plan.md). It is written so a
 following agent can review the changes and continue the roadmap without
@@ -148,19 +148,53 @@ snapshots (no other change needed).
 
 ---
 
+## Phase 0 foundation + preset accuracy cleanups
+
+Commits: `docs: add the Phase 0 fidelity reference scaffold`,
+`test(presets): assert bundled presets load deterministically`,
+`docs(dsp): reconcile the TS-808 input-HP prose…`,
+`docs(presets): make descriptions match the enabled signal path`.
+
+- **Reference scaffold** — new [`docs/fidelity-references.md`](docs/fidelity-references.md):
+  the code-derived inventory of all 15 presets (amp, cab, enabled effects in
+  signal order, delay/fuzz mode), a description-vs-path flag table, the
+  per-preset reference checklist, and a source-log template. It makes no
+  historical claim; it is the baseline a following agent annotates.
+- **Determinism regression** — `bundled_presets_load_deterministically` applies
+  each preset onto a hostile prior state and compares a sound-determining
+  fingerprint to a fresh load. Verified it fails when a preset omits
+  `[noise_gate]`. All 15 already set `[noise_gate]`/`[cabinet]` and omit
+  `[chain]`, so this only locks behavior.
+- **TS-808 prose** — the module header now says 340 Hz (matching the constructor
+  and `site/how-it-works.md`), flagged as an RC-derived estimate pending a
+  measured response. **No DSP change.**
+- **Preset descriptions** — fixed contradictions provable from the TOML, no
+  parameter/tone changes:
+  - AC/DC ×2 said "no pedals" while enabling pre-EQ + parametric EQ + reverb →
+    "no drive pedals" + names the shaping.
+  - Stairway solo said "small-amp" while selecting Plexi + Greenback 4×12, and
+    its site blurb said "Echoplex slap" while the preset's `[delay]` omitted
+    `type`, resolving to **digital ping-pong**. Description fixed; `type = 0.0`
+    pinned explicitly (behavior-identical). The intended echo device is now a
+    flagged reference question.
+  - Pink Floyd `Echorec` / `Electric Mistress` / `Phase 90` are hedged as
+    `-style` approximations (the DSP implements a generic tape echo / flanger /
+    phaser), and Money's wah is described as what it is (auto-wah).
+  - Van Halen presets now name the enabled Tube Screamer.
+  - Mirrored in the `site/presets.md` bundled table.
+
+---
+
 ## Findings not yet actioned
 
-### TS-808 header doc contradicts its own constructor
+### TS-808 input-HP value still unverified
 
-`src/dsp/effects/tube_screamer.rs`:
-- Header (lines 8 and 13-14) says the input coupling HP is **~60 Hz**.
-- Constructor (line 48) instantiates **340 Hz**, with an inline comment (line 45)
-  justifying 340 Hz (`0.047 µF` into `10 kΩ`).
-
-Only the prose is stale/inconsistent. Per the roadmap, **do not retune either
-number without hardware/reference data** — the real question is which value is
-circuit-correct, which is a Phase 4 fidelity task. Recommend a schematic or
-measured TS-808 frequency response, then make code and both comments agree.
+`src/dsp/effects/tube_screamer.rs` now documents the input coupling HP as
+**340 Hz** (`0.047 µF` into `10 kΩ`). That is an RC estimate, not a measured
+value; the code, the 720 Hz feedback-network peak, and the two EQ stages in the
+Floyd presets may still be compensating for each other. Per the roadmap, do
+**not** retune without a schematic or a measured TS-808 frequency response
+(Phase 4). The prose contradiction itself is resolved.
 
 ### Not an actual effects loop yet
 
@@ -178,12 +212,13 @@ material that cannot be invented from code:
 
 ### Phase 0 — reference matrix
 
-Need per bundled preset (`presets/*.toml`, 15 files): song/section/era, guitar,
-pickups, effects **with order**, amp revision/channel, cab/speakers, mic/room,
-known studio processing, and cited sources (interviews, session notes,
-schematics, measured IRs). Suggested output: `docs/fidelity-references.md` or a
-`docs/fidelity/` table. Label each claim *documented* / *plausible* / *unknown*;
-presets without a firm source should say "inspired by".
+Scaffold created: [`docs/fidelity-references.md`](docs/fidelity-references.md)
+holds the code-derived inventory, the per-preset checklist, and the source-log
+template. It is **unfilled on the evidence side**: a human or following agent
+must log the sources per claim (song/section/era, guitar, pickups, effects with
+order, amp revision/channel, cab/speakers, mic/room, studio processing) and mark
+each *documented* / *plausible* / *unknown*; presets without a firm source stay
+"inspired by".
 
 ### Phase 3 — amp/cab fidelity
 
@@ -225,7 +260,7 @@ cargo test --all-features
 cd site && npm run build
 ```
 
-All tests pass (261 at the time of writing). The routing/topology fixes are
+All tests pass (262 at the time of writing). The routing/topology fixes are
 covered by the named tests in `src/dsp/mod.rs`, `src/preset.rs`, and
 `src/ui/input.rs`. There is no listening test: Phases 1–2 change routing,
 coherence, and topology, not voicing, and the default-order render is
