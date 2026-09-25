@@ -960,6 +960,99 @@ mod tests {
         assert!(count > 0, "no bundled presets found to validate");
     }
 
+    /// A sound-determining fingerprint: chain order, amp/cab/mic/master
+    /// selectors, and every stage's on/off flag. Knob values of *disabled*
+    /// effects are intentionally retained by `apply`, so they are not part of the
+    /// audible rig and are excluded.
+    fn rig_fingerprint(p: &Params) -> Vec<f32> {
+        let mut v: Vec<f32> = p.chain_slots().iter().map(|&b| f32::from(b)).collect();
+        v.push((p.amp_model() as u8) as f32);
+        v.push((p.cab_model() as u8) as f32);
+        v.push(p.mic_pos.load(Relaxed));
+        v.push(p.mic_blend.load(Relaxed));
+        v.push(p.mic_room.load(Relaxed));
+        v.push(p.master_width.load(Relaxed));
+        for flag in [
+            &p.ng_enabled,
+            &p.cmp_enabled,
+            &p.pitch_enabled,
+            &p.wah_enabled,
+            &p.fz_enabled,
+            &p.ts_enabled,
+            &p.ds_enabled,
+            &p.ml_enabled,
+            &p.peq_enabled,
+            &p.uv_enabled,
+            &p.geq_enabled,
+            &p.eq_enabled,
+            &p.fl_enabled,
+            &p.ch_enabled,
+            &p.ph_enabled,
+            &p.trem_enabled,
+            &p.delay_enabled,
+            &p.rev_enabled,
+        ] {
+            v.push(if flag.load(Relaxed) { 1.0 } else { 0.0 });
+        }
+        v
+    }
+
+    /// A prior rig deliberately different from the shipped defaults in every way
+    /// a preset could fail to overwrite.
+    fn hostile_params() -> Params {
+        let p = Params::new();
+        p.amp_model.store(AmpModel::Randall as u8, Relaxed);
+        p.cab_model.store(CabModel::Vox as u8, Relaxed);
+        p.mic_pos.store(0.95, Relaxed);
+        p.mic_blend.store(1.0, Relaxed);
+        p.mic_room.store(1.0, Relaxed);
+        p.master_width.store(0.2, Relaxed);
+        // Gate off (default is on) so an omitted `[noise_gate]` would leak state.
+        p.ng_enabled.store(false, Relaxed);
+        // Effects most presets leave off, flipped on with stray state.
+        p.pitch_enabled.store(true, Relaxed);
+        p.wah_enabled.store(true, Relaxed);
+        p.uv_enabled.store(true, Relaxed);
+        p.geq_enabled.store(true, Relaxed);
+        p.fl_enabled.store(true, Relaxed);
+        p.ch_enabled.store(true, Relaxed);
+        p.ph_enabled.store(true, Relaxed);
+        p.trem_enabled.store(true, Relaxed);
+        // A reversed chain, so a preset without `[chain]` must reset it.
+        let mut reversed = ChainStage::default_order();
+        reversed.reverse();
+        p.set_chain_order(&reversed);
+        p
+    }
+
+    /// The Phase 5 gate: loading any bundled preset gives the same audible rig
+    /// no matter what was loaded before it. All bundled presets set
+    /// `[noise_gate]`/`[cabinet]` and omit `[chain]`, so a hostile prior rig must
+    /// be fully overwritten. Guards against a future preset that forgets one.
+    #[test]
+    fn bundled_presets_load_deterministically() {
+        for entry in std::fs::read_dir("presets").expect("presets/ dir") {
+            let path = entry.unwrap().path();
+            if path.extension().is_none_or(|ext| ext != "toml") {
+                continue;
+            }
+            let preset = Preset::load(&path, PresetSource::System)
+                .unwrap_or_else(|e| panic!("failed to parse {}: {e}", path.display()));
+
+            let fresh = Params::new();
+            preset.apply(&fresh);
+            let hostile = hostile_params();
+            preset.apply(&hostile);
+
+            assert_eq!(
+                rig_fingerprint(&fresh),
+                rig_fingerprint(&hostile),
+                "{} is not deterministic across prior states",
+                path.display()
+            );
+        }
+    }
+
     /// Scratch dir for export tests: unique per process so parallel tests never
     /// collide. Callers remove what they create.
     fn scratch_dir(tag: &str) -> PathBuf {
