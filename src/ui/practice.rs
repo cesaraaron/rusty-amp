@@ -87,6 +87,8 @@ pub(super) struct PracticeUi {
     recording_id: Option<TrackId>,
     /// Small modal editing a track's gain.
     gain_edit: Option<TrackId>,
+    /// Small modal nudging a track's timeline start.
+    move_edit: Option<TrackId>,
     next_generation: u64,
     /// The project time base is adopted from the first engine and kept across
     /// later device changes, so clip offsets never drift.
@@ -110,6 +112,7 @@ impl PracticeUi {
             capture_result: None,
             recording_id: None,
             gain_edit: None,
+            move_edit: None,
             next_generation: 1,
             rate_adopted: false,
         }
@@ -1092,6 +1095,56 @@ impl PracticeUi {
         self.gain_edit.is_some()
     }
 
+    // ── Clip move ───────────────────────────────────────────────────────────────
+
+    pub(super) fn open_move_edit(&mut self) {
+        if let Some(id) = self.selected_track() {
+            self.move_edit = Some(id);
+        }
+    }
+
+    pub(super) fn move_open(&self) -> bool {
+        self.move_edit.is_some()
+    }
+
+    /// `←`/`→` nudge the clip by 0.1 s; `↑`/`↓` by the current seek step; `R`
+    /// returns it to the top.
+    pub(super) fn handle_move_key(&mut self, code: KeyCode, engine: &mut AudioEngine) {
+        let Some(id) = self.move_edit else {
+            return;
+        };
+        match code {
+            KeyCode::Left => self.nudge_start(engine, id, -0.1),
+            KeyCode::Right => self.nudge_start(engine, id, 0.1),
+            KeyCode::Down => {
+                let step = self.session.seek_seconds() as f32;
+                self.nudge_start(engine, id, -step);
+            }
+            KeyCode::Up => {
+                let step = self.session.seek_seconds() as f32;
+                self.nudge_start(engine, id, step);
+            }
+            KeyCode::Char('r') | KeyCode::Char('R') => self.set_start_ticks(engine, id, 0),
+            KeyCode::Enter | KeyCode::Esc => self.move_edit = None,
+            _ => {}
+        }
+    }
+
+    fn nudge_start(&mut self, engine: &mut AudioEngine, id: TrackId, seconds: f32) {
+        let cur = self.session.track(id).map_or(0, |t| t.start_ticks);
+        let delta = (f64::from(seconds) * f64::from(self.session.project_sample_rate())).round();
+        let next = (cur as f64 + delta).max(0.0) as u64;
+        self.set_start_ticks(engine, id, next);
+    }
+
+    fn set_start_ticks(&mut self, engine: &mut AudioEngine, id: TrackId, ticks: u64) {
+        if let Some(track) = self.session.track_mut(id) {
+            track.start_ticks = ticks;
+        }
+        let frames = self.session.ticks_to_frames(ticks, self.sample_rate);
+        let _ = engine.set_track_start(id, frames);
+    }
+
     // ── Rendering ───────────────────────────────────────────────────────────────
 
     /// Render the timeline pane. `focused` is true while the pane owns focus;
@@ -1539,6 +1592,60 @@ impl PracticeUi {
                     Style::default().fg(DIM),
                 ),
             ]),
+        ];
+        f.render_widget(Paragraph::new(text), inner);
+    }
+
+    /// Render the clip-position modal.
+    pub(super) fn render_move_modal(&self, f: &mut Frame) {
+        let Some(id) = self.move_edit else {
+            return;
+        };
+        let Some(track) = self.session.track(id) else {
+            return;
+        };
+        let area = centered_box(48, 7, f.area());
+        f.render_widget(Clear, area);
+        let block = Block::default()
+            .borders(Borders::ALL)
+            .border_type(BorderType::Double)
+            .border_style(Style::default().fg(ACCENT))
+            .title(Span::styled(
+                " M O V E   C L I P ",
+                Style::default().fg(AMBER).add_modifier(Modifier::BOLD),
+            ))
+            .style(Style::default().bg(Color::Black));
+        let inner = block.inner(area);
+        f.render_widget(block, area);
+
+        let start_frames = self
+            .session
+            .ticks_to_frames(track.start_ticks, self.sample_rate);
+        let length_frames = self
+            .session
+            .ticks_to_frames(track.length_ticks, self.sample_rate);
+        let text = vec![
+            Line::from(Span::styled(
+                truncate(&track.name, inner.width as usize),
+                Style::default().fg(CHROME),
+            )),
+            Line::from(vec![
+                Span::styled("start ", Style::default().fg(DIM)),
+                Span::styled(
+                    mmss(start_frames, self.sample_rate),
+                    Style::default().fg(AMBER).add_modifier(Modifier::BOLD),
+                ),
+                Span::styled("   end ", Style::default().fg(DIM)),
+                Span::styled(
+                    mmss(start_frames + length_frames, self.sample_rate),
+                    Style::default().fg(CHROME),
+                ),
+            ]),
+            Line::from(Span::styled(
+                "←/→ 0.1 s · ↑/↓ seek step · R to top",
+                Style::default().fg(DIM),
+            )),
+            Line::from(Span::styled("Enter / Esc close", Style::default().fg(DIM))),
         ];
         f.render_widget(Paragraph::new(text), inner);
     }

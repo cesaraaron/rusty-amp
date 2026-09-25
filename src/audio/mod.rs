@@ -58,6 +58,10 @@ pub enum TrackCommand {
         id: u64,
         muted: bool,
     },
+    SetStart {
+        id: u64,
+        start: usize,
+    },
 }
 
 /// Audio → control acknowledgement that an install actually landed (or why it
@@ -299,6 +303,13 @@ impl AudioEngine {
     pub fn set_track_mute(&mut self, id: u64, muted: bool) -> Result<()> {
         self.track_tx
             .push(TrackCommand::SetMute { id, muted })
+            .map_err(|_| anyhow!("timeline command queue is full"))
+    }
+
+    /// Move a track's timeline start, in output frames.
+    pub fn set_track_start(&mut self, id: u64, start: usize) -> Result<()> {
+        self.track_tx
+            .push(TrackCommand::SetStart { id, start })
             .map_err(|_| anyhow!("timeline command queue is full"))
     }
 
@@ -813,6 +824,9 @@ impl InputState {
                 }
                 TrackCommand::SetMute { id, muted } => {
                     self.player.set_muted(id, muted);
+                }
+                TrackCommand::SetStart { id, start } => {
+                    self.player.set_start(id, start);
                 }
             }
         }

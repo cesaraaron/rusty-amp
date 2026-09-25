@@ -296,4 +296,12 @@ offline export and plugin-state parity remain follow-ups (sections 6–8).
   later export includes them.
 - A missing/renamed plugin bundle degrades to the built-in rig with a message.
 
-**Deferred:** AU opaque ClassInfo state (parameters only); clip reposition/move.
+**Done — increment 8 (clip move):**
+
+- `TrackCommand::SetStart` + `PlayerVoice::set_start` move a track's timeline
+  start in place on the audio thread (no re-decode).
+- Timeline `H` opens a move modal: `←`/`→` nudge 0.1 s, `↑`/`↓` by the seek step,
+  `R` returns to the top. Updates both the session ticks and the installed buffer.
+
+**Deferred:** AU opaque ClassInfo state (parameters only). Hardware acceptance
+passes (`cargo run --release`) still recommended.

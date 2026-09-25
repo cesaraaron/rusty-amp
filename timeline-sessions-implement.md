@@ -155,8 +155,9 @@ metronome are monitor-only.
    restore/discard at launch (§5). A take is GC'd from recovery once a session
    save incorporates it. `abort_capture` deletes an in-progress partial file.
    There is no periodic recovery-folder cleanup beyond incorporation/discard.
-4. **No clip reposition/move.** Imports/takes land at the playhead and cannot be
-   dragged to a different start afterwards.
+4. **Clip move is keyboard-only.** Imports/takes can be moved with the timeline
+   `H` modal (0.1 s / seek-step nudges, reset to top); there is no drag-and-drop,
+   and moving is applied via a `TrackCommand::SetStart` in-place update.
 5. **Take bus loads two plugin instances.** CPU/plugin count roughly doubles
    while an external plugin/IR is loaded. Benchmarked by design, not measured;
    watch for CPU in release builds.
@@ -233,8 +234,8 @@ Abandoned dry takes are now discoverable and restorable (§7):
 - **Q3 export range/format/tail cap:** **decided** — tick 0 → last unmuted take
   + capped tail (12 s cap, 250 ms silence hold), stereo 32-bit float at the
   project rate. Implemented.
-- **Q4 bindings:** `G` gain, `J` sessions and timeline `E` export are in;
-  **clip-move is still unsettled/not implemented**.
+- **Q4 bindings:** `G` gain, `H` clip move, `J` sessions and timeline `E` export
+  are in and settled.
 - **Q5 non-restorable plugin policy:** **decided for export** — refuse with an
   actionable message rather than silently substituting a built-in rig. Plugin
   *state* capture remains the open work to lift the refusal.

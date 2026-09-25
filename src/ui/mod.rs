@@ -519,6 +519,9 @@ pub fn run(
                 if practice_ui.gain_open() {
                     practice_ui.render_gain_modal(f);
                 }
+                if practice_ui.move_open() {
+                    practice_ui.render_move_modal(f);
+                }
                 if session_browser.open {
                     session_browser.render(f);
                 }
@@ -571,6 +574,11 @@ pub fn run(
 
                 if practice_ui.gain_open() {
                     practice_ui.handle_gain_key(key.code, &mut engine);
+                    continue;
+                }
+
+                if practice_ui.move_open() {
+                    practice_ui.handle_move_key(key.code, &mut engine);
                     continue;
                 }
 
@@ -1084,6 +1092,9 @@ pub fn run(
                         }
                         KeyCode::Char('g') | KeyCode::Char('G') if focus == Some(PRACTICE_TILE) => {
                             practice_ui.open_gain_edit();
+                        }
+                        KeyCode::Char('h') | KeyCode::Char('H') if focus == Some(PRACTICE_TILE) => {
+                            practice_ui.open_move_edit();
                         }
                         KeyCode::Char('[') if focus == Some(PRACTICE_TILE) => {
                             practice_ui.set_loop_start(&practice);

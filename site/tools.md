@@ -73,6 +73,7 @@ The **timeline** is the scrollable pane that shows a transport line followed by 
 - **Loop a section** — park the playhead and press <kbd>[</kbd> for the in-point and <kbd>]</kbd> for the out-point; <kbd>L</kbd> toggles looping. The loop region is shaded on the timeline.
 - **Mute a track** — select its row and press <kbd>Space</kbd> (the LED turns hollow).
 - **Track gain** — select a row and press <kbd>G</kbd>; on an import this is the **monitor volume**, on a raw take it is the **pre-rig level** (it changes how the amp reacts, not just how loud the result is).
+- **Move a clip** — select a row and press <kbd>H</kbd> to nudge its timeline start: <kbd>←</kbd>/<kbd>→</kbd> by 0.1&nbsp;s, <kbd>↑</kbd>/<kbd>↓</kbd> by the seek step, <kbd>R</kbd> back to the top. Moving is non-destructive and needs no re-decode.
 - **Remove a track** — select it and press <kbd>Delete</kbd>/<kbd>Backspace</kbd>. Source files on disk are left alone.
 
 <div class="note note--info">

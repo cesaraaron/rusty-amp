@@ -201,6 +201,23 @@ impl PlayerVoice {
         }
     }
 
+    /// Move a track's timeline start (in frames) in place — no re-decode needed,
+    /// since the decoded buffer is timeline-relative. Returns `false` if the
+    /// track is not installed.
+    pub fn set_start(&mut self, id: TrackId, start: usize) -> bool {
+        match self
+            .slots
+            .iter_mut()
+            .find(|s| s.as_ref().is_some_and(|slot| slot.id == id))
+        {
+            Some(Some(slot)) => {
+                slot.track.start = start;
+                true
+            }
+            _ => false,
+        }
+    }
+
     pub fn contains(&self, id: TrackId) -> bool {
         self.slots
             .iter()
