@@ -103,6 +103,7 @@ The app launches immediately with default values. Press <kbd>P</kbd> at any time
 | <kbd>C</kbd> | Open the cabinet model browser (works from anywhere) |
 | <kbd>I</kbd> | Open the cabinet-IR browser to load/clear an external `.wav` IR ([see IRs](amps-cabs.html#irs)) |
 | <kbd>X</kbd> | A/B between a loaded external IR and the built-in cab (once an IR is loaded) |
+| <kbd>W</kbd> | Toggle the studio-master output width between **neutral** (1.0) and the historic **studio wide** (1.3) — the output limiter stays on either way |
 | <kbd>Space</kbd> | Bypass the ribbon's stage, the focused pedal, or the timeline transport — or open the **Add pedal** picker on the `+ ADD` tile |
 | <kbd>Enter</kbd> | Open the **Add pedal** picker when the `+ ADD` tile is focused |
 | <kbd>D</kbd> | Remove the focused pedal from the board (bypassed and hidden — re-add it from `+ ADD`) |

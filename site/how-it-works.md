@@ -201,14 +201,14 @@ The order below is the shipped default, not a fixed circuit: press <kbd>1</kbd> 
   <div class="flow__stage" style="--c:var(--gray)">
     <div class="flow__card">
       <div class="flow__head"><span class="flow__name">Master bus</span></div>
-      <div class="flow__sig">Mid/side stereo widener (mono centre preserved).</div>
+      <div class="flow__sig">Mid/side stereo widener (mono centre preserved) — width is the configurable studio master: <kbd>W</kbd> toggles neutral (1.0) ↔ studio wide (1.3).</div>
     </div>
   </div>
 
   <div class="flow__stage flow__stage--io" style="--c:var(--rust-light)">
     <div class="flow__card">
       <div class="flow__head"><span class="flow__name">Output</span><span class="flow__badge flow__badge--stereo">Stereo L / R</span></div>
-      <div class="flow__sig">Per-channel output soft limiter → stereo (L, R).</div>
+      <div class="flow__sig">Per-channel output soft limiter — independent of the widener, so peak protection never changes with the width setting.</div>
     </div>
   </div>
 

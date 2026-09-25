@@ -6,8 +6,9 @@ re-deriving context. Fidelity phases (0, 3, 4, 5) are intentionally **not
 started** — see [Open gaps](#open-gaps-for-a-following-agent) for the exact
 references and decisions each one still needs.
 
-Scope agreed with the maintainer: **Phase 1 routing patch, then Phase 2
-amp/cab split**, delivered as small commits with all findings recorded here.
+Scope agreed with the maintainer: **Phase 1 routing patch (including item 4,
+the configurable studio master), then Phase 2 amp/cab split**, delivered as
+small commits with all findings recorded here.
 
 ---
 
@@ -120,15 +121,34 @@ preamp/loop/power-amp refactor (Phase 2 item 5) are **not** done.
 
 ---
 
+## Phase 1 item 4 — configurable studio master
+
+Commit: `feat(dsp): make the master-bus widener a configurable studio width`
+
+- `Params::master_width` (`Arc<AtomicF32>`) drives `master_bus(l, r, width)`;
+  the output soft limiter is applied independently of the width, so protection
+  never depends on the setting. `DEFAULT_MASTER_WIDTH = 1.3` keeps every existing
+  preset/recording sounding exactly as before.
+- Read once per block, not per sample (same discipline as the chain order).
+- `W` cycles neutral (`1.0`) ↔ studio wide (`1.3`) live, with a status toast;
+  documented in the `K` help modal and the site key table.
+- Preset `[master] width` round-trips; an omitted `[master]` resets to `1.3` for
+  deterministic loading (`site/presets.md` documents it).
+- Tests: `master_bus_width_is_neutral_at_one_and_limiter_is_independent`,
+  `master_width_changes_the_output`,
+  `preset_master_width_round_trips_and_defaults`.
+
+**Decision (worth revisiting with the maintainer):** the roadmap prefers a
+*neutral default* for a reference mode, but neutral-by-default would change the
+sound of every bundled preset and the marketed "studio-grade stereo". The
+default was therefore kept at the historic `1.3`, with neutral one keypress away
+— the "explicit compatibility setting" the roadmap also allows. If the project
+wants neutral-by-default, flip `DEFAULT_MASTER_WIDTH` to `1.0` and re-bless the
+snapshots (no other change needed).
+
+---
+
 ## Findings not yet actioned
-
-### Deferred: fixed master-bus widener (Phase 1 item 4)
-
-`master_bus` (`src/dsp/mod.rs`) always applies `widen(l, r, 1.3)` then a soft
-limiter to every output, including recordings. The roadmap wants a neutral /
-controllable "studio master" instead of an always-on coloration. **Not done**:
-it is an output-path sound-design decision and changing it alters existing
-preset sound. Flagged rather than silently changed.
 
 ### TS-808 header doc contradicts its own constructor
 
@@ -205,7 +225,7 @@ cargo test --all-features
 cd site && npm run build
 ```
 
-All tests pass (258 at the time of writing). The routing/topology fixes are
+All tests pass (261 at the time of writing). The routing/topology fixes are
 covered by the named tests in `src/dsp/mod.rs`, `src/preset.rs`, and
 `src/ui/input.rs`. There is no listening test: Phases 1–2 change routing,
 coherence, and topology, not voicing, and the default-order render is

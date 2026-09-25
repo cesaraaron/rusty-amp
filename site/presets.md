@@ -132,7 +132,7 @@ Share tones as plain `.toml` files — the same format described in [Writing you
 
 ## Writing your own preset {#write}
 
-A preset is a TOML file. Only `[tube_screamer]`, `[amp]`, and `[reverb]` are required. For the optional effect sections, **omitting the section turns that effect off** (its stored knob values are left untouched); include the section with `enabled = false` to store values while keeping it bypassed. Two sections behave differently: an omitted `[noise_gate]` or `[cabinet]` leaves the current gate or cabinet/mic settings **unchanged**. An omitted `[chain]` resets the signal-chain order to the shipped default. All knob values are normalised `0.0–1.0`.
+A preset is a TOML file. Only `[tube_screamer]`, `[amp]`, and `[reverb]` are required. For the optional effect sections, **omitting the section turns that effect off** (its stored knob values are left untouched); include the section with `enabled = false` to store values while keeping it bypassed. Two sections behave differently: an omitted `[noise_gate]` or `[cabinet]` leaves the current gate or cabinet/mic settings **unchanged**. An omitted `[chain]` resets the signal-chain order to the shipped default, and an omitted `[master]` resets the output width to its default `1.3`. All knob values are normalised `0.0–1.0`.
 
 ```toml
 name        = "My Preset"
@@ -316,6 +316,12 @@ enabled = true        # optional, defaults to true
 room = 0.55
 damp = 0.40
 mix  = 0.25
+
+# Studio-master output width. 1.0 = neutral reference (no side boost), 1.3 = the
+# historic shipped widening. Optional — omitted resets to 1.3. The output
+# limiter is independent and always on, so this never affects peak protection.
+[master]
+width = 1.3
 
 # Signal-chain order, input to output. Optional — omit [chain] entirely and the
 # preset uses the shipped order (this is how all older presets behave).
