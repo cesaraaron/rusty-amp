@@ -77,6 +77,33 @@ impl PluginBrowser {
         self.loaded.as_ref().map(|p| p.live.name.as_str())
     }
 
+    /// Capture the live plugin's identity + opaque state and return a builder
+    /// that re-instantiates it on the export worker.
+    pub(super) fn build_export_processor(
+        &mut self,
+    ) -> Result<crate::export::BuildExternal, String> {
+        let Some(loaded) = self.loaded.as_mut() else {
+            return Err("No CLAP plugin loaded".to_owned());
+        };
+        let spec = DiscoveredPlugin {
+            path: loaded.live.path.clone(),
+            id: loaded.live.id.clone(),
+            name: loaded.live.name.clone(),
+        };
+        let state = loaded.live.save_state().map_err(|e| format!("{e:#}"))?;
+        let sample_rate = self.sample_rate;
+        let max_block = self.max_block;
+        Ok(Box::new(move || {
+            let (keepalive, insert) =
+                host::load_with_state(&spec, sample_rate, max_block, Some(&state))?;
+            Ok(crate::export::ExternalInstance {
+                insert,
+                placement: crate::export::ExternalPlacement::Insert,
+                keepalive: Box::new(keepalive),
+            })
+        }))
+    }
+
     /// Handle a keypress while the modal is open. Loading/clearing and parameter
     /// edits are applied to the live `engine`/plugin immediately.
     pub(super) fn handle_key(&mut self, code: KeyCode, engine: &mut AudioEngine) {

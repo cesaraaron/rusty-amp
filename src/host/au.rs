@@ -65,6 +65,11 @@ pub struct AuParam {
 }
 
 impl AuParam {
+    /// The AU parameter id (global scope), for state snapshot/restore.
+    pub fn id(&self) -> u32 {
+        self.id
+    }
+
     /// A discrete (stepped) parameter — booleans and indexed/enum lists — whose value
     /// moves one integer step at a time rather than continuously.
     pub fn is_stepped(&self) -> bool {
@@ -129,9 +134,34 @@ impl AuParam {
 pub struct DiscoveredAu {
     /// Human-friendly display name (usually "Manufacturer: Effect").
     pub name: String,
-    type_: u32,
-    subtype: u32,
-    manufacturer: u32,
+    pub(crate) type_: u32,
+    pub(crate) subtype: u32,
+    pub(crate) manufacturer: u32,
+}
+
+impl DiscoveredAu {
+    /// Rebuild a descriptor from a persisted identity triple, for reloading a
+    /// plugin during a session restore or an offline export.
+    pub fn from_parts(name: String, type_: u32, subtype: u32, manufacturer: u32) -> Self {
+        Self {
+            name,
+            type_,
+            subtype,
+            manufacturer,
+        }
+    }
+
+    pub fn type_code(&self) -> u32 {
+        self.type_
+    }
+
+    pub fn subtype_code(&self) -> u32 {
+        self.subtype
+    }
+
+    pub fn manufacturer_code(&self) -> u32 {
+        self.manufacturer
+    }
 }
 
 /// A loaded AU's UI-side handle: display name, parameters, and the channel used to
@@ -153,6 +183,21 @@ impl LoadedAu {
     /// The plugin's parameters, in discovery order.
     pub fn params(&self) -> &[AuParam] {
         &self.params
+    }
+
+    /// Snapshot every parameter's `(id, value)`, for persisting/restoring state.
+    pub fn param_snapshot(&self) -> Vec<(u32, f64)> {
+        self.params.iter().map(|p| (p.id, p.value)).collect()
+    }
+
+    /// Apply a `(id, value)` snapshot to this (freshly loaded) instance. Ids not
+    /// present on this instance are ignored.
+    pub fn apply_param_snapshot(&mut self, snapshot: &[(u32, f64)]) {
+        for (id, value) in snapshot {
+            if let Some(index) = self.params.iter().position(|p| p.id == *id) {
+                self.set_param(index, *value);
+            }
+        }
     }
 
     /// Set parameter `index` to `value` (clamped to its range, and rounded to an

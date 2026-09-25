@@ -118,6 +118,8 @@ rusty-amp reads the AU's reported processing latency and shows it in the AU moda
 
 When an AU, CLAP insert or external IR is loaded, rusty-amp instantiates a **second copy for the raw-take bus**, so re-amping a take uses the same external rig as the live guitar without sharing processor state. That roughly doubles the plugin's CPU cost while the timeline holds takes; clearing the plugin releases both instances.
 
+A third, short-lived copy is created when you [export](tools.html#export) takes: the offline renderer re-instantiates the loaded CLAP insert (with its captured state) or AU amp (with its parameter snapshot) so the exported WAV matches your rig as closely as the plugin allows.
+
 ## AU limitations {#au-limits}
 
 <ul class="clean">

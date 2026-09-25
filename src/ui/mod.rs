@@ -172,26 +172,22 @@ fn start_export(
     input: &str,
     params: &Params,
     ir_browser: &ir_browser::IrBrowser,
-    clap_insert_name: Option<&str>,
-    au_amp_name: Option<&str>,
+    insert: Option<exporter::BuildExternal>,
+    amp: Option<exporter::BuildExternal>,
 ) -> std::result::Result<ExportHandle, String> {
     let input = input.trim();
     if input.is_empty() {
         return Err("Enter a destination path".to_owned());
     }
-    if au_amp_name.is_some()
-        || params
-            .amp_external_loaded
-            .load(std::sync::atomic::Ordering::Relaxed)
+    // An AU is loaded but its state could not be snapshotted: refuse rather than
+    // render silently through the built-in amp.
+    if params
+        .amp_external_loaded
+        .load(std::sync::atomic::Ordering::Relaxed)
+        && amp.is_none()
     {
         return Err(
-            "An AU amp is loaded — it cannot be cloned exactly for export. Clear it (or use the built-in amp) and try again."
-                .to_owned(),
-        );
-    }
-    if clap_insert_name.is_some() {
-        return Err(
-            "A CLAP insert is loaded — it cannot be cloned exactly for export. Clear it and try again."
+            "An AU amp is loaded but its state could not be captured; export would not match. Clear it or switch to the built-in amp."
                 .to_owned(),
         );
     }
@@ -200,7 +196,7 @@ fn start_export(
     let ir_active = params
         .cab_external_active
         .load(std::sync::atomic::Ordering::Relaxed);
-    let job = practice_ui.build_export_job(dest, params, ir_path, ir_active)?;
+    let job = practice_ui.build_export_job(dest, params, ir_path, ir_active, insert, amp)?;
     Ok(exporter::spawn(job))
 }
 
@@ -593,13 +589,41 @@ pub fn run(
                             export_error = None;
                         }
                         KeyCode::Enter => {
+                            #[allow(unused_mut)]
+                            let mut insert: Option<
+                                exporter::BuildExternal,
+                            > = None;
+                            #[allow(unused_mut)]
+                            let mut amp: Option<
+                                exporter::BuildExternal,
+                            > = None;
+                            #[cfg(feature = "clap")]
+                            if browser.loaded_name().is_some() {
+                                match browser.build_export_processor() {
+                                    Ok(build) => insert = Some(build),
+                                    Err(e) => export_error = Some(e),
+                                }
+                            }
+                            #[cfg(all(feature = "au", target_os = "macos"))]
+                            if params
+                                .amp_external_loaded
+                                .load(std::sync::atomic::Ordering::Relaxed)
+                            {
+                                match amp_browser.build_export_processor(&params) {
+                                    Ok(build) => amp = Some(build),
+                                    Err(e) => export_error = Some(e),
+                                }
+                            }
+                            if export_error.is_some() {
+                                continue;
+                            }
                             match start_export(
                                 &practice_ui,
                                 &export_input,
                                 &params,
                                 &ir_browser,
-                                plugin_name,
-                                ext_amp_name,
+                                insert,
+                                amp,
                             ) {
                                 Ok(handle) => {
                                     export_handle = Some(handle);

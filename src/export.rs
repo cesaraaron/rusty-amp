@@ -21,7 +21,7 @@ use std::sync::mpsc::{self, Receiver};
 use anyhow::{Context, Result, bail};
 
 use crate::dsp::cab::{ExternalIrCab, MAX_IR_LEN, load_ir};
-use crate::dsp::{DspChain, Params};
+use crate::dsp::{DspChain, Params, StereoInsert};
 use crate::practice::decode_track;
 use crate::preset::Preset;
 
@@ -43,6 +43,29 @@ pub struct ExportClip {
     pub gain: f32,
 }
 
+/// Where an external processor belongs in the export chain.
+pub enum ExternalPlacement {
+    /// Post-rack stereo insert.
+    Insert,
+    /// Amp-position override. `amp_only` keeps the built-in cab/IR in the path.
+    Amp {
+        amp_only: bool,
+        latency_frames: usize,
+    },
+}
+
+/// A freshly built external processor plus a token that must stay alive for the
+/// whole render (a CLAP `LoadedPlugin` unloads the bundle when dropped).
+pub struct ExternalInstance {
+    pub insert: Box<dyn StereoInsert>,
+    pub placement: ExternalPlacement,
+    pub keepalive: Box<dyn std::any::Any>,
+}
+
+/// Builder run **on the export worker** so a plugin instance is created and owned
+/// on that thread. The closure captures only `Send` identity/state data.
+pub type BuildExternal = Box<dyn FnOnce() -> anyhow::Result<ExternalInstance> + Send>;
+
 /// A frozen export request.
 pub struct ExportJob {
     pub dest: PathBuf,
@@ -54,6 +77,10 @@ pub struct ExportJob {
     /// External IR source, re-loaded at the export rate when set.
     pub ir_path: Option<PathBuf>,
     pub ir_active: bool,
+    /// CLAP insert, re-instantiated with captured state on the worker.
+    pub insert: Option<BuildExternal>,
+    /// AU amp override, re-instantiated with captured state on the worker.
+    pub amp: Option<BuildExternal>,
 }
 
 /// Handle to a running export on a worker thread.
@@ -83,7 +110,7 @@ pub fn spawn(job: ExportJob) -> ExportHandle {
     let worker_cancel = Arc::clone(&cancel);
     let worker_progress = Arc::clone(&progress);
     std::thread::spawn(move || {
-        let result = run(&job, &worker_progress, &worker_cancel);
+        let result = run(job, &worker_progress, &worker_cancel);
         let _ = tx.send(result);
     });
     ExportHandle {
@@ -93,7 +120,7 @@ pub fn spawn(job: ExportJob) -> ExportHandle {
     }
 }
 
-fn run(job: &ExportJob, progress: &AtomicU32, cancel: &AtomicBool) -> Result<PathBuf> {
+fn run(mut job: ExportJob, progress: &AtomicU32, cancel: &AtomicBool) -> Result<PathBuf> {
     if job.clips.is_empty() {
         bail!("no unmuted raw takes to export");
     }
@@ -105,6 +132,35 @@ fn run(job: &ExportJob, progress: &AtomicU32, cancel: &AtomicBool) -> Result<Pat
     params.cab_external_loaded.store(false, Relaxed);
     params.cab_external_active.store(false, Relaxed);
     let mut chain = DspChain::new(sr, Arc::clone(&params));
+
+    // External CLAP insert / AU amp, built on this worker thread from captured
+    // state. Both keep-alives are held for the whole render.
+    let _insert_keepalive = if let Some(build) = job.insert.take() {
+        let instance = build()?;
+        chain.set_insert(Some(instance.insert));
+        Some(instance.keepalive)
+    } else {
+        None
+    };
+    let _amp_keepalive = if let Some(build) = job.amp.take() {
+        let instance = build()?;
+        let (amp_only, latency_frames) = match instance.placement {
+            ExternalPlacement::Amp {
+                amp_only,
+                latency_frames,
+            } => (amp_only, latency_frames),
+            ExternalPlacement::Insert => (false, 0),
+        };
+        params.amp_external_loaded.store(true, Relaxed);
+        params.amp_external_active.store(true, Relaxed);
+        params.amp_external_amp_only.store(amp_only, Relaxed);
+        params.amp_external_latency.store(latency_frames, Relaxed);
+        chain.set_ext_amp(Some(instance.insert));
+        Some(instance.keepalive)
+    } else {
+        None
+    };
+
     if let Some(path) = &job.ir_path {
         match load_ir(path, sr, MAX_IR_LEN) {
             Ok(loaded) => {
@@ -123,7 +179,7 @@ fn run(job: &ExportJob, progress: &AtomicU32, cancel: &AtomicBool) -> Result<Pat
             Err(_) => {}
         }
     }
-    render_with_chain(job, progress, cancel, chain)
+    render_with_chain(&job, progress, cancel, chain)
 }
 
 /// Decode every clip, then stream the mixed take bus through `chain`.
@@ -301,10 +357,12 @@ mod tests {
             rig: snapshot_rig(&params),
             ir_path: None,
             ir_active: false,
+            insert: None,
+            amp: None,
         };
         let cancel = AtomicBool::new(false);
         let progress = AtomicU32::new(0);
-        let out = run(&job, &progress, &cancel).expect("export");
+        let out = run(job, &progress, &cancel).expect("export");
         assert!(out.exists());
 
         let mut reader = hound::WavReader::open(&out).expect("open out");
@@ -330,10 +388,12 @@ mod tests {
             rig: snapshot_rig(&params),
             ir_path: None,
             ir_active: false,
+            insert: None,
+            amp: None,
         };
         let cancel = AtomicBool::new(false);
         let progress = AtomicU32::new(0);
-        let err = run(&job, &progress, &cancel).unwrap_err();
+        let err = run(job, &progress, &cancel).unwrap_err();
         assert!(err.to_string().contains("no unmuted"), "{err}");
     }
 }

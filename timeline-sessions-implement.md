@@ -100,8 +100,10 @@ metronome are monitor-only.
   `DspChain` built from a frozen `Preset` snapshot, at the project sample rate,
   to a stereo 32-bit float WAV (temp + rename, `ExportHandle` progress/cancel).
   Tail is included and capped; imports/metronome/live input are excluded.
-- External IR is re-loaded at the export rate; an AU/CLAP processor makes export
-  **refuse** with an actionable message (no state capture).
+- External IR is re-loaded at the export rate. A loaded CLAP insert is
+  re-instantiated with opaque state (`PluginState` save/load, `load_with_state`)
+  and a loaded AU amp with a parameter snapshot + routing/latency, via
+  `BuildExternal` closures built on the UI thread and run on the export worker.
 - Timeline `E` opens a destination dialog; a progress modal runs; `Esc` cancels.
 - Dependency fix: added symphonia's `pcm` codec feature — `wav` alone is only the
   RIFF reader, so no WAV ever decoded before (including captures).
@@ -137,10 +139,13 @@ metronome are monitor-only.
 
 ## 4. Known limitations / warnings
 
-1. **AU/CLAP plugin state is not portable.** Sessions record the loaded plugin's
-   *name* only (`au_amp_name`, `clap_insert_name`) and report it as unrestored on
-   load. There is no `get_state`/`set_state` in `src/host/{clap_host,au}.rs`.
-   **This is the blocker for an accurate offline export** (plan §6).
+1. **Plugin state is captured for export, not yet for sessions.** Export
+   re-instantiates the live AU/CLAP with captured state (CLAP opaque state via
+   the state extension; AU parameter snapshot + routing). Sessions still only
+   store the plugin's *name* (`au_amp_name`, `clap_insert_name`), so loading a
+   session does not restore external plugins and export from a reloaded session
+   will not include them. Persisting identity+state and restoring is the next
+   step. AU opaque state (ClassInfo) is not captured — parameters only.
 2. **Offline export exists, but external processors block it.** `src/export.rs`
    renders takes through the built-in rig + external IR only. An AU amp or CLAP
    insert causes a visible refusal (no state capture yet). Export range is tick 0

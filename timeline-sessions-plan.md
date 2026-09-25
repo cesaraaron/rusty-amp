@@ -274,6 +274,18 @@ offline export and plugin-state parity remain follow-ups (sections 6–8).
   reader; added the `pcm` codec feature, without which every WAV (including our
   own captures) failed to decode.
 
-**Deferred:** plugin-state parity (`get_state`/`set_state` in
-`src/host/{clap_host,au}.rs`) so AU/CLAP can participate in export, and clip
-reposition/move. Live take-bus mirroring is in place.
+**Done — increment 6 (plugin-state export parity):**
+
+- CLAP: registered the host `state` extension; `LoadedPlugin::save_state` +
+  `host::load_with_state` restore opaque plugin state before activation.
+- AU: `LoadedAu::param_snapshot` / `apply_param_snapshot` and a reconstructed
+  `DiscoveredAu`, applied to a fresh instance for export.
+- `export.rs`: `BuildExternal` closures re-instantiate the live AU/CLAP on the
+  worker (keeping the CLAP main-thread handle alive for the render); the export
+  chain installs the insert or the amp override (with amp-only routing and
+  latency). Export no longer refuses a loaded plugin unless AU state cannot be
+  captured.
+
+**Deferred:** persisting plugin identity+state in the session and restoring it on
+load (sessions still record only the plugin name); AU opaque ClassInfo state
+(parameters only); clip reposition/move.

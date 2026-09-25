@@ -952,6 +952,8 @@ impl PracticeUi {
         params: &Params,
         ir_path: Option<PathBuf>,
         ir_active: bool,
+        insert: Option<crate::export::BuildExternal>,
+        amp: Option<crate::export::BuildExternal>,
     ) -> Result<crate::export::ExportJob, String> {
         let clips: Vec<crate::export::ExportClip> = self
             .session
@@ -977,6 +979,8 @@ impl PracticeUi {
             rig: crate::export::snapshot_rig(params),
             ir_path,
             ir_active,
+            insert,
+            amp,
         })
     }
 

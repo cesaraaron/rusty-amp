@@ -31,6 +31,8 @@ enum View {
 /// bus each own an independent processor. Parameters are kept in sync by the
 /// browser.
 struct AmpPair {
+    /// Descriptor used to re-instantiate the AU for an offline export.
+    spec: DiscoveredAu,
     live: LoadedAu,
     /// The take-bus instance, absent if the second instantiation failed (takes
     /// then fall back to the built-in amp).
@@ -77,6 +79,36 @@ impl AmpBrowser {
     /// Name of the loaded AU, for the main status line.
     pub(super) fn loaded_name(&self) -> Option<&str> {
         self.loaded.as_ref().map(|p| p.live.name.as_str())
+    }
+
+    /// Capture the AU identity + parameter snapshot and return a builder that
+    /// re-instantiates it on the export worker. (AU state is captured as
+    /// parameters, not an opaque blob.)
+    pub(super) fn build_export_processor(
+        &self,
+        params: &Params,
+    ) -> Result<crate::export::BuildExternal, String> {
+        let Some(pair) = self.loaded.as_ref() else {
+            return Err("No AU amp loaded".to_owned());
+        };
+        let spec = pair.spec.clone();
+        let snapshot = pair.live.param_snapshot();
+        let amp_only = params.amp_external_amp_only.load(Relaxed);
+        let latency_frames = pair.live.latency_frames;
+        let sample_rate = self.sample_rate;
+        let max_block = self.max_block;
+        Ok(Box::new(move || {
+            let (mut keepalive, insert) = au::load(&spec, sample_rate, max_block)?;
+            keepalive.apply_param_snapshot(&snapshot);
+            Ok(crate::export::ExternalInstance {
+                insert,
+                placement: crate::export::ExternalPlacement::Amp {
+                    amp_only,
+                    latency_frames,
+                },
+                keepalive: Box::new(keepalive),
+            })
+        }))
     }
 
     pub(super) fn handle_key(&mut self, code: KeyCode, engine: &mut AudioEngine, params: &Params) {
@@ -203,7 +235,11 @@ impl AmpBrowser {
                     params
                         .amp_external_latency
                         .store(live.latency_frames, Relaxed);
-                    self.loaded = Some(AmpPair { live, take });
+                    self.loaded = Some(AmpPair {
+                        spec: plugin.clone(),
+                        live,
+                        take,
+                    });
                     if has_params {
                         self.view = View::Edit;
                         self.param_cursor = 0;

@@ -136,8 +136,8 @@ Press <kbd>E</kbd> with the timeline focused to render your **guitar takes** to 
 
 - **Guitar takes only.** The unmuted raw takes are summed into the take bus, placed at their timeline starts and levels, and processed once through the current rig. Imported backing audio, the metronome, the click and live (unrecorded) guitar are **excluded**. The delay/reverb tail is included, then capped.
 - **Offline & deterministic.** The render runs on a worker thread with its own rig built from a frozen snapshot, so moving knobs mid-render does not change the result. Output is stereo 32-bit float at the project sample rate. Muted takes are skipped; the loop region does not truncate the export.
-- **Built-in rig + external IR.** A loaded external IR is re-loaded at the export rate and applied.
+- **External rig included.** A loaded external IR is re-loaded at the export rate; a loaded CLAP insert is re-instantiated with its captured opaque state; a loaded AU amp is re-instantiated with its parameter snapshot (plus the amp-only/cab routing and latency). If an AU is loaded but its state cannot be captured, export refuses with a clear message rather than rendering something that would not match.
 
 <div class="note note--info">
-<b>External processors block a faithful export.</b> An AU amp or CLAP insert cannot yet be cloned exactly offline, so export refuses while one is loaded and tells you to clear it (or switch to the built-in amp/insert). The live take bus still mirrors external plugins.
+<b>Best-effort parity.</b> Plugins that keep state outside their exposed parameters or opaque state blob may render slightly differently offline. The live take bus always mirrors external plugins; the export tries to match it exactly.
 </div>

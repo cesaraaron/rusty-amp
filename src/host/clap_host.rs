@@ -19,12 +19,13 @@
 use std::ffi::CString;
 use std::path::{Path, PathBuf};
 
-use anyhow::{Result, anyhow};
+use anyhow::{Result, anyhow, bail};
 use clack_extensions::audio_ports::{AudioPortInfoBuffer, AudioPortType, PluginAudioPorts};
 use clack_extensions::params::{
     HostParams, HostParamsImplMainThread, HostParamsImplShared, ParamClearFlags, ParamInfoBuffer,
     ParamRescanFlags, PluginParams,
 };
+use clack_extensions::state::{HostState, HostStateImpl, PluginState};
 use clack_host::events::event_types::ParamValueEvent;
 use clack_host::prelude::*;
 use clack_host::process::StartedPluginAudioProcessor;
@@ -68,6 +69,12 @@ impl HostParamsImplMainThread for RaMainThread<'_> {
     fn clear(&mut self, _param_id: ClapId, _flags: ParamClearFlags) {}
 }
 
+// The plugin may report that its state is dirty; we snapshot on demand, so this
+// is a no-op. It must exist for the plugin to accept state save/load.
+impl HostStateImpl for RaMainThread<'_> {
+    fn mark_dirty(&mut self) {}
+}
+
 struct RaHost;
 
 impl HostHandlers for RaHost {
@@ -77,6 +84,7 @@ impl HostHandlers for RaHost {
 
     fn declare_extensions(builder: &mut HostExtensions<Self>, _shared: &Self::Shared<'_>) {
         builder.register::<HostParams>();
+        builder.register::<HostState>();
     }
 }
 
@@ -239,6 +247,8 @@ pub struct LoadedPlugin {
     pub name: String,
     /// CLAP id of the loaded plugin.
     pub id: String,
+    /// Bundle path the plugin was loaded from, for re-instantiation.
+    pub path: PathBuf,
     /// The plugin's automatable parameters (for display and editing).
     params: Vec<PluginParam>,
     /// Sends parameter changes to the audio-thread insert.
@@ -254,6 +264,19 @@ impl LoadedPlugin {
     /// The plugin's parameters, in discovery order.
     pub fn params(&self) -> &[PluginParam] {
         &self.params
+    }
+
+    /// Snapshot the plugin's opaque state (via the CLAP state extension).
+    pub fn save_state(&mut self) -> Result<Vec<u8>> {
+        let mut handle = self.instance.plugin_handle();
+        let Some(state) = handle.get_extension::<PluginState>() else {
+            bail!("plugin '{}' exposes no state extension", self.id);
+        };
+        let mut out = Vec::new();
+        state
+            .save(&mut handle, &mut out)
+            .map_err(|e| anyhow!("saving state of '{}': {e}", self.id))?;
+        Ok(out)
     }
 
     /// Set parameter `index` to `value` (clamped to its range), updating the cached
@@ -282,6 +305,18 @@ pub fn load(
     sample_rate: f32,
     max_block: u32,
 ) -> Result<(LoadedPlugin, Box<dyn StereoInsert>)> {
+    load_with_state(plugin, sample_rate, max_block, None)
+}
+
+/// Load a plugin and, when `state` is given, restore its opaque state before the
+/// processor starts. Used to re-instantiate a plugin for an offline export from a
+/// snapshot saved on the live instance.
+pub fn load_with_state(
+    plugin: &DiscoveredPlugin,
+    sample_rate: f32,
+    max_block: u32,
+    state: Option<&[u8]>,
+) -> Result<(LoadedPlugin, Box<dyn StereoInsert>)> {
     let entry = unsafe { PluginEntry::load(&plugin.path) }
         .map_err(|e| anyhow!("load {}: {e}", plugin.path.display()))?;
 
@@ -294,6 +329,16 @@ pub fn load(
         &host_info()?,
     )
     .map_err(|e| anyhow!("instantiate {}: {e}", plugin.id))?;
+
+    // Restore state before querying params so the cached values reflect it.
+    if let Some(bytes) = state {
+        let mut handle = instance.plugin_handle();
+        let Some(ext) = handle.get_extension::<PluginState>() else {
+            bail!("plugin '{}' exposes no state extension", plugin.id);
+        };
+        ext.load(&mut handle, &mut &bytes[..])
+            .map_err(|e| anyhow!("loading state of '{}': {e}", plugin.id))?;
+    }
 
     let in_ch = main_port_channels(&mut instance, true);
     let out_ch = main_port_channels(&mut instance, false);
@@ -325,6 +370,7 @@ pub fn load(
     let loaded = LoadedPlugin {
         name: plugin.name.clone(),
         id: plugin.id.clone(),
+        path: plugin.path.clone(),
         params,
         param_tx,
         entry,
