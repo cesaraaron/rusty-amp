@@ -134,14 +134,23 @@ fn render_header(
     let inner = block.inner(area);
     f.render_widget(block, area);
 
-    // The amp+cab block travels the chain as one unit. An active external amp
-    // (hosted AU) replaces the label; an active external IR is noted too.
-    let ampcab_label = match ext_amp {
+    // The amp and cab are separate stages. An active external amp (hosted AU)
+    // replaces the amp label; a full-rig AU also supplies the cab, so the cab
+    // stage is shown dimmed (its processing is skipped). An active external IR
+    // is noted on the cab tile. `ext_*` names are only passed while active (see
+    // `ui::mod`), so `Some` implies live.
+    let cab_from_amp = ext_amp.is_some() && !params.amp_external_amp_only.load(Relaxed);
+    let amp_label = match ext_amp {
         Some(name) => format!("AU: {}", name.to_uppercase()),
-        None => match ext_cab {
-            Some(name) => format!("AMP+IR: {}", name.to_uppercase()),
-            None => "AMP+CAB".to_owned(),
-        },
+        None => "AMP".to_owned(),
+    };
+    let cab_label = if cab_from_amp {
+        "AU CAB".to_owned()
+    } else {
+        match ext_cab {
+            Some(name) => format!("IR: {}", name.to_uppercase()),
+            None => "CAB".to_owned(),
+        }
     };
 
     let arrow = Span::styled(" ──▶ ", Style::default().fg(DIM));
@@ -168,28 +177,27 @@ fn render_header(
 
     for &(_, slot_stage) in &rendered_stages(&params.chain_slots(), board) {
         let selected_here = focused && cursor == slot_stage;
-        if slot_stage == ChainStage::AmpCab {
-            let style = if selected_here {
-                selected(AMBER)
-            } else {
-                Style::default().fg(AMBER)
-            };
-            push_stage(&mut chain, ampcab_label.clone(), style);
-            continue;
-        }
-        let Some((label, on)) = pedal_stage_state(params, slot_stage) else {
-            continue;
+        let (label, lit, color) = match slot_stage {
+            ChainStage::Amp => (amp_label.clone(), true, AMBER),
+            ChainStage::Cab => (cab_label.clone(), !cab_from_amp, AMBER),
+            _ => {
+                let Some((label, on)) = pedal_stage_state(params, slot_stage) else {
+                    continue;
+                };
+                if !on && !focused {
+                    continue;
+                }
+                (label.to_owned(), on, ACCENT)
+            }
         };
-        if !on && !focused {
-            continue;
-        }
-        let color = if on { ACCENT } else { DIM };
         let style = if selected_here {
             selected(color)
-        } else {
+        } else if lit {
             Style::default().fg(color)
+        } else {
+            Style::default().fg(DIM)
         };
-        push_stage(&mut chain, label.to_owned(), style);
+        push_stage(&mut chain, label, style);
     }
     // The hosted plugin insert (if any) runs post-rack, pre-master.
     if let Some(name) = plugin {
@@ -222,7 +230,7 @@ fn render_header(
     render_vu_row(f, bars[1], "OUT ", levels.output.load(Relaxed));
 }
 
-/// Ribbon label + live on/off for a pedal stage (`None` for the amp+cab block).
+/// Ribbon label + live on/off for a pedal stage (`None` for the amp and cab).
 fn pedal_stage_state(params: &Params, stage: ChainStage) -> Option<(&'static str, bool)> {
     let on = |f: &std::sync::atomic::AtomicBool| f.load(Relaxed);
     match stage {
@@ -244,7 +252,7 @@ fn pedal_stage_state(params: &Params, stage: ChainStage) -> Option<(&'static str
         ChainStage::Trem => Some(("TREM", on(&params.trem_enabled))),
         ChainStage::Delay => Some(("DELAY", on(&params.delay_enabled))),
         ChainStage::Reverb => Some(("REVERB", on(&params.rev_enabled))),
-        ChainStage::AmpCab => None,
+        ChainStage::Amp | ChainStage::Cab => None,
     }
 }
 
@@ -1763,7 +1771,7 @@ mod tests {
                 None,
                 None,
                 Panels::all_visible(),
-                ChainStage::AmpCab,
+                ChainStage::Amp,
                 None,
             );
             overlay(f);
@@ -1836,7 +1844,7 @@ mod tests {
                     None,
                     None,
                     Panels::all_visible(),
-                    ChainStage::AmpCab,
+                    ChainStage::Amp,
                     None,
                 );
             })
@@ -1911,7 +1919,7 @@ mod tests {
                 None,
                 Some("Silver Jubilee"),
                 Panels::all_visible(),
-                ChainStage::AmpCab,
+                ChainStage::Amp,
                 None,
             );
         })
@@ -1974,7 +1982,7 @@ mod tests {
                 None,
                 None,
                 Panels::all_visible(),
-                ChainStage::AmpCab,
+                ChainStage::Amp,
                 None,
             );
             render_add_pedal_modal(f, &available, 0);
@@ -2158,7 +2166,7 @@ mod tests {
                 None,
                 None,
                 panels,
-                ChainStage::AmpCab,
+                ChainStage::Amp,
                 Some((&practice, &ui)),
             );
         })
@@ -2206,8 +2214,8 @@ mod tests {
         );
     }
 
-    /// The ribbon mirrors the chain order: moving COMP after the amp+cab block
-    /// moves its ribbon stage after AMP+CAB too.
+    /// The ribbon mirrors the chain order: moving COMP after the cab moves its
+    /// ribbon stage after CAB too.
     #[test]
     fn ribbon_follows_chain_order() {
         use std::sync::atomic::Ordering::Relaxed;
@@ -2216,16 +2224,18 @@ mod tests {
         params.fz_enabled.store(true, Relaxed);
         let board = board_all(true);
 
-        // First occurrences are the ribbon's (it renders above the tiles).
-        let text = render_with(&params, &board, None, |_| {});
-        let (comp, fuzz, ampcab) = (
-            text.find("COMP").expect("COMP in ribbon"),
-            text.find("FUZZ").expect("FUZZ in ribbon"),
-            text.find("AMP+CAB").expect("AMP+CAB in ribbon"),
+        // The ribbon renders above every panel, so the first occurrence of each
+        // label in the flattened screen is the ribbon's.
+        let line = render_with(&params, &board, None, |_| {});
+        let (comp, fuzz, amp, cab) = (
+            line.find("COMP").expect("COMP in ribbon"),
+            line.find("FUZZ").expect("FUZZ in ribbon"),
+            line.find("AMP").expect("AMP in ribbon"),
+            line.find("CAB").expect("CAB in ribbon"),
         );
         assert!(
-            comp < fuzz && fuzz < ampcab,
-            "default ribbon order wrong: COMP@{comp} FUZZ@{fuzz} AMP+CAB@{ampcab}"
+            comp < fuzz && fuzz < amp && amp < cab,
+            "default ribbon order wrong: COMP@{comp} FUZZ@{fuzz} AMP@{amp} CAB@{cab}"
         );
 
         // Move COMP last: the ribbon must follow.
@@ -2233,14 +2243,14 @@ mod tests {
         v.retain(|&x| x != ChainStage::Comp as u8);
         v.push(ChainStage::Comp as u8);
         params.set_chain_order(&v.try_into().unwrap());
-        let text = render_with(&params, &board, None, |_| {});
-        let (comp, ampcab) = (
-            text.find("COMP").expect("COMP in ribbon"),
-            text.find("AMP+CAB").expect("AMP+CAB in ribbon"),
+        let line = render_with(&params, &board, None, |_| {});
+        let (comp, cab) = (
+            line.find("COMP").expect("COMP in ribbon"),
+            line.find("CAB").expect("CAB in ribbon"),
         );
         assert!(
-            ampcab < comp,
-            "ribbon did not follow COMP move: AMP+CAB@{ampcab} COMP@{comp}"
+            cab < comp,
+            "ribbon did not follow COMP move: CAB@{cab} COMP@{comp}"
         );
     }
 }

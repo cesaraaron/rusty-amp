@@ -721,8 +721,8 @@ mod tests {
     #[test]
     fn chain_stage_pedal_index_matches_pedals_table() {
         // The DSP chain order addresses pedals by PEDALS index: every pedal must
-        // own exactly one stage and round-trip through it, and the amp+cab block
-        // must own none. The `add-pedal` flow extends both sides together.
+        // own exactly one stage and round-trip through it, and the amp and cab
+        // stages must own none. The `add-pedal` flow extends both sides together.
         for (pi, p) in PEDALS.iter().enumerate() {
             let stage =
                 ChainStage::from_pedal_index(pi).unwrap_or_else(|| panic!("{pi} has no stage"));
@@ -733,7 +733,8 @@ mod tests {
                 p.name
             );
         }
-        assert_eq!(ChainStage::AmpCab.pedal_index(), None);
-        assert_eq!(ChainStage::default_order().len(), PEDALS.len() + 1);
+        assert_eq!(ChainStage::Amp.pedal_index(), None);
+        assert_eq!(ChainStage::Cab.pedal_index(), None);
+        assert_eq!(ChainStage::default_order().len(), PEDALS.len() + 2);
     }
 }

@@ -1,6 +1,6 @@
 use std::sync::atomic::Ordering::Relaxed;
 
-use crate::dsp::{AmpModel, CHAIN_LEN, CabModel, ChainStage, Params};
+use crate::dsp::{AmpModel, CHAIN_LEN, CabModel, ChainStage, Params, amp_precedes_cab};
 
 use super::config::{
     ADD_TILE, AMP_END, AMP_START, CHAIN_TILE, KNOBS, MIC_END, MIC_START, PEDALS, PRACTICE_TILE,
@@ -50,15 +50,15 @@ fn set_panel_visible(panels: &mut Panels, panel: u8, visible: bool) {
 }
 
 /// Rendered chain stages as `(slot, stage)` pairs: on-board pedals in chain
-/// order with the amp+cab block at its slot. This is what the ribbon draws,
-/// what the cursor steps through, and what moves swap.
+/// order with the amp and cab stages at their slots. This is what the ribbon
+/// draws, what the cursor steps through, and what moves swap.
 pub(super) fn rendered_stages(order: &[u8; CHAIN_LEN], board: &[bool]) -> Vec<(usize, ChainStage)> {
     order
         .iter()
         .enumerate()
         .filter_map(|(slot, &raw)| {
             let stage = ChainStage::from_u8(raw)?;
-            if stage == ChainStage::AmpCab {
+            if matches!(stage, ChainStage::Amp | ChainStage::Cab) {
                 return Some((slot, stage));
             }
             let pi = stage.pedal_index()?;
@@ -344,7 +344,8 @@ pub(super) fn move_chain_cursor(
 
 /// Move the cursor's stage one rendered slot earlier (`dir < 0`, `[`) or later
 /// (`dir > 0`, `]`). The cursor follows its stage. Off-board stages hold their
-/// slots silently; the ends refuse. Returns true when something moved.
+/// slots silently; the ends refuse, and a move that would place the cab before
+/// its amp is rejected. Returns true when something moved.
 pub(super) fn move_selected_stage(
     params: &Params,
     board: &[bool],
@@ -364,11 +365,15 @@ pub(super) fn move_selected_stage(
     let (b, _) = rendered[other as usize];
     let mut order = order;
     order.swap(a, b);
+    // The cab must always follow its amp.
+    if !amp_precedes_cab(&order) {
+        return false;
+    }
     params.set_chain_order(&order);
     true
 }
 
-/// Bypass/un-bypass the cursor's pedal on the ribbon. The amp+cab block and
+/// Bypass/un-bypass the cursor's pedal on the ribbon. The amp and cab stages and
 /// off-board stages are a no-op. Returns true when a flag flipped.
 pub(super) fn toggle_stage(params: &Params, board: &[bool], cursor: ChainStage) -> bool {
     let Some(pi) = cursor.pedal_index() else {
@@ -949,17 +954,22 @@ mod tests {
             ChainStage::Reverb,
             "cursor must wrap around the ends"
         );
-        // Sparse board: only on-board pedals + AmpCab render.
+        // Sparse board: only on-board pedals + the amp and cab render.
         let mut sparse = board(false);
         sparse[3] = true; // COMP only
+        // Rendered: COMP (slot 3), AMP (10), CAB (11).
         assert_eq!(
-            move_chain_cursor(&o, &sparse, ChainStage::AmpCab, 1),
-            ChainStage::Comp
+            move_chain_cursor(&o, &sparse, ChainStage::Amp, 1),
+            ChainStage::Cab
+        );
+        assert_eq!(
+            move_chain_cursor(&o, &sparse, ChainStage::Cab, 1),
+            ChainStage::Comp,
+            "cursor must wrap with three rendered stages"
         );
         assert_eq!(
             move_chain_cursor(&o, &sparse, ChainStage::Comp, 1),
-            ChainStage::AmpCab,
-            "cursor must wrap with two rendered stages"
+            ChainStage::Amp
         );
         // Stale cursor (pedal left the board) re-anchors at the nearest end.
         assert_eq!(
@@ -968,7 +978,7 @@ mod tests {
         );
         assert_eq!(
             move_chain_cursor(&o, &sparse, ChainStage::Fuzz, -1),
-            ChainStage::AmpCab
+            ChainStage::Cab
         );
     }
 
@@ -987,16 +997,28 @@ mod tests {
     }
 
     #[test]
-    fn move_selected_stage_moves_the_ampcab_block() {
+    fn move_selected_stage_moves_amp_and_cab_separately() {
         let p = Params::new();
         let b = board(true);
-        // AmpCab sits at slot 10 with VIBE before it.
-        assert!(move_selected_stage(&p, &b, ChainStage::AmpCab, -1));
+        // AMP sits at slot 10 with VIBE before it. Move it earlier — legal, since
+        // its cab (slot 11) still follows it.
+        assert!(move_selected_stage(&p, &b, ChainStage::Amp, -1));
         let order = p.chain_slots();
-        assert_eq!(order[9], ChainStage::AmpCab as u8);
+        assert_eq!(order[9], ChainStage::Amp as u8);
         assert_eq!(order[10], ChainStage::Vibe as u8);
-        assert!(move_selected_stage(&p, &b, ChainStage::AmpCab, 1));
+        assert!(move_selected_stage(&p, &b, ChainStage::Amp, 1));
         assert_eq!(p.chain_slots(), ChainStage::default_order());
+
+        // Moving the CAB forward past its AMP must be refused.
+        assert!(!move_selected_stage(&p, &b, ChainStage::Cab, -1));
+        assert_eq!(p.chain_slots(), ChainStage::default_order());
+
+        // Moving the CAB later (past GEQ) is legal.
+        assert!(move_selected_stage(&p, &b, ChainStage::Cab, 1));
+        let order = p.chain_slots();
+        assert_eq!(order[11], ChainStage::Geq as u8);
+        assert_eq!(order[12], ChainStage::Cab as u8);
+        assert!(amp_precedes_cab(&order));
     }
 
     #[test]
@@ -1019,8 +1041,9 @@ mod tests {
         let before = flag.load(Relaxed);
         assert!(toggle_stage(&p, &b, ChainStage::Comp));
         assert_eq!(flag.load(Relaxed), !before);
-        // AmpCab is a no-op, and so is an off-board pedal.
-        assert!(!toggle_stage(&p, &b, ChainStage::AmpCab));
+        // The amp and cab are no-ops, and so is an off-board pedal.
+        assert!(!toggle_stage(&p, &b, ChainStage::Amp));
+        assert!(!toggle_stage(&p, &b, ChainStage::Cab));
         b[3] = false;
         assert!(!toggle_stage(&p, &b, ChainStage::Comp));
         assert_eq!(flag.load(Relaxed), !before);

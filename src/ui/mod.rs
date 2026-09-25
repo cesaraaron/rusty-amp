@@ -128,7 +128,7 @@ pub fn run(
     // Focus starts on the live-order ribbon (panel 1).
     let mut focus: Option<usize> = Some(CHAIN_TILE);
     // Selected stage within the ribbon; follows its stage through moves.
-    let mut chain_cursor: ChainStage = ChainStage::AmpCab;
+    let mut chain_cursor: ChainStage = ChainStage::Amp;
     // Last-focused knob per amp/mic/pedal group, so panel-local `Tab` returns
     // to where you left off.
     let mut nav_mem = NavMemory::new();

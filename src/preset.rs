@@ -46,8 +46,9 @@ pub struct Preset {
     pub tremolo: Option<TremoloSection>,
     pub delay: Option<DelaySection>,
     pub reverb: ReverbSection,
-    /// Signal-chain order as stage names (`"gate"`, `"comp"`, `"ampcab"`,
-    /// `"delay"`…). Absent in older presets → the shipped default order.
+    /// Signal-chain order as stage names (`"gate"`, `"comp"`, `"amp"`, `"cab"`,
+    /// `"delay"`…). Absent in older presets → the shipped default order. Legacy
+    /// `"ampcab"` entries migrate to `"amp"`, `"cab"`.
     pub chain: Option<ChainSection>,
 }
 
@@ -279,9 +280,10 @@ pub struct ReverbSection {
 }
 
 /// Signal-chain order: stage names from input to output, e.g.
-/// `["gate", "comp", "fuzz", "ampcab", "delay", "reverb"]`. Unknown names are
-/// ignored and missing stages are appended in default order on apply, so a
-/// hand-edited or older file can never build a half chain.
+/// `["gate", "comp", "fuzz", "amp", "cab", "delay", "reverb"]`. Unknown names
+/// are ignored and missing stages are appended in default order on apply, so a
+/// hand-edited or older file can never build a half chain. Legacy `"ampcab"`
+/// expands to `"amp"`, `"cab"`.
 #[derive(Debug, Deserialize, Serialize)]
 pub struct ChainSection {
     pub order: Vec<String>,
@@ -789,11 +791,25 @@ impl Preset {
         params.rev_mix.store(rev.mix.clamp(0.0, 1.0), Relaxed);
 
         if let Some(chain) = &self.chain {
+            // Names → stage ids. `"ampcab"` is the legacy pre-split combined
+            // block: expand it to consecutive `"amp"`, `"cab"` at the same spot so
+            // old presets keep their exact topology. `sanitize_chain_order` then
+            // drops unknowns/dupes, appends missing stages, and repairs a cab
+            // placed before its amp.
             let ids: Vec<u8> = chain
                 .order
                 .iter()
-                .filter_map(|n| ChainStage::from_name(n.trim().to_lowercase().as_str()))
-                .map(|s| s as u8)
+                .flat_map(|n| {
+                    let n = n.trim().to_lowercase();
+                    if n == "ampcab" {
+                        vec![ChainStage::Amp as u8, ChainStage::Cab as u8]
+                    } else {
+                        ChainStage::from_name(&n)
+                            .map(|s| s as u8)
+                            .into_iter()
+                            .collect()
+                    }
+                })
                 .collect();
             params.set_chain_order(&sanitize_chain_order(&ids));
         } else {
@@ -1021,14 +1037,15 @@ mod tests {
         let params = Params::new();
         let mut moved: Vec<u8> = ChainStage::default_order().into_iter().collect();
         moved.retain(|&v| v != ChainStage::Comp as u8);
-        moved.insert(12, ChainStage::Comp as u8); // comp after the amp+cab block
+        moved.insert(12, ChainStage::Comp as u8); // comp after the cab stage
         let moved: [u8; crate::dsp::CHAIN_LEN] = moved.try_into().unwrap();
         params.set_chain_order(&moved);
 
         let preset = Preset::from_params("Moved".to_string(), None, &params);
         let names = &preset.chain.as_ref().expect("chain saved").order;
         assert_eq!(names[8], "vibe");
-        assert_eq!(names[9], "ampcab");
+        assert_eq!(names[9], "amp");
+        assert_eq!(names[10], "cab");
         assert_eq!(names[12], "comp");
 
         // Apply onto fresh params and confirm the slots land.
@@ -1042,6 +1059,40 @@ mod tests {
         let fresher = Params::new();
         back.apply(&fresher);
         assert_eq!(fresher.chain_slots(), moved);
+    }
+
+    /// A legacy `"ampcab"` entry expands to consecutive `"amp"`, `"cab"` at the
+    /// same spot, so pre-split presets keep their exact topology.
+    #[test]
+    fn preset_legacy_ampcab_expands_to_amp_cab() {
+        let params = Params::new();
+        // A minimal preset file is not needed: build the preset and apply it.
+        let mut preset = Preset::from_params("Legacy".to_string(), None, &params);
+        preset.chain = Some(ChainSection {
+            order: vec![
+                "gate".to_string(),
+                "ampcab".to_string(),
+                "delay".to_string(),
+            ],
+        });
+        preset.apply(&params);
+
+        let slots = params.chain_slots();
+        let amp = slots
+            .iter()
+            .position(|&v| v == ChainStage::Amp as u8)
+            .expect("amp present");
+        let cab = slots
+            .iter()
+            .position(|&v| v == ChainStage::Cab as u8)
+            .expect("cab present");
+        assert_eq!(cab, amp + 1, "amp and cab must expand consecutively");
+        // Every other stage is present exactly once (sanitize appended them).
+        let mut sorted = slots;
+        sorted.sort_unstable();
+        let mut want = ChainStage::default_order();
+        want.sort_unstable();
+        assert_eq!(sorted, want);
     }
 
     /// Presets without a chain (all existing files) fall back to the default

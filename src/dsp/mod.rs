@@ -206,9 +206,12 @@ impl CabModel {
     ];
 }
 
-/// One slot in the reorderable signal chain: the 10 pre pedals (mono DSP),
-/// the amp+cab block (mono in, stereo out — always kept together), then the
-/// 8 stereo rack pedals. The UI moves these slots with `[` / `]`; presets
+/// One slot in the reorderable signal chain: the 10 pre pedals (mono DSP), the
+/// amp head, the cabinet/mic, then the 8 stereo rack pedals. The amp and cab are
+/// separate stages so they can be moved independently, but the amp must always
+/// precede its cab (see [`sanitize_chain_order`]). Effects placed *between* them
+/// model line-level processing in a virtual load box / effects loop, not a pedal
+/// wired into the speaker cable. The UI moves these slots with `[` / `]`; presets
 /// persist the order by [`ChainStage::name`].
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 #[repr(u8)]
@@ -223,19 +226,20 @@ pub enum ChainStage {
     Metal = 7,
     PreEq = 8,
     Vibe = 9,
-    AmpCab = 10,
-    Geq = 11,
-    Eq = 12,
-    Flanger = 13,
-    Chorus = 14,
-    Phaser = 15,
-    Trem = 16,
-    Delay = 17,
-    Reverb = 18,
+    Amp = 10,
+    Cab = 11,
+    Geq = 12,
+    Eq = 13,
+    Flanger = 14,
+    Chorus = 15,
+    Phaser = 16,
+    Trem = 17,
+    Delay = 18,
+    Reverb = 19,
 }
 
-/// Number of slots in [`ChainStage`]: 10 pre + amp+cab + 8 rack.
-pub const CHAIN_LEN: usize = 19;
+/// Number of slots in [`ChainStage`]: 10 pre + amp + cab + 8 rack.
+pub const CHAIN_LEN: usize = 20;
 
 impl ChainStage {
     pub fn from_u8(v: u8) -> Option<Self> {
@@ -250,20 +254,23 @@ impl ChainStage {
             7 => Some(Self::Metal),
             8 => Some(Self::PreEq),
             9 => Some(Self::Vibe),
-            10 => Some(Self::AmpCab),
-            11 => Some(Self::Geq),
-            12 => Some(Self::Eq),
-            13 => Some(Self::Flanger),
-            14 => Some(Self::Chorus),
-            15 => Some(Self::Phaser),
-            16 => Some(Self::Trem),
-            17 => Some(Self::Delay),
-            18 => Some(Self::Reverb),
+            10 => Some(Self::Amp),
+            11 => Some(Self::Cab),
+            12 => Some(Self::Geq),
+            13 => Some(Self::Eq),
+            14 => Some(Self::Flanger),
+            15 => Some(Self::Chorus),
+            16 => Some(Self::Phaser),
+            17 => Some(Self::Trem),
+            18 => Some(Self::Delay),
+            19 => Some(Self::Reverb),
             _ => None,
         }
     }
 
-    /// Stable preset/UI name for this stage (`"ampcab"` covers amp+cab together).
+    /// Stable preset/UI name for this stage. Legacy `"ampcab"` (the pre-split
+    /// combined block) is migrated to consecutive `"amp"`, `"cab"` by the preset
+    /// parser, not returned here.
     pub fn name(self) -> &'static str {
         match self {
             Self::Gate => "gate",
@@ -276,7 +283,8 @@ impl ChainStage {
             Self::Metal => "metal",
             Self::PreEq => "preeq",
             Self::Vibe => "vibe",
-            Self::AmpCab => "ampcab",
+            Self::Amp => "amp",
+            Self::Cab => "cab",
             Self::Geq => "geq",
             Self::Eq => "eq",
             Self::Flanger => "flanger",
@@ -300,7 +308,8 @@ impl ChainStage {
             "metal" => Some(Self::Metal),
             "preeq" => Some(Self::PreEq),
             "vibe" => Some(Self::Vibe),
-            "ampcab" => Some(Self::AmpCab),
+            "amp" => Some(Self::Amp),
+            "cab" => Some(Self::Cab),
             "geq" => Some(Self::Geq),
             "eq" => Some(Self::Eq),
             "flanger" => Some(Self::Flanger),
@@ -313,7 +322,7 @@ impl ChainStage {
         }
     }
 
-    /// The shipped order: pre pedals → amp+cab → rack (the historical sequence).
+    /// The shipped order: pre pedals → amp → cab → rack (the historical sequence).
     pub fn default_order() -> [u8; CHAIN_LEN] {
         [
             Self::Gate as u8,
@@ -326,7 +335,8 @@ impl ChainStage {
             Self::Metal as u8,
             Self::PreEq as u8,
             Self::Vibe as u8,
-            Self::AmpCab as u8,
+            Self::Amp as u8,
+            Self::Cab as u8,
             Self::Geq as u8,
             Self::Eq as u8,
             Self::Flanger as u8,
@@ -338,7 +348,7 @@ impl ChainStage {
         ]
     }
 
-    /// Index into the UI `PEDALS` table, or `None` for the amp+cab block.
+    /// Index into the UI `PEDALS` table, or `None` for the amp and cab stages.
     /// Pre pedals map 1:1; rack pedals sit right after the 10 pre entries.
     pub fn pedal_index(self) -> Option<usize> {
         match self {
@@ -352,7 +362,7 @@ impl ChainStage {
             Self::Metal => Some(7),
             Self::PreEq => Some(8),
             Self::Vibe => Some(9),
-            Self::AmpCab => None,
+            Self::Amp | Self::Cab => None,
             Self::Geq => Some(10),
             Self::Eq => Some(11),
             Self::Flanger => Some(12),
@@ -388,8 +398,8 @@ impl ChainStage {
         }
     }
 
-    /// True for the mono pre pedals; the rack pedals (and the amp+cab block,
-    /// which is always stereo out) are stereo.
+    /// True for the mono pre pedals. The rack pedals (and the amp/cab stages,
+    /// handled explicitly by the dispatch) are not mono pre pedals.
     pub fn is_mono_pedal(self) -> bool {
         matches!(
             self,
@@ -407,9 +417,22 @@ impl ChainStage {
     }
 }
 
+/// True when the amp stage precedes the cab stage in `order` (or when one of
+/// them is absent, which sanitizing repairs). Used to reject a UI move that
+/// would place the cab before its amp.
+pub fn amp_precedes_cab(order: &[u8; CHAIN_LEN]) -> bool {
+    let amp = order.iter().position(|&v| v == ChainStage::Amp as u8);
+    let cab = order.iter().position(|&v| v == ChainStage::Cab as u8);
+    match (amp, cab) {
+        (Some(a), Some(c)) => a < c,
+        _ => true,
+    }
+}
+
 /// Sanitize a candidate order into a valid one: drop unknown ids and dupes,
-/// append missing stages in default order. Always returns every stage exactly
-/// once, so the audio thread never sees a half-built chain.
+/// append missing stages in default order, and repair a cab placed before its
+/// amp. Always returns every stage exactly once, so the audio thread never sees
+/// a half-built chain.
 pub fn sanitize_chain_order(ids: &[u8]) -> [u8; CHAIN_LEN] {
     let mut seen = [false; CHAIN_LEN];
     let mut out = Vec::with_capacity(CHAIN_LEN);
@@ -428,6 +451,14 @@ pub fn sanitize_chain_order(ids: &[u8]) -> [u8; CHAIN_LEN] {
             seen[i] = true;
             out.push(v);
         }
+    }
+    // The cab may never precede its amp: deterministically swap the pair back.
+    let amp = out.iter().position(|&v| v == ChainStage::Amp as u8);
+    let cab = out.iter().position(|&v| v == ChainStage::Cab as u8);
+    if let (Some(a), Some(c)) = (amp, cab)
+        && a > c
+    {
+        out.swap(a, c);
     }
     out.try_into()
         .unwrap_or_else(|_| ChainStage::default_order())
@@ -1028,8 +1059,9 @@ impl Params {
         self.amp_params[model as usize][i].store(v.clamp(0.0, 1.0), Relaxed);
     }
 
-    /// Whether `stage` is currently enabled. The amp+cab block has no bypass
-    /// flag and is always live; every other stage mirrors its `*_enabled` atomic.
+    /// Whether `stage` is currently enabled. The amp and cab stages have no
+    /// bypass flag and are always live; every other stage mirrors its
+    /// `*_enabled` atomic.
     ///
     /// The ordered dispatch consults this *before* any mono↔stereo bridging so a
     /// bypassed stage is wire-transparent in either domain.
@@ -1045,7 +1077,9 @@ impl Params {
             ChainStage::Metal => self.ml_enabled.load(Relaxed),
             ChainStage::PreEq => self.peq_enabled.load(Relaxed),
             ChainStage::Vibe => self.uv_enabled.load(Relaxed),
-            ChainStage::AmpCab => true,
+            // The amp and cab have no bypass flag: the amp always runs, and the
+            // cab is skipped only by the dispatch when a full-rig AU supplies it.
+            ChainStage::Amp | ChainStage::Cab => true,
             ChainStage::Geq => self.geq_enabled.load(Relaxed),
             ChainStage::Eq => self.eq_enabled.load(Relaxed),
             ChainStage::Flanger => self.fl_enabled.load(Relaxed),
@@ -1164,8 +1198,8 @@ macro_rules! stereo_stage {
 }
 
 /// Signal domain while walking the ordered chain: everything starts mono and
-/// becomes stereo at the amp+cab block (or at the first stereo rack pedal
-/// placed before it).
+/// becomes stereo at the cab stage (or at the first stereo rack pedal placed
+/// before it). A stereo pedal before the amp is folded back to mono by the amp.
 #[derive(Clone, Copy)]
 enum Sig {
     Mono(f32),
@@ -1309,12 +1343,12 @@ impl DspChain {
     }
 
     /// The built-in signal path up to (but not including) the master bus, in the
-    /// user-configured [`ChainStage`] order: pre stages → amp+cab block → post
-    /// stages, returning a stereo (L, R) pair.
+    /// user-configured [`ChainStage`] order, returning a stereo (L, R) pair.
     ///
-    /// The signal starts mono and becomes stereo at the amp+cab block (or at the
-    /// first stereo rack pedal placed before it); mono pedals on a stereo signal
-    /// sum and duplicate back, stereo pedals on mono promote to dual mono.
+    /// The signal starts mono; the amp stage folds whatever reaches it to mono,
+    /// and the cab stage turns it stereo (or the first stereo rack pedal placed
+    /// before them does); mono pedals on a stereo signal sum and duplicate back,
+    /// stereo pedals on mono promote to dual mono.
     ///
     /// The plugin insert and the master-bus widen + soft-limit run *after* this; in
     /// the live block path they run in [`process_block`], while the per-sample
@@ -1327,11 +1361,16 @@ impl DspChain {
         self.run_full(sample, order)
     }
 
-    /// Built-in amp then cabinet: mono in, stereo out.
+    /// True when a live full-rig external amp is supplying its own cabinet/mic,
+    /// in which case the separate [`ChainStage::Cab`] stage is intentionally
+    /// skipped. An amp-only AU returns `false`, so the built-in cab (or active
+    /// external IR) still runs on the AU's output.
     #[inline]
-    fn amp_cab(&mut self, x: f32) -> (f32, f32) {
-        let x = self.amp_stage(x);
-        self.cab_stage(x)
+    fn ext_amp_supplies_cab(&self) -> bool {
+        let p = &self.params;
+        self.ext_amp.is_some()
+            && p.amp_external_active.load(Relaxed)
+            && !p.amp_external_amp_only.load(Relaxed)
     }
 
     /// The built-in amp gain/tone stage (mono → mono). Bypassed when an external amp is
@@ -1367,18 +1406,16 @@ impl DspChain {
         }
     }
 
-    /// Position of the amp+cab block in `order`. Sanitized orders always contain
-    /// it exactly once; fall back to the default slot if somehow absent.
-    /// (The walking signal starts mono and becomes stereo at the block — or at
-    /// the first stereo rack pedal placed before it; see [`Sig`].)
-    fn ampcab_index(order: &[u8; CHAIN_LEN]) -> usize {
+    /// Position of `stage` in `order`, falling back to a sane default slot when
+    /// absent (sanitized orders always contain every stage exactly once).
+    fn stage_index(order: &[u8; CHAIN_LEN], stage: ChainStage, fallback: usize) -> usize {
         order
             .iter()
-            .position(|&v| v == ChainStage::AmpCab as u8)
-            .unwrap_or(10)
+            .position(|&v| v == stage as u8)
+            .unwrap_or(fallback)
     }
 
-    /// One mono pre pedal at `stage` (`AmpCab` and rack stages must not reach here).
+    /// One mono pre pedal at `stage` (`Amp`/`Cab` and rack stages must not reach here).
     #[inline]
     fn run_mono_stage(&mut self, stage: ChainStage, x: f32) -> f32 {
         let p = &self.params;
@@ -1443,7 +1480,7 @@ impl DspChain {
         }
     }
 
-    /// One stereo rack pedal at `stage` (pre pedals and `AmpCab` pass through).
+    /// One stereo rack pedal at `stage` (the amp/cab stages and pre pedals pass through).
     #[inline]
     fn run_stereo_stage(&mut self, stage: ChainStage, l: f32, r: f32) -> (f32, f32) {
         let p = &self.params;
@@ -1540,14 +1577,31 @@ impl DspChain {
     /// pedal fed from a stereo send); a stereo pedal on mono promotes to dual
     /// mono.
     ///
-    /// A disabled stage is **wire-transparent**: it returns the signal untouched
+    /// [`ChainStage::Amp`] is the mono head: it always runs, forcing whatever
+    /// domain reaches it down to mono first. [`ChainStage::Cab`] is the
+    /// mono→stereo mic stage, skipped only when a full-rig external amp supplies
+    /// its own cab/mic. Both have no bypass flag.
+    ///
+    /// A disabled pedal is **wire-transparent**: it returns the signal untouched
     /// in whatever domain it arrived, so moving a bypassed pedal never changes
     /// the stereo image (a mono pedal on a stereo feed must not collapse it, a
     /// stereo pedal on mono must not promote it). Only a *live* domain-crossing
     /// effect bridges domains.
     #[inline]
     fn run_ordered_stage(&mut self, sig: Sig, stage: ChainStage) -> Sig {
-        if stage == ChainStage::AmpCab || !self.params.stage_enabled(stage) {
+        match stage {
+            ChainStage::Amp => return Sig::Mono(self.amp_stage(sig.into_mono())),
+            ChainStage::Cab => {
+                return if self.ext_amp_supplies_cab() {
+                    sig
+                } else {
+                    let (l, r) = self.cab_stage(sig.into_mono());
+                    Sig::Stereo(l, r)
+                };
+            }
+            _ => {}
+        }
+        if !self.params.stage_enabled(stage) {
             return sig;
         }
         if stage.is_mono_pedal() {
@@ -1572,37 +1626,21 @@ impl DspChain {
         }
     }
 
-    /// Stages before the amp+cab block, folded down to mono for the amp.
+    /// Walk a slice of the order, applying each stage's domain rules.
     #[inline]
-    fn run_pre(&mut self, sample: f32, order: &[u8; CHAIN_LEN]) -> f32 {
-        let mut sig = Sig::Mono(sample);
-        for &raw in &order[..Self::ampcab_index(order)] {
+    fn run_range(&mut self, mut sig: Sig, order: &[u8]) -> Sig {
+        for &raw in order {
             if let Some(stage) = ChainStage::from_u8(raw) {
                 sig = self.run_ordered_stage(sig, stage);
             }
         }
-        sig.into_mono()
+        sig
     }
 
-    /// Stages after the amp+cab block, from a stereo pair.
-    #[inline]
-    fn run_post(&mut self, l: f32, r: f32, order: &[u8; CHAIN_LEN]) -> (f32, f32) {
-        let mut sig = Sig::Stereo(l, r);
-        let idx = Self::ampcab_index(order);
-        for &raw in &order[idx + 1..] {
-            if let Some(stage) = ChainStage::from_u8(raw) {
-                sig = self.run_ordered_stage(sig, stage);
-            }
-        }
-        sig.into_stereo()
-    }
-
-    /// Full ordered chain: pre stages → amp+cab block → post stages.
+    /// Full ordered chain, mono in → stereo out.
     #[inline]
     fn run_full(&mut self, sample: f32, order: &[u8; CHAIN_LEN]) -> (f32, f32) {
-        let pre = self.run_pre(sample, order);
-        let (l, r) = self.amp_cab(pre);
-        self.run_post(l, r, order)
+        self.run_range(Sig::Mono(sample), order).into_stereo()
     }
 
     /// Process one mono input sample, returning a stereo (L, R) pair.
@@ -1619,13 +1657,14 @@ impl DspChain {
 
     /// Process a block of mono input samples into stereo output buffers.
     ///
-    /// Normal path, per sample: the ordered core chain (pre stages → amp+cab →
-    /// post stages). When an **external amp** is loaded and active, the amp stage is replaced by a
-    /// block-based override: the mono pre-amp signal is duplicated to stereo and run
-    /// through the hosted plugin (this is why the amp position needs a block boundary —
-    /// a plugin processes whole buffers, not samples). By default the AU also supplies
-    /// the cab, so its output goes straight to the rack; if the AU is flagged amp-only,
-    /// its output is summed to mono and run through the built-in [`cab_stage`] first.
+    /// Normal path, per sample: the ordered core chain. When an **external amp**
+    /// is loaded and active, the [`ChainStage::Amp`] position is replaced by a
+    /// block-based override: everything before it runs per sample (mono), the
+    /// signal is duplicated to stereo and run through the hosted plugin (this is
+    /// why the amp position needs a block boundary — a plugin processes whole
+    /// buffers, not samples), then everything after it runs per sample. The
+    /// [`ChainStage::Cab`] stage is skipped when the AU supplies its own cab/mic
+    /// (full-rig); an amp-only AU still feeds the built-in cab (or active IR).
     ///
     /// While an AU is *loaded* but the built-in path runs (AU inactive), that path is
     /// delayed by the AU's reported latency ([`comp_delay`]) so toggling built-in↔AU is
@@ -1648,28 +1687,23 @@ impl DspChain {
         // One coherent snapshot of the whole order for the entire block.
         let order = p.chain_slots();
         if use_ext_amp {
-            let amp_only = p.amp_external_amp_only.load(Relaxed);
-            // External amp path: ordered pre stages (mono) → duplicate to stereo
-            // → hosted plugin. Separate loops so the `ext_amp` borrow doesn't
-            // overlap `self` method calls.
+            let amp_idx = Self::stage_index(&order, ChainStage::Amp, 10);
+            // Ordered stages before the amp (mono), duplicated to stereo for the
+            // block-based plugin.
             for ((&x, l), r) in input.iter().zip(out_l.iter_mut()).zip(out_r.iter_mut()) {
-                let pre = self.run_pre(x, &order);
+                let pre = self.run_range(Sig::Mono(x), &order[..amp_idx]).into_mono();
                 *l = pre;
                 *r = pre;
             }
             if let Some(ext_amp) = self.ext_amp.as_mut() {
                 ext_amp.process_block(out_l, out_r);
             }
+            // Everything after the amp: the cab (skipped when the AU supplies it)
+            // and any line-level effects placed between amp and cab or after.
             for (l, r) in out_l.iter_mut().zip(out_r.iter_mut()) {
-                // amp-only: the AU replaced only the amp, so run the built-in cab (or
-                // active IR) on its output, summed to mono. Otherwise the AU brought its
-                // own cab and its stereo output goes straight to the post stages.
-                let (cl, cr) = if amp_only {
-                    self.cab_stage(0.5 * (*l + *r))
-                } else {
-                    (*l, *r)
-                };
-                let (lv, rv) = self.run_post(cl, cr, &order);
+                let (lv, rv) = self
+                    .run_range(Sig::Stereo(*l, *r), &order[amp_idx + 1..])
+                    .into_stereo();
                 *l = lv;
                 *r = rv;
             }
@@ -1869,10 +1903,10 @@ mod tests {
         );
     }
 
-    /// A bypassed stereo pedal moved ahead of the amp+cab block must be
-    /// transparent: promote (x,x), then the block sums 0.5*(x+x) == x exactly.
+    /// A bypassed stereo pedal moved ahead of the amp must be transparent: it
+    /// passes the mono signal through untouched (and the amp folds it, losslessly).
     #[test]
-    fn bypassed_stereo_pedal_before_ampcab_is_transparent() {
+    fn bypassed_stereo_pedal_before_amp_is_transparent() {
         let sr = 48_000.0;
         // Chorus is bypassed by default.
         let mut moved = ChainStage::default_order().to_vec();
@@ -1923,12 +1957,13 @@ mod tests {
         }
     }
 
-    /// Wiring sanity for the helper: the amp+cab block is always live, and every
-    /// other stage tracks its own `*_enabled` flag.
+    /// Wiring sanity for the helper: the amp and cab stages are always live, and
+    /// every other stage tracks its own `*_enabled` flag.
     #[test]
     fn stage_enabled_mirrors_bypass_flags() {
         let params = Params::new();
-        assert!(params.stage_enabled(ChainStage::AmpCab));
+        assert!(params.stage_enabled(ChainStage::Amp));
+        assert!(params.stage_enabled(ChainStage::Cab));
         assert!(!params.stage_enabled(ChainStage::Wah));
         params.wah_enabled.store(true, Relaxed);
         assert!(params.stage_enabled(ChainStage::Wah));
@@ -1954,15 +1989,15 @@ mod tests {
 
         // Default placement (Wah bypassed, before the amp).
         let default = ChainStage::default_order();
-        // Move the bypassed Wah to just after the amp+cab block.
+        // Move the bypassed Wah to just after the cab (into the stereo region).
         let mut moved: Vec<u8> = default.to_vec();
         moved.retain(|&v| v != ChainStage::Wah as u8);
-        let amp = moved
+        let cab = moved
             .iter()
-            .position(|&v| v == ChainStage::AmpCab as u8)
-            .expect("amp+cab is in the default order");
-        moved.insert(amp + 1, ChainStage::Wah as u8);
-        let moved: [u8; CHAIN_LEN] = moved.try_into().expect("19 slots");
+            .position(|&v| v == ChainStage::Cab as u8)
+            .expect("the cab is in the default order");
+        moved.insert(cab + 1, ChainStage::Wah as u8);
+        let moved: [u8; CHAIN_LEN] = moved.try_into().expect("CHAIN_LEN slots");
 
         let mut before = DspChain::new(sr, stereo_params());
         let mut after = DspChain::new(sr, stereo_params());
@@ -2096,7 +2131,10 @@ mod tests {
             let stage = ChainStage::from_u8(v).expect("every slot is a stage");
             assert_eq!(ChainStage::from_name(stage.name()), Some(stage));
         }
-        assert_eq!(ChainStage::from_name("ampcab"), Some(ChainStage::AmpCab));
+        assert_eq!(ChainStage::from_name("amp"), Some(ChainStage::Amp));
+        assert_eq!(ChainStage::from_name("cab"), Some(ChainStage::Cab));
+        // `ampcab` is no longer a stage name; the preset parser migrates it.
+        assert_eq!(ChainStage::from_name("ampcab"), None);
         assert_eq!(ChainStage::from_name("bogus"), None);
         assert_eq!(ChainStage::from_u8(99), None);
     }
