@@ -17,7 +17,7 @@ use crate::dsp::oversample::Oversampler4;
 ///
 /// NOTE: the 340 Hz coupling corner is the current RC-derived estimate
 /// (0.047 µF × 10 kΩ); the exact value still needs a measured TS-808 response to
-/// confirm — see `IMPLEMENTATION-NOTES.md`.
+/// confirm — see `fidelity-implement.md`.
 ///
 /// Authenticity — why the output coupling cap matters:
 ///   The asymmetric diode pair (one diode one way, two the other) is what gives the

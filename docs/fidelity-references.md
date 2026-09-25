@@ -1,6 +1,6 @@
 # Fidelity references (Phase 0)
 
-This document is the Phase 0 reference matrix required by [`plan.md`](plan.md)
+This document is the Phase 0 reference matrix required by [`fidelity-plan.md`](../fidelity-plan.md)
 before any tone, amp, cabinet, or preset changes. It has two jobs:
 
 1. Record, **from the code and bundled TOML only**, what each preset currently
@@ -24,7 +24,7 @@ before any tone, amp, cabinet, or preset changes. It has two jobs:
   (or add the missing device) — never invent history to justify the code.
 - The firmware/DSP side of each named device (is the Fuzz voice actually a Big
   Muff? is the "spring" a real spring?) is tracked in
-  [`IMPLEMENTATION-NOTES.md`](IMPLEMENTATION-NOTES.md) and `plan.md` Phases 3-4.
+  [`fidelity-implement.md`](../fidelity-implement.md) and `fidelity-plan.md` Phases 3-4.
 
 ## Confidence legend
 
@@ -83,7 +83,7 @@ everywhere.
 ### Description-vs-path flags
 
 These are contradictions provable from the TOML alone (see commit history in
-`IMPLEMENTATION-NOTES.md` for the fixes). The **Claimed** text and **Path** are
+[`fidelity-implement.md`](../fidelity-implement.md) for the fixes). The **Claimed** text and **Path** are
 both reproduced so the flag is auditable.
 
 | Preset | Claimed | Actual enabled path | Flag |
@@ -161,7 +161,7 @@ Listen/measure:    <blind A/B or measurement notes, if done>
 ## 4. What is explicitly out of scope here
 
 - No historical claim is considered verified by this file.
-- No DSP retuning is recorded here; those belong to `plan.md` Phases 3-4 and
+- No DSP retuning is recorded here; those belong to `fidelity-plan.md` Phases 3-4 and
   must cite a source.
 - The "rescue EQ / extra pedal" question is answered only by a level-matched,
   preferably blind A/B against a reference, not by reading code.

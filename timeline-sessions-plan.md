@@ -3,7 +3,7 @@
 **Status:** implemented on branch `timeline-sessions` (see the as-built notes in
 [`timeline-sessions-implement.md`](timeline-sessions-implement.md) and the
 increment log in §11). Kept separate from the amp/cab fidelity plan in
-[`plan.md`](plan.md). Sections below remain the design rationale; where the
+[`fidelity-plan.md`](fidelity-plan.md). Sections below remain the design rationale; where the
 shipped code differs, §11 and the handover notes are authoritative.
 
 ## 1. What the user should be able to do

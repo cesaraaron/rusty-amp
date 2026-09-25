@@ -1,10 +1,34 @@
-# Implementation notes — routing, topology, and Phase 0 scaffold
+# Fidelity — implementation notes (as-built / handover)
 
-This file tracks work done against [`plan.md`](plan.md). It is written so a
-following agent can review the changes and continue the roadmap without
-re-deriving context. Fidelity phases (0, 3, 4, 5) are intentionally **not
-started** — see [Open gaps](#open-gaps-for-a-following-agent) for the exact
-references and decisions each one still needs.
+Companion to [`fidelity-plan.md`](fidelity-plan.md) (formerly `plan.md`). The
+plan is the **design / acceptance** document; this file is the **as-built**
+record: what shipped, review findings, invariants, deviations, and what is still
+missing. Evidence for historical gear claims lives in
+[`docs/fidelity-references.md`](docs/fidelity-references.md). Read all three
+before reviewing or continuing. (This file was formerly
+`IMPLEMENTATION-NOTES.md`.)
+
+## Status
+
+| Area | State | Where |
+| --- | --- | --- |
+| Phase 1 — bypass transparency, order snapshot, route tests, studio-master width | **Done** (see review: the order snapshot needs A1) | below |
+| Phase 2 items 1–4 — Amp/Cab split, migration, UI | **Done** | below |
+| Phase 2 item 5 — real preamp/loop/power-amp split | Not started | plan Phase 2.5 |
+| Phase 0 — reference matrix | **Scaffold only**: no sources logged | `docs/fidelity-references.md` |
+| Phase 0 — offline harness, CPU/latency capture | Not started → **Workstream B (B1, B2)** | plan "Next increments" |
+| Workstream A — routing hardening (review findings) | **Pending** | plan "Next increments" |
+| Workstream B — input calibration + harness | **Pending** | plan "Next increments" |
+| Phases 3–5 — amp/cab fidelity, named pedals, preset rebuild | Not started | plan Phases 3–5 |
+
+The work below changed routing, topology, and documentation only. **No voicing
+has changed yet**, so none of the bundled Pink Floyd / Eagles / Led Zeppelin
+presets is closer to the records than before this roadmap started. That is
+expected: the plan requires references and a measurement harness first.
+
+Fidelity phases (0, 3, 4, 5) — see
+[Open gaps](#open-gaps-for-a-following-agent) for the references and decisions
+each one still needs.
 
 Scope agreed with the maintainer: **Phase 1 routing patch (including item 4,
 the configurable studio master), then Phase 2 amp/cab split**, delivered as
@@ -41,13 +65,20 @@ on mono promoted the signal early. Both are gone.
 - Test added: `chain_order_snapshot_is_never_torn_under_concurrent_swaps`
   (200k concurrent writes, 200k reads, every read must be a whole permutation).
 
-**Deviation from the roadmap's suggestion.** `plan.md` proposed an `rtrb`
+**Deviation from the roadmap's suggestion.** The plan proposed an `rtrb`
 command ring carrying the full order by value. A `SeqCst` seqlock was chosen
 instead because it keeps the existing shared-`Arc<Params>` architecture and
 needs no constructor/ring plumbing at the ~15 `DspChain::new` call sites. It is
-allocation- and blocking-free and reads once per block. Revisit if profiling
-ever shows seqlock spin cost (unlikely: 19 byte stores per write, one read per
-block).
+allocation-free and reads once per block.
+
+> **Review correction (2026-09-25).** The original note called the seqlock
+> "blocking-free". It is not: the reader spins **without bound** while the
+> sequence is odd, so a preempted UI writer stalls the audio callback (priority
+> inversion), and it is correct only with a single writer, which nothing
+> enforces. The spin cost is not the problem; the unbounded wait is. Fix planned
+> as **A1** (bounded `try_chain_slots` + audio-owned last-good order + a
+> writer-only mutex). Also: `CHAIN_LEN` is now 20, not 19, since the amp/cab
+> split.
 
 ### 3. Route-domain test matrix — `test(dsp): cover route-domain transparency and coherent reorder`
 
@@ -205,6 +236,81 @@ load-box / post-power-amp line-level* path, not the amp's internal loop.
 
 ---
 
+## Review 2026-09-25
+
+A code review of everything above. Each finding lists evidence and the plan
+item that resolves it (see `fidelity-plan.md` → *Next increments*). Mark a
+finding **resolved** here, with the commit, when its item ships.
+
+### Code findings
+
+| # | Severity | Finding | Evidence | Resolved by | Status |
+| --- | --- | --- | --- | --- | --- |
+| R1 | **High** | The chain-order seqlock reader spins without bound on the audio thread while a writer holds the sequence odd; a preempted UI writer stalls the callback. Single-writer is assumed, not enforced. | `Params::chain_slots` / `set_chain_order`, `src/dsp/mod.rs` ~1110–1140; called from `process` / `process_block` | A1 | open |
+| R2 | Medium | Routing state is read at inconsistent rates: `use_ext_amp` per block, but the Cab stage's `ext_amp_supplies_cab()` per sample. A mid-block AU toggle can run the built-in amp with no cab for the rest of the block. `process()` never runs the AU yet skips the cab when a full-rig AU is flagged active. | `process_block` ~1697 vs `run_ordered_stage` ~1605; `ext_amp_supplies_cab` ~1379 | A2 | open |
+| R3 | Low | With a **full-rig** AU, stages placed between AMP and CAB process the AU's already-miked output, not a line-level signal; the docs describe that region only as "virtual load box". | `run_ordered_stage` Cab arm; `site/plugins.md`, `site/how-it-works.md` | A4 | open |
+| R4 | Low | `amp_stage` doc says it is bypassed when an external amp is active (only `process_block` does that); comments still say "19 byte stores" although `CHAIN_LEN = 20`. | `src/dsp/mod.rs` ~1107, ~1386 | A1, A2 | open |
+| R5 | Low | Relative links in `docs/fidelity-references.md` pointed at `plan.md` / `IMPLEMENTATION-NOTES.md` inside `docs/` (files that do not exist there). | `docs/fidelity-references.md` lines 3, 27, 86, 164 | Doc reorganization (this commit) | **resolved** |
+| R6 | Low | The determinism test fingerprint omits amp knobs, fuzz/delay `type`, and knob values of enabled stages, so it would not catch a regression there (loading is currently correct: `apply` resets amp knobs to model defaults and serde defaults the types). | `rig_fingerprint`, `src/preset.rs` ~967 | A3 | open |
+| R7 | Low | `on_input` resizes/extends buffers when a callback exceeds `MAX_BLOCK = 4096` frames — an allocation on the audio thread (rare). | `src/audio/mod.rs` ~835–849, `MAX_BLOCK` line 80 | A5 | open |
+| R8 | Decision | `DEFAULT_MASTER_WIDTH = 1.3` kept for compatibility. For period-accurate presets, set `[master] width = 1.0` per preset (guitar on these records is a mono track) rather than flipping the global default. | `src/dsp/mod.rs` ~475 | Preset phase (deferred) | open |
+| R9 | Gap | There is **no input-level calibration** anywhere: amp breakup depends on the user's interface gain, so presets tuned on one interface are under/over-driven on another. Likely cause of the "rescue" TS + two EQs in several presets. | `rg -i "input_gain\|trim\|calibrat" src/` finds nothing relevant | B3–B5, B8 | open |
+| R10 | Gap | Phase 0 step 3 (offline harness) was not built. Analysis helpers (`db`, `rms`, `goertzel`, `ltas`, `envelope`, `percentile`) are duplicated across `examples/`. The timeline's raw takes + offline export (`src/export.rs`) already provide most of the rendering machinery. | `examples/di_compare.rs`, `drive_analysis.rs`, `amp_analysis.rs`, `knob_match.rs` | B1, B2 | open |
+
+Verified correct during the review (no action): bypass wire-transparency;
+Amp/Cab split and `"ampcab"` migration; `sanitize_chain_order` repair;
+`Preset::apply` determinism for amp knobs and types; the take chain and live
+chain each snapshot the order once per block; audio buffers are preallocated at
+`MAX_BLOCK`; dry captures are 32-bit float.
+
+### Deferred findings for the fidelity phases
+
+Historical claims below are **commonly reported, not verified** — log sources
+in `docs/fidelity-references.md` before changing any preset on their basis.
+
+- **Anachronisms (objective, cheap to test).** The TS-808 (1979) is enabled in
+  presets for earlier recordings: `led_zeppelin_stairway_solo` (1971),
+  `pink_floyd_shine_on_crazy_diamond` (1975), `eagles_hotel_california_solo`
+  (1976), both `van_halen_*` (1978). Proposal: add `year` metadata per preset and
+  a test that fails when an enabled named device postdates the recording.
+- **Stairway solo.** The cleanup changed the description *toward the code*
+  (Plexi + Greenback 4×12 + TS). The commonly reported session rig is a
+  Telecaster into a small Supro combo — the earlier "small-amp" wording was
+  probably closer. Flag the code, not the description; no Supro-like model
+  exists yet.
+- **Hotel California.** The solo preset still says Plexi is "the cranked
+  non-master head the Eagles actually used" — an unhedged claim the description
+  pass missed. Commonly reported: Les Paul (Felder) into small Fender tweed
+  amps. The intro is commonly reported as a 12-string acoustic, so the clean
+  Twin + chorus + digital delay + two reverbs preset may not correspond to a
+  recorded part.
+- **Plexi rectifier.** The GZ34 tube-rectifier assumption fits a JTM45; 1959
+  Super Leads from roughly 1967 onward are generally silicon-rectified, which
+  covers the Zeppelin/AC/DC/EVH era. Check a schematic, then retune the sag
+  (Phase 3), using the Workstream B harness for before/after.
+- **Hiwatt DR103** silicon-rectified supply claim is consistent with the
+  hardware; the Hiwatt/WEM pair dominates every Floyd preset, so it stays
+  first in Phase 3.
+- **Missing components with the largest expected impact** for Pink Floyd /
+  Eagles / Led Zeppelin: Binson Echorec (multi-head drum echo; currently the
+  EP-3 tape mode), a spring reverb for the Twin (currently Freeverb), small
+  Supro-style and tweed-Deluxe-style combos (`add-amp-model` skill), a
+  pickup/guitar-volume input model (single-coil vs humbucker loading; Fuzz Face
+  cleanup), and a Colorsound Power Boost-style boost as the period-correct
+  alternative to the TS.
+
+---
+
+## Increment log
+
+Append one row per commit from Workstreams A/B onward.
+
+| Commit | Item | Summary | Tests | Deviations |
+| --- | --- | --- | --- | --- |
+| _(this commit)_ | docs | Renamed `plan.md` → `fidelity-plan.md`, `IMPLEMENTATION-NOTES.md` → `fidelity-implement.md`; added Workstreams A/B to the plan and this review; fixed links (R5). | n/a | — |
+
+---
+
 ## Open gaps for a following agent
 
 The roadmap's reference-dependent phases were skipped. Each needs external
@@ -226,7 +332,7 @@ Priority order from shipped presets: Hiwatt DR103 + WEM/Fane, Marshall
 Super Lead/Plexi + Greenback 4×12, Fender Twin + Jensen 2×12. Needs:
 schematic/revision for each amp, measured re-amp captures at matched DI level,
 and compatible speaker/cab/mic IRs for magnitude/phase/decay comparison.
-Specifically flagged in `plan.md`: the Plexi model's tube-rectifier assumption
+Specifically flagged in `fidelity-plan.md`: the Plexi model's tube-rectifier assumption
 (`src/dsp/amp/plexi.rs`) must be checked against the chosen 1959 revision before
 the sag/ripple tuning is trusted.
 
