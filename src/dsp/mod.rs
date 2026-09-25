@@ -33,6 +33,8 @@ pub enum AmpModel {
     Randall = 2,
     Vox = 3,
     Hiwatt = 4,
+    Plexi = 5,
+    Fender = 6,
 }
 
 impl AmpModel {
@@ -42,6 +44,8 @@ impl AmpModel {
             2 => Self::Randall,
             3 => Self::Vox,
             4 => Self::Hiwatt,
+            5 => Self::Plexi,
+            6 => Self::Fender,
             _ => Self::Marshall,
         }
     }
@@ -53,6 +57,8 @@ impl AmpModel {
             Self::Randall => "Randall Warhead",
             Self::Vox => "Vox AC30",
             Self::Hiwatt => "Hiwatt DR103",
+            Self::Plexi => "Marshall Plexi",
+            Self::Fender => "Fender Twin Reverb",
         }
     }
 
@@ -63,6 +69,8 @@ impl AmpModel {
             Self::Randall => "RANDALL",
             Self::Vox => "AC30",
             Self::Hiwatt => "DR103",
+            Self::Plexi => "PLEXI",
+            Self::Fender => "TWIN",
         }
     }
 
@@ -72,28 +80,34 @@ impl AmpModel {
             Self::Mesa => Self::Randall,
             Self::Randall => Self::Vox,
             Self::Vox => Self::Hiwatt,
-            Self::Hiwatt => Self::Marshall,
+            Self::Hiwatt => Self::Plexi,
+            Self::Plexi => Self::Fender,
+            Self::Fender => Self::Marshall,
         }
     }
 
     pub fn prev(self) -> Self {
         match self {
-            Self::Marshall => Self::Hiwatt,
+            Self::Marshall => Self::Fender,
             Self::Mesa => Self::Marshall,
             Self::Randall => Self::Mesa,
             Self::Vox => Self::Randall,
             Self::Hiwatt => Self::Vox,
+            Self::Plexi => Self::Hiwatt,
+            Self::Fender => Self::Plexi,
         }
     }
 
     /// All models in picker order — the single source for the amp modal,
     /// cursor init, and tests.
-    pub const ALL: [Self; 5] = [
+    pub const ALL: [Self; 7] = [
         Self::Marshall,
         Self::Mesa,
         Self::Randall,
         Self::Vox,
         Self::Hiwatt,
+        Self::Plexi,
+        Self::Fender,
     ];
 
     /// The model's front-panel controls, in the order its DSP decodes them.
@@ -104,6 +118,8 @@ impl AmpModel {
             Self::Randall => amp::randall::KNOBS,
             Self::Vox => amp::vox::KNOBS,
             Self::Hiwatt => amp::hiwatt::KNOBS,
+            Self::Plexi => amp::plexi::KNOBS,
+            Self::Fender => amp::fender::KNOBS,
         }
     }
 

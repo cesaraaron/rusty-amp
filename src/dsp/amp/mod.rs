@@ -1,15 +1,19 @@
+pub mod fender;
 pub mod hiwatt;
 pub mod marshall;
 pub mod mesa;
+pub mod plexi;
 pub mod randall;
 pub mod vox;
 
 use crate::dsp::AmpModel;
 use crate::dsp::biquad::Biquad;
 
+pub use fender::Fender;
 pub use hiwatt::Hiwatt;
 pub use marshall::Marshall;
 pub use mesa::Mesa;
+pub use plexi::Plexi;
 pub use randall::Randall;
 pub use vox::Vox;
 
@@ -537,6 +541,8 @@ pub struct AmpBank {
     randall: Randall,
     vox: Vox,
     hiwatt: Hiwatt,
+    plexi: Plexi,
+    fender: Fender,
 }
 
 impl AmpBank {
@@ -547,6 +553,8 @@ impl AmpBank {
             randall: Randall::new(sr),
             vox: Vox::new(sr),
             hiwatt: Hiwatt::new(sr),
+            plexi: Plexi::new(sr),
+            fender: Fender::new(sr),
         }
     }
 
@@ -558,6 +566,8 @@ impl AmpBank {
             AmpModel::Randall => self.randall.process(sample, knobs),
             AmpModel::Vox => self.vox.process(sample, knobs),
             AmpModel::Hiwatt => self.hiwatt.process(sample, knobs),
+            AmpModel::Plexi => self.plexi.process(sample, knobs),
+            AmpModel::Fender => self.fender.process(sample, knobs),
         }
     }
 }
@@ -583,6 +593,8 @@ mod tests {
             ("Randall", AmpModel::Randall, Box::new(Randall::new(SR))),
             ("Vox", AmpModel::Vox, Box::new(Vox::new(SR))),
             ("Hiwatt", AmpModel::Hiwatt, Box::new(Hiwatt::new(SR))),
+            ("Plexi", AmpModel::Plexi, Box::new(Plexi::new(SR))),
+            ("Fender", AmpModel::Fender, Box::new(Fender::new(SR))),
         ]
     }
 
@@ -1171,6 +1183,8 @@ mod tests {
             ("Mesa", AmpModel::Mesa, Box::new(Mesa::new(SR))),
             ("Vox", AmpModel::Vox, Box::new(Vox::new(SR))),
             ("Hiwatt", AmpModel::Hiwatt, Box::new(Hiwatt::new(SR))),
+            ("Plexi", AmpModel::Plexi, Box::new(Plexi::new(SR))),
+            ("Fender", AmpModel::Fender, Box::new(Fender::new(SR))),
         ]
     }
 
