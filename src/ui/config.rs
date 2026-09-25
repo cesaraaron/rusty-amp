@@ -47,76 +47,83 @@ pub(super) struct Pedal {
 // order the sound actually travels — the pre-amp drive chain, then the post-cab
 // rack — so the board and ←/→ navigation mirror the header ribbon.
 pub(super) const AMP_START: usize = 0;
-pub(super) const AMP_END: usize = 6;
-pub(super) const MIC_START: usize = 6;
-pub(super) const MIC_END: usize = 9;
+pub(super) const AMP_END: usize = crate::dsp::amp::AMP_MAX;
+pub(super) const MIC_START: usize = AMP_END;
+pub(super) const MIC_END: usize = MIC_START + 3;
 // Pre-amp pedals (before the amp), in signal order.
-pub(super) const NG_START: usize = 9;
-pub(super) const NG_END: usize = 11;
-pub(super) const PITCH_START: usize = 11;
-pub(super) const PITCH_END: usize = 14;
-pub(super) const WAH_START: usize = 14;
-pub(super) const WAH_END: usize = 18;
-pub(super) const CMP_START: usize = 18;
-pub(super) const CMP_END: usize = 21;
-pub(super) const FUZZ_START: usize = 21;
-pub(super) const FUZZ_END: usize = 25;
-pub(super) const TS_START: usize = 25;
-pub(super) const TS_END: usize = 28;
-pub(super) const DS_START: usize = 28;
-pub(super) const DS_END: usize = 31;
-pub(super) const ML_START: usize = 31;
-pub(super) const ML_END: usize = 35;
-pub(super) const PEQ_START: usize = 35;
-pub(super) const PEQ_END: usize = 38;
+pub(super) const NG_START: usize = MIC_END;
+pub(super) const NG_END: usize = NG_START + 2;
+pub(super) const PITCH_START: usize = NG_END;
+pub(super) const PITCH_END: usize = PITCH_START + 3;
+pub(super) const WAH_START: usize = PITCH_END;
+pub(super) const WAH_END: usize = WAH_START + 4;
+pub(super) const CMP_START: usize = WAH_END;
+pub(super) const CMP_END: usize = CMP_START + 3;
+pub(super) const FUZZ_START: usize = CMP_END;
+pub(super) const FUZZ_END: usize = FUZZ_START + 4;
+pub(super) const TS_START: usize = FUZZ_END;
+pub(super) const TS_END: usize = TS_START + 3;
+pub(super) const DS_START: usize = TS_END;
+pub(super) const DS_END: usize = DS_START + 3;
+pub(super) const ML_START: usize = DS_END;
+pub(super) const ML_END: usize = ML_START + 4;
+pub(super) const PEQ_START: usize = ML_END;
+pub(super) const PEQ_END: usize = PEQ_START + 3;
 // Uni-Vibe — the last pedal before the amp (guitar → fuzz → vibe → amp).
-pub(super) const UV_START: usize = 38;
-pub(super) const UV_END: usize = 42;
+pub(super) const UV_START: usize = PEQ_END;
+pub(super) const UV_END: usize = UV_START + 4;
 // Post-cab rack pedals (after the cab), in signal order.
-pub(super) const GEQ_START: usize = 42;
-pub(super) const GEQ_END: usize = 50;
-pub(super) const EQ_START: usize = 50;
-pub(super) const EQ_END: usize = 53;
-pub(super) const FL_START: usize = 53;
-pub(super) const FL_END: usize = 57;
-pub(super) const CH_START: usize = 57;
-pub(super) const CH_END: usize = 60;
-pub(super) const PH_START: usize = 60;
-pub(super) const PH_END: usize = 64;
-pub(super) const TREM_START: usize = 64;
-pub(super) const TREM_END: usize = 68;
-pub(super) const DELAY_START: usize = 68;
-pub(super) const DELAY_END: usize = 71;
-pub(super) const REV_START: usize = 71;
-pub(super) const REV_END: usize = 74;
+pub(super) const GEQ_START: usize = UV_END;
+pub(super) const GEQ_END: usize = GEQ_START + 8;
+pub(super) const EQ_START: usize = GEQ_END;
+pub(super) const EQ_END: usize = EQ_START + 3;
+pub(super) const FL_START: usize = EQ_END;
+pub(super) const FL_END: usize = FL_START + 4;
+pub(super) const CH_START: usize = FL_END;
+pub(super) const CH_END: usize = CH_START + 3;
+pub(super) const PH_START: usize = CH_END;
+pub(super) const PH_END: usize = PH_START + 4;
+pub(super) const TREM_START: usize = PH_END;
+pub(super) const TREM_END: usize = TREM_START + 4;
+pub(super) const DELAY_START: usize = TREM_END;
+pub(super) const DELAY_END: usize = DELAY_START + 3;
+pub(super) const REV_START: usize = DELAY_END;
+pub(super) const REV_END: usize = REV_START + 3;
 
 pub(super) const KNOBS: &[Knob] = &[
-    // 0–5: Amp tone stack
+    // 0..AMP_MAX: Amp front-panel controls. Labels and count are model-dependent
+    // (see `AmpModel::controls`); `render_amp_box` draws the active model's own
+    // labels and only its first `knob_count` slots. The placeholder labels here are
+    // never shown — the accessors resolve the active model's bank.
     Knob {
-        label: "GAIN",
-        param: |p| &p.amp_gain,
+        label: "AMP",
+        param: crate::dsp::amp_param::<0>,
     },
     Knob {
-        label: "BASS",
-        param: |p| &p.amp_bass,
+        label: "AMP",
+        param: crate::dsp::amp_param::<1>,
     },
     Knob {
-        label: "MID",
-        param: |p| &p.amp_mid,
+        label: "AMP",
+        param: crate::dsp::amp_param::<2>,
     },
     Knob {
-        label: "TREBLE",
-        param: |p| &p.amp_treble,
+        label: "AMP",
+        param: crate::dsp::amp_param::<3>,
     },
     Knob {
-        label: "PRESENCE",
-        param: |p| &p.amp_presence,
+        label: "AMP",
+        param: crate::dsp::amp_param::<4>,
     },
     Knob {
-        label: "MASTER",
-        param: |p| &p.amp_master,
+        label: "AMP",
+        param: crate::dsp::amp_param::<5>,
     },
-    // 6–8: Cabinet mics (position, dynamic↔ribbon blend, room amount)
+    Knob {
+        label: "AMP",
+        param: crate::dsp::amp_param::<6>,
+    },
+    // MIC_START..MIC_END: Cabinet mics (position, dynamic↔ribbon blend, room amount)
     Knob {
         label: "MIC",
         param: |p| &p.mic_pos,
@@ -704,7 +711,7 @@ mod tests {
         // Deliberate tripwire: bump these when you add or remove a pedal/knob so
         // the change is a conscious, reviewed edit rather than an accident.
         assert_eq!(PEDALS.len(), 18, "pedal count changed");
-        assert_eq!(KNOBS.len(), 74, "knob count changed");
+        assert_eq!(KNOBS.len(), 75, "knob count changed");
     }
 
     #[test]

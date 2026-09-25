@@ -24,10 +24,11 @@ fn main() {
     ] {
         let mut amp = AmpBank::new(SR);
         let mut cab = CabBank::new(SR);
+        let knobs = rusty_amp::dsp::amp::standard_knobs(am, 0.65, 0.50, 0.45, 0.65, 0.50, 0.50);
         let out: Vec<f32> = di
             .iter()
             .map(|&x| {
-                let a = amp.process(am, x, 0.65, 0.50, 0.45, 0.65, 0.50, 0.50);
+                let a = amp.process(am, x, &knobs);
                 let (l, r) = cab.process(cm, a, 0.5, 0.15, 0.15);
                 0.5 * (l + r)
             })

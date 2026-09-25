@@ -186,12 +186,8 @@ impl FftConvolver {
 
         // ACC = Σ_kk  H_kk · X_{n-kk}  (partition kk pairs with the input block
         // it is kk steps old). Complex multiply-accumulate, bin by bin.
-        for v in &mut self.acc_re {
-            *v = 0.0;
-        }
-        for v in &mut self.acc_im {
-            *v = 0.0;
-        }
+        self.acc_re.fill(0.0);
+        self.acc_im.fill(0.0);
         for kk in 0..self.k {
             let slot = (self.fdl_pos + self.k - kk) % self.k;
             let hb = kk * n;

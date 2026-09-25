@@ -286,18 +286,18 @@ const DEFAULT_KNOBS: Knobs = Knobs {
 fn render_knobs(di: &[f32], k: Knobs) -> Vec<f32> {
     let mut amp = AmpBank::new(SR);
     let mut cab = CabBank::new(SR);
+    let knobs = rusty_amp::dsp::amp::standard_knobs(
+        AmpModel::Marshall,
+        k.gain,
+        k.bass,
+        k.mid,
+        k.treble,
+        k.presence,
+        0.50,
+    );
     di.iter()
         .map(|&x| {
-            let a = amp.process(
-                AmpModel::Marshall,
-                x,
-                k.gain,
-                k.bass,
-                k.mid,
-                k.treble,
-                k.presence,
-                0.50,
-            );
+            let a = amp.process(AmpModel::Marshall, x, &knobs);
             let (l, r) = cab.process(CabModel::Marshall, a, k.mic, k.blend, k.room);
             0.5 * (l + r)
         })

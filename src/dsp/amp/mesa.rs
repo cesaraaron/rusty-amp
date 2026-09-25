@@ -1,10 +1,44 @@
 use super::{
-    Amplifier, Bloom, BrightCap, Cached, CathodeBias, DynamicPresence, FrontEnd, GridBlock,
-    OutputTransformer, SpeakerLoad, SupplyRipple, ToneCache, VoiceBalance,
+    AMP_MAX, AmpKnob, Amplifier, Bloom, BrightCap, Cached, CathodeBias, DynamicPresence, FrontEnd,
+    GridBlock, OutputTransformer, SpeakerLoad, SupplyRipple, ToneCache, VoiceBalance,
 };
 use crate::dsp::biquad::Biquad;
 use crate::dsp::oversample::Oversampler8;
 use crate::dsp::tonestack::{Components, ToneStack};
+
+/// Dual Rectifier front-panel controls, in the order `process` decodes them.
+pub const KNOBS: &[AmpKnob] = &[
+    AmpKnob {
+        label: "GAIN",
+        slug: "gain",
+        default: 0.75,
+    },
+    AmpKnob {
+        label: "BASS",
+        slug: "bass",
+        default: 1.0,
+    },
+    AmpKnob {
+        label: "MID",
+        slug: "mid",
+        default: 0.0,
+    },
+    AmpKnob {
+        label: "TREBLE",
+        slug: "treble",
+        default: 0.65,
+    },
+    AmpKnob {
+        label: "PRESENCE",
+        slug: "presence",
+        default: 0.40,
+    },
+    AmpKnob {
+        label: "MASTER",
+        slug: "master",
+        default: 0.55,
+    },
+];
 
 /// Mesa/Boogie Dual Rectifier — Modern channel simulation.
 ///
@@ -158,18 +192,15 @@ impl Mesa {
 }
 
 impl Amplifier for Mesa {
-    #[allow(clippy::too_many_arguments)]
     #[inline]
-    fn process(
-        &mut self,
-        sample: f32,
-        gain: f32,
-        bass: f32,
-        mid: f32,
-        treble: f32,
-        presence: f32,
-        master: f32,
-    ) -> f32 {
+    fn process(&mut self, sample: f32, knobs: &[f32; AMP_MAX]) -> f32 {
+        let gain = knobs[0];
+        let bass = knobs[1];
+        let mid = knobs[2];
+        let treble = knobs[3];
+        let presence = knobs[4];
+        let master = knobs[5];
+
         if self.tone_cache.changed(bass, mid, treble) {
             self.update_tone_stack(bass, mid, treble);
         }

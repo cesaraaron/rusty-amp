@@ -7,9 +7,12 @@ use super::config::{
     Panels, pedal_of,
 };
 
-/// A knob is reachable only if it belongs to the amp/mic (always present) or to
-/// a pedal currently on the board.
-fn knob_visible(knob: usize, board: &[bool]) -> bool {
+/// A knob is reachable only if it belongs to the amp (only the active model's
+/// first `amp_count` controls) or to a pedal currently on the board.
+fn knob_visible(knob: usize, board: &[bool], amp_count: usize) -> bool {
+    if (AMP_START..AMP_END).contains(&knob) {
+        return knob - AMP_START < amp_count;
+    }
     match pedal_of(knob) {
         Some(p) => board[p],
         None => true,
@@ -134,9 +137,9 @@ impl NavMemory {
     }
 
     /// The remembered knob for `group`, if it is still reachable (its pedal may
-    /// have left the board), else `None`.
-    fn recall(&self, group: usize, board: &[bool]) -> Option<usize> {
-        self.last[group].filter(|&k| knob_visible(k, board))
+    /// have left the board, or the amp model may expose fewer knobs), else `None`.
+    fn recall(&self, group: usize, board: &[bool], amp_count: usize) -> Option<usize> {
+        self.last[group].filter(|&k| knob_visible(k, board, amp_count))
     }
 }
 
@@ -163,6 +166,7 @@ pub(super) fn tab_in_panel(
     order: &[u8; CHAIN_LEN],
     dir: i32,
     mem: &mut NavMemory,
+    amp_count: usize,
 ) -> Option<usize> {
     match panel_of(focus) {
         1 | 3 => focus,
@@ -174,7 +178,8 @@ pub(super) fn tab_in_panel(
             } else {
                 GROUP_AMP
             };
-            mem.recall(target, board).or_else(|| group_first(target))
+            mem.recall(target, board, amp_count)
+                .or_else(|| group_first(target))
         }
         _ => {
             mem.remember(focus);
@@ -200,7 +205,7 @@ pub(super) fn tab_in_panel(
             };
             match pedals.get(next) {
                 Some(&pi) => mem
-                    .recall(group_pedal(pi), board)
+                    .recall(group_pedal(pi), board, amp_count)
                     .or_else(|| group_first(group_pedal(pi))),
                 None => Some(ADD_TILE),
             }
@@ -252,13 +257,13 @@ pub(super) fn press_number(
 /// Knob range for the section a focus owns scoped `←`/`→` navigation in:
 /// panel 2 the amp or mic group containing the focus, panel 4 the focused
 /// pedal's own knobs. `None` (no section owns the arrows) leaves focus alone.
-fn scoped_knob_range(focus: Option<usize>) -> Option<(usize, usize)> {
+fn scoped_knob_range(focus: Option<usize>, amp_count: usize) -> Option<(usize, usize)> {
     match panel_of(focus) {
         2 => {
             if focus.is_some_and(|k| (MIC_START..MIC_END).contains(&k)) {
                 Some((MIC_START, MIC_END))
             } else {
-                Some((AMP_START, AMP_END))
+                Some((AMP_START, AMP_START + amp_count))
             }
         }
         4 => {
@@ -278,11 +283,14 @@ pub(super) fn step_knob_in_panel(
     board: &[bool],
     _order: &[u8; CHAIN_LEN],
     dir: i32,
+    amp_count: usize,
 ) -> Option<usize> {
-    let Some((start, end)) = scoped_knob_range(focus) else {
+    let Some((start, end)) = scoped_knob_range(focus, amp_count) else {
         return focus;
     };
-    let stops: Vec<usize> = (start..end).filter(|&k| knob_visible(k, board)).collect();
+    let stops: Vec<usize> = (start..end)
+        .filter(|&k| knob_visible(k, board, amp_count))
+        .collect();
     match focus.and_then(|c| stops.iter().position(|&s| s == c)) {
         Some(pos) => {
             let n = stops.len() as i32;
@@ -478,6 +486,30 @@ mod tests {
         (KNOBS[idx].param)(params).load(Relaxed)
     }
 
+    /// Amp knob count the nav tests exercise (the default model, Mesa, exposes 6).
+    const AMP_KNOBS: usize = 6;
+
+    /// Test-local wrappers pin the default model's amp-knob count so the
+    /// navigation tests keep reading without threading it through every call.
+    fn tab_in_panel(
+        focus: Option<usize>,
+        board: &[bool],
+        order: &[u8; CHAIN_LEN],
+        dir: i32,
+        mem: &mut NavMemory,
+    ) -> Option<usize> {
+        super::tab_in_panel(focus, board, order, dir, mem, AMP_KNOBS)
+    }
+
+    fn step_knob_in_panel(
+        focus: Option<usize>,
+        board: &[bool],
+        order: &[u8; CHAIN_LEN],
+        dir: i32,
+    ) -> Option<usize> {
+        super::step_knob_in_panel(focus, board, order, dir, AMP_KNOBS)
+    }
+
     // ── navigation ────────────────────────────────────────────────────────────
 
     /// `Tab` is inert on the ribbon (panel 1) and the timeline (panel 3).
@@ -600,19 +632,19 @@ mod tests {
     fn arrows_cycle_within_the_focused_amp_or_cab_section() {
         let b = board(true);
         let o = order();
-        // Amp group: 0..6.
+        // Amp group: 6 knobs.
         assert_eq!(
             step_knob_in_panel(Some(AMP_START), &b, &o, 1),
             Some(AMP_START + 1)
         );
         assert_eq!(
-            step_knob_in_panel(Some(AMP_END - 1), &b, &o, 1),
+            step_knob_in_panel(Some(AMP_START + AMP_KNOBS - 1), &b, &o, 1),
             Some(AMP_START),
             "→ past the last amp knob must wrap inside the amp group"
         );
         assert_eq!(
             step_knob_in_panel(Some(AMP_START), &b, &o, -1),
-            Some(AMP_END - 1),
+            Some(AMP_START + AMP_KNOBS - 1),
             "← before the first amp knob must wrap inside the amp group"
         );
         // Cab/mic group: 6..9, never crossing into the amp.

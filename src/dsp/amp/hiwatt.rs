@@ -1,10 +1,50 @@
 use super::{
-    Amplifier, Bloom, BrightCap, Cached, CathodeBias, DynamicPresence, FrontEnd, OutputTransformer,
-    SpeakerLoad, ToneCache, VoiceBalance,
+    AMP_MAX, AmpKnob, Amplifier, Bloom, BrightCap, Cached, CathodeBias, DynamicPresence, FrontEnd,
+    OutputTransformer, SpeakerLoad, ToneCache, VoiceBalance,
 };
 use crate::dsp::biquad::Biquad;
 use crate::dsp::oversample::Oversampler8;
 use crate::dsp::tonestack::{Components, ToneStack};
+
+/// DR103 front-panel controls (DSP order): Brilliant Volume, Normal Volume,
+/// Bass, Treble, Middle, Presence, Master.
+pub const KNOBS: &[AmpKnob] = &[
+    AmpKnob {
+        label: "BRILL",
+        slug: "gain",
+        default: 0.75,
+    },
+    AmpKnob {
+        label: "NORMAL",
+        slug: "normal",
+        default: 0.0,
+    },
+    AmpKnob {
+        label: "BASS",
+        slug: "bass",
+        default: 1.0,
+    },
+    AmpKnob {
+        label: "TREBLE",
+        slug: "treble",
+        default: 0.65,
+    },
+    AmpKnob {
+        label: "MIDDLE",
+        slug: "mid",
+        default: 0.0,
+    },
+    AmpKnob {
+        label: "PRESENCE",
+        slug: "presence",
+        default: 0.40,
+    },
+    AmpKnob {
+        label: "MASTER",
+        slug: "master",
+        default: 0.55,
+    },
+];
 
 /// Hiwatt DR103 "Custom 100" amplifier simulation.
 ///
@@ -44,6 +84,9 @@ pub struct Hiwatt {
     // Treble-bleed cap across the gain control (mild — the DR103 is bright but
     // not a chime machine like the AC30).
     bright: BrightCap,
+    // Normal-channel input low-pass: when the two channels are jumpered the Normal
+    // channel contributes a darker, lower-gain parallel feed into the first stage.
+    normal_lp: Biquad,
     // Tone-stack change detector — recompute coefficients only when a knob moves.
     tone_cache: ToneCache,
     // Dynamic cathode-bias shift on the first triode stage (touch sensitivity).
@@ -85,6 +128,9 @@ impl Hiwatt {
             // Bright cap: the DR103 is bright but not chimey — gentler and lower
             // than the AC30's Top Boost, closer to the JCM800's but softer.
             bright: BrightCap::new(sr, 1800.0, 0.10),
+            // Normal channel is darker than the Brilliant channel (no bright cap,
+            // rolled-off top) — ~3 kHz low-pass.
+            normal_lp: Biquad::lowpass(sr, 3000.0, 0.707),
             tone_cache: ToneCache::new(),
             // First-stage cathode bias: light. The DR103 is a clean, high-headroom
             // amp — the give is there but subtle, and recovers quickly so
@@ -147,18 +193,16 @@ impl Hiwatt {
 }
 
 impl Amplifier for Hiwatt {
-    #[allow(clippy::too_many_arguments)]
     #[inline]
-    fn process(
-        &mut self,
-        sample: f32,
-        gain: f32,
-        bass: f32,
-        mid: f32,
-        treble: f32,
-        presence: f32,
-        master: f32,
-    ) -> f32 {
+    fn process(&mut self, sample: f32, knobs: &[f32; AMP_MAX]) -> f32 {
+        let gain = knobs[0];
+        let normal = knobs[1];
+        let bass = knobs[2];
+        let treble = knobs[3];
+        let mid = knobs[4];
+        let presence = knobs[5];
+        let master = knobs[6];
+
         if self.tone_cache.changed(bass, mid, treble) {
             self.update_tone_stack(bass, mid, treble);
         }
@@ -167,8 +211,11 @@ impl Amplifier for Hiwatt {
         }
 
         let x = self.front.process(sample);
+        // Jumpered channels: the Brilliant channel drives the preamp; the Normal
+        // channel adds its own darker, lower-gain parallel feed into the first stage.
+        let x = x + self.normal_lp.process(x * normal * 0.6);
         // Bright cap across the gain pot: injects highs that then feed the clipper,
-        // strongest at low gain (see BrightCap).
+        // strongest at low gain (see BrightCap). Driven by the Brilliant volume.
         let x = self.bright.process(x, gain);
 
         // Max gain 34× — enough preamp range to break up and stay touch-sensitive

@@ -18,7 +18,7 @@ use atomic_float::AtomicF32;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, AtomicU8, AtomicUsize, Ordering::Relaxed};
 
-use amp::AmpBank;
+use amp::{AMP_MAX, AmpBank, AmpKnob};
 use cab::{CabBank, ExternalIrCab};
 use effects::{
     Chorus, Compressor, Delay, Distortion, Flanger, Fuzz, GraphicEq, MetalCore, NoiseGate,
@@ -95,6 +95,27 @@ impl AmpModel {
         Self::Vox,
         Self::Hiwatt,
     ];
+
+    /// The model's front-panel controls, in the order its DSP decodes them.
+    pub fn controls(self) -> &'static [AmpKnob] {
+        match self {
+            Self::Marshall => amp::marshall::KNOBS,
+            Self::Mesa => amp::mesa::KNOBS,
+            Self::Randall => amp::randall::KNOBS,
+            Self::Vox => amp::vox::KNOBS,
+            Self::Hiwatt => amp::hiwatt::KNOBS,
+        }
+    }
+
+    /// Number of front-panel knobs this model exposes (`<= AMP_MAX`).
+    pub fn knob_count(self) -> usize {
+        self.controls().len()
+    }
+
+    /// Index of the control with the given stable slug, if the model has it.
+    pub fn knob_slot(self, slug: &str) -> Option<usize> {
+        self.controls().iter().position(|k| k.slug == slug)
+    }
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
@@ -490,12 +511,8 @@ const DEFAULT_TREM_DEPTH: f32 = 0.55;
 const DEFAULT_TREM_SHAPE: f32 = 0.00; // sine
 const DEFAULT_TREM_MODE: f32 = 0.00; // tremolo (amplitude)
 
-const DEFAULT_AMP_GAIN: f32 = 0.75;
-const DEFAULT_AMP_BASS: f32 = 1.00;
-const DEFAULT_AMP_MID: f32 = 0.0;
-const DEFAULT_AMP_TREBLE: f32 = 0.65;
-const DEFAULT_AMP_PRESENCE: f32 = 0.40;
-const DEFAULT_AMP_MASTER: f32 = 0.55;
+// Per-model amp knob defaults now live on each model's `KNOBS` descriptor
+// (src/dsp/amp/*.rs), not in global constants.
 
 pub struct Params {
     // Amp model selector
@@ -651,13 +668,11 @@ pub struct Params {
     pub trem_shape: Arc<AtomicF32>,
     pub trem_mode: Arc<AtomicF32>,
 
-    // Amp (shared by all models)
-    pub amp_gain: Arc<AtomicF32>,
-    pub amp_bass: Arc<AtomicF32>,
-    pub amp_mid: Arc<AtomicF32>,
-    pub amp_treble: Arc<AtomicF32>,
-    pub amp_presence: Arc<AtomicF32>,
-    pub amp_master: Arc<AtomicF32>,
+    // Amp front-panel controls, one bank per model so switching amps preserves
+    // each model's own knob positions (the active model's descriptor — see
+    // `AmpModel::controls` — gives the order, labels and defaults). Models expose
+    // different numbers of controls, so trailing slots of a bank are unused.
+    pub amp_params: [[Arc<AtomicF32>; AMP_MAX]; AmpModel::ALL.len()],
 
     // Reorderable signal-chain order, one [`ChainStage`] id per slot. Each slot
     // is its own atomic so the UI thread can swap stages while the audio thread
@@ -798,12 +813,13 @@ impl Params {
             trem_shape: p!(DEFAULT_TREM_SHAPE),
             trem_mode: p!(DEFAULT_TREM_MODE),
 
-            amp_gain: p!(DEFAULT_AMP_GAIN),
-            amp_bass: p!(DEFAULT_AMP_BASS),
-            amp_mid: p!(DEFAULT_AMP_MID),
-            amp_treble: p!(DEFAULT_AMP_TREBLE),
-            amp_presence: p!(DEFAULT_AMP_PRESENCE),
-            amp_master: p!(DEFAULT_AMP_MASTER),
+            amp_params: std::array::from_fn(|m| {
+                let model = AmpModel::ALL[m];
+                std::array::from_fn(|i| {
+                    let default = model.controls().get(i).map_or(0.0, |k| k.default);
+                    p!(default)
+                })
+            }),
 
             chain_order: Arc::new(ChainStage::default_order().map(AtomicU8::new)),
         }
@@ -927,12 +943,11 @@ impl Params {
         self.trem_shape.store(DEFAULT_TREM_SHAPE, Relaxed);
         self.trem_mode.store(DEFAULT_TREM_MODE, Relaxed);
 
-        self.amp_gain.store(DEFAULT_AMP_GAIN, Relaxed);
-        self.amp_bass.store(DEFAULT_AMP_BASS, Relaxed);
-        self.amp_mid.store(DEFAULT_AMP_MID, Relaxed);
-        self.amp_treble.store(DEFAULT_AMP_TREBLE, Relaxed);
-        self.amp_presence.store(DEFAULT_AMP_PRESENCE, Relaxed);
-        self.amp_master.store(DEFAULT_AMP_MASTER, Relaxed);
+        for model in AmpModel::ALL {
+            for (i, knob) in model.controls().iter().enumerate() {
+                self.amp_params[model as usize][i].store(knob.default, Relaxed);
+            }
+        }
 
         self.set_chain_order(&ChainStage::default_order());
     }
@@ -943,6 +958,26 @@ impl Params {
 
     pub fn cab_model(&self) -> CabModel {
         CabModel::from_u8(self.cab_model.load(Relaxed))
+    }
+
+    /// Number of front-panel knobs the active amp model exposes.
+    pub fn amp_knob_count(&self) -> usize {
+        self.amp_model().knob_count()
+    }
+
+    /// The shared atomic backing `model`'s `i`-th front-panel knob.
+    pub fn amp_knob(&self, model: AmpModel, i: usize) -> &Arc<AtomicF32> {
+        &self.amp_params[model as usize][i]
+    }
+
+    /// Load `model`'s `i`-th front-panel knob (0–1).
+    pub fn amp_knob_value(&self, model: AmpModel, i: usize) -> f32 {
+        self.amp_params[model as usize][i].load(Relaxed)
+    }
+
+    /// Store `model`'s `i`-th front-panel knob, clamped to 0–1.
+    pub fn set_amp_knob(&self, model: AmpModel, i: usize, v: f32) {
+        self.amp_params[model as usize][i].store(v.clamp(0.0, 1.0), Relaxed);
     }
 
     /// Snapshot the chain order (one atomic load per slot) for the audio thread.
@@ -960,6 +995,13 @@ impl Params {
             }
         }
     }
+}
+
+/// Accessor for the UI knob table: the active model's `I`-th front-panel knob.
+/// Const-generic so each amp slot can be a plain `fn(&Params) -> &Arc<AtomicF32>`
+/// in the static `KNOBS` table even though the backing bank is model-dependent.
+pub fn amp_param<const I: usize>(p: &Params) -> &Arc<AtomicF32> {
+    &p.amp_params[p.amp_model.load(Relaxed) as usize][I]
 }
 
 pub struct Levels {
@@ -1196,16 +1238,10 @@ impl DspChain {
     #[inline]
     fn amp_stage(&mut self, x: f32) -> f32 {
         let p = &self.params;
-        self.amp.process(
-            p.amp_model(),
-            x,
-            p.amp_gain.load(Relaxed),
-            p.amp_bass.load(Relaxed),
-            p.amp_mid.load(Relaxed),
-            p.amp_treble.load(Relaxed),
-            p.amp_presence.load(Relaxed),
-            p.amp_master.load(Relaxed),
-        )
+        let model = p.amp_model();
+        let knobs: [f32; AMP_MAX] =
+            std::array::from_fn(|i| p.amp_params[model as usize][i].load(Relaxed));
+        self.amp.process(model, x, &knobs)
     }
 
     /// The cabinet stage (mono → stereo). A loaded external IR overrides the built-in
@@ -2098,10 +2134,10 @@ mod tests {
         let n = sr as usize;
         let warmup = n / 3;
         let mut out = Vec::with_capacity(n - warmup);
+        let knobs = amp::standard_knobs(am, 0.65, 0.50, 0.45, 0.65, 0.50, 0.55);
         for i in 0..n {
-            // Defaults from DEFAULT_AMP_* / DEFAULT_MIC_*.
             let x = (2.0 * PI * freq * i as f32 / sr).sin() * 0.5;
-            let a = amp.process(am, x, 0.65, 0.50, 0.45, 0.65, 0.50, 0.55);
+            let a = amp.process(am, x, &knobs);
             let (l, r) = cab.process(cm, a, 0.5, 0.15, 0.15);
             if i >= warmup {
                 out.push(l + r);
@@ -2276,13 +2312,14 @@ mod tests {
                 let n = sr as usize;
                 let warmup = n / 3;
                 let mut out = Vec::with_capacity(n - warmup);
+                let knobs = amp::standard_knobs(am, 0.65, 0.50, 0.45, 0.65, 0.50, 0.55);
                 for i in 0..n {
                     let t = i as f32 / sr;
                     let x = ((2.0 * PI * r * t).sin()
                         + (2.0 * PI * fifth * t).sin()
                         + (2.0 * PI * oct * t).sin())
                         * 0.3;
-                    let a = amp.process(am, x, 0.65, 0.50, 0.45, 0.65, 0.50, 0.55);
+                    let a = amp.process(am, x, &knobs);
                     let (l, rr) = cab.process(cm, a, 0.5, 0.15, 0.15);
                     if i >= warmup {
                         out.push(l + rr);
@@ -2327,12 +2364,13 @@ mod tests {
         let attack_h2_ratio = |am: AmpModel, cm: CabModel, preceded: bool| -> f32 {
             let mut amp = amp::AmpBank::new(sr);
             let mut cab = cab::CabBank::new(sr);
+            let knobs = amp::standard_knobs(am, 0.7, 0.5, 0.45, 0.65, 0.5, 0.6);
             let run =
                 |amp: &mut amp::AmpBank, cab: &mut cab::CabBank, f: f32, n: usize, amp_in: f32| {
                     let mut last = 0.0;
                     for i in 0..n {
                         let x = (2.0 * PI * f * i as f32 / sr).sin() * amp_in;
-                        let a = amp.process(am, x, 0.7, 0.5, 0.45, 0.65, 0.5, 0.6);
+                        let a = amp.process(am, x, &knobs);
                         let (l, r) = cab.process(cm, a, 0.5, 0.15, 0.15);
                         last = l + r;
                     }
@@ -2350,7 +2388,7 @@ mod tests {
             let mut out = Vec::with_capacity(n);
             for i in 0..n {
                 let x = (2.0 * PI * note * i as f32 / sr).sin() * 0.5;
-                let a = amp.process(am, x, 0.7, 0.5, 0.45, 0.65, 0.5, 0.6);
+                let a = amp.process(am, x, &knobs);
                 let (l, r) = cab.process(cm, a, 0.5, 0.15, 0.15);
                 out.push(l + r);
             }
@@ -2387,12 +2425,10 @@ mod tests {
             params.ds_level.store(0.80, Relaxed);
             params.rev_enabled.store(false, Relaxed);
             params.ng_enabled.store(false, Relaxed);
-            params.amp_gain.store(0.93, Relaxed);
-            params.amp_bass.store(0.82, Relaxed);
-            params.amp_mid.store(0.12, Relaxed);
-            params.amp_treble.store(0.86, Relaxed);
-            params.amp_presence.store(0.73, Relaxed);
-            params.amp_master.store(0.65, Relaxed);
+            let knobs = amp::standard_knobs(model, 0.93, 0.82, 0.12, 0.86, 0.73, 0.65);
+            for (i, &v) in knobs.iter().enumerate() {
+                params.set_amp_knob(model, i, v);
+            }
             let mut chain = DspChain::new(sr, params);
             let n = sr as usize;
             let warmup = sr as usize / 3;
@@ -2439,10 +2475,11 @@ mod tests {
         let sr = 48_000.0;
         for model in [AmpModel::Marshall, AmpModel::Mesa, AmpModel::Randall] {
             let mut bank = amp::AmpBank::new(sr);
+            let knobs = amp::standard_knobs(model, 1.0, 0.5, 0.5, 0.7, 0.5, 0.7);
             let mut max_abs = 0.0f32;
             for n in 0..(sr as usize / 2) {
                 let x = (2.0 * PI * 82.0 * n as f32 / sr).sin();
-                let y = bank.process(model, x, 1.0, 0.5, 0.5, 0.7, 0.5, 0.7);
+                let y = bank.process(model, x, &knobs);
                 assert!(y.is_finite(), "{} produced non-finite output", model.name());
                 max_abs = max_abs.max(y.abs());
             }

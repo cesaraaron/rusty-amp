@@ -1,10 +1,36 @@
 use super::{
-    Amplifier, Bloom, BrightCap, Cached, CathodeBias, FrontEnd, OutputTransformer, SpeakerLoad,
-    ToneCache, VoiceBalance,
+    AMP_MAX, AmpKnob, Amplifier, Bloom, BrightCap, Cached, CathodeBias, FrontEnd,
+    OutputTransformer, SpeakerLoad, ToneCache, VoiceBalance,
 };
 use crate::dsp::biquad::Biquad;
 use crate::dsp::oversample::Oversampler8;
 use crate::dsp::tonestack::{Components, ToneStack};
+
+/// AC30 Top Boost front-panel controls (DSP order): Top Boost Volume, Bass,
+/// Treble, Cut. The Top Boost channel has no Mid or Presence; those are fixed
+/// internally.
+pub const KNOBS: &[AmpKnob] = &[
+    AmpKnob {
+        label: "TOP BOOST",
+        slug: "gain",
+        default: 0.75,
+    },
+    AmpKnob {
+        label: "BASS",
+        slug: "bass",
+        default: 1.0,
+    },
+    AmpKnob {
+        label: "TREBLE",
+        slug: "treble",
+        default: 0.65,
+    },
+    AmpKnob {
+        label: "CUT",
+        slug: "cut",
+        default: 0.0,
+    },
+];
 
 /// Vox AC30 (Top Boost) amplifier simulation.
 ///
@@ -47,9 +73,13 @@ pub struct Vox {
     // Passive FMV tone stack (base rate) — Vox values give a lighter mid scoop and
     // brighter treble than the Marshall's.
     tone: ToneStack,
-    // Presence — power-amp NFB characteristic (base rate)
+    // Presence — power-amp NFB characteristic (base rate). Fixed at 0 dB on the
+    // Top Boost channel; the amp's tone trim is the Cut control.
     presence_shelf: Biquad,
-    presence_cache: Cached,
+    // AC30 "Cut" — a high-cut in the phase inverter, after the preamp. No control
+    // on the Top Boost channel's mid or presence; this is the amp's tone trim.
+    cut: Biquad,
+    cut_cache: Cached,
     // Structural voicing balance (base rate): low shelf restores low-mid body, high
     // shelf tames the tone stack's treble-forward tilt, so notes stay even across
     // the neck rather than the upper register blasting out.
@@ -90,7 +120,9 @@ impl Vox {
             xfmr: OutputTransformer::new(sr, 175.0, 1.2, 0.03),
             tone: ToneStack::new(sr, Components::VOX),
             presence_shelf: Biquad::high_shelf(sr, 4500.0, 0.0),
-            presence_cache: Cached::new(),
+            // Cut wide open (transparent) until the knob is turned.
+            cut: Biquad::lowpass(sr, 18_000.0, 0.707),
+            cut_cache: Cached::new(),
             voice: VoiceBalance::new(sr, 200.0, 2.5, 900.0, -5.0),
             out_hp: Biquad::highpass(sr, 12.0, 0.707),
             envelope: 0.0,
@@ -102,18 +134,11 @@ impl Vox {
             speaker: SpeakerLoad::new(sr, 85.0, 1.3, 0.09, 0.45, 1.1),
         };
         v.update_tone_stack(0.5, 0.45, 0.65);
-        v.update_presence(0.5);
         v
     }
 
     fn update_tone_stack(&mut self, bass: f32, mid: f32, treble: f32) {
         self.tone.update(bass, mid, treble);
-    }
-
-    fn update_presence(&mut self, presence: f32) {
-        // Presence models the AC30's output-transformer NFB loop: shelf at 4.5 kHz,
-        // a touch higher than the JCM800's 3.5 kHz — the AC30 lives higher up.
-        self.presence_shelf = Biquad::high_shelf(self.sr, 4500.0, (presence - 0.5) * 12.0);
     }
 
     #[inline]
@@ -134,23 +159,17 @@ impl Vox {
 }
 
 impl Amplifier for Vox {
-    #[allow(clippy::too_many_arguments)]
     #[inline]
-    fn process(
-        &mut self,
-        sample: f32,
-        gain: f32,
-        bass: f32,
-        mid: f32,
-        treble: f32,
-        presence: f32,
-        master: f32,
-    ) -> f32 {
+    fn process(&mut self, sample: f32, knobs: &[f32; AMP_MAX]) -> f32 {
+        let gain = knobs[0];
+        let bass = knobs[1];
+        let treble = knobs[2];
+        let cut = knobs[3];
+        // The Top Boost channel has no Mid or Presence control.
+        let mid = 0.45;
+
         if self.tone_cache.changed(bass, mid, treble) {
             self.update_tone_stack(bass, mid, treble);
-        }
-        if self.presence_cache.changed(presence) {
-            self.update_presence(presence);
         }
 
         let x = self.front.process(sample);
@@ -185,6 +204,14 @@ impl Amplifier for Vox {
         // Structural voicing balance: restore low-mid body, tame the upper-mid tilt.
         let x = self.voice.process(x);
 
+        // AC30 Cut — the phase-inverter high-cut, after the preamp/tone stack.
+        // Fully counter-clockwise (0) is transparent; turning it up darkens the top.
+        if self.cut_cache.changed(cut) {
+            let f = 18_000.0 * (2_500.0 / 18_000.0_f32).powf(cut.clamp(0.0, 1.0));
+            self.cut = Biquad::lowpass(self.sr, f, 0.707);
+        }
+        let x = self.cut.process(x);
+
         // Power amp: transformer sag + light saturation
         let x = self.power_amp(x);
         // Output transformer: low-frequency core saturation + push-pull crossover.
@@ -201,10 +228,9 @@ impl Amplifier for Vox {
         // real output transformer passes no DC, so strip it here before the trim.
         let x = self.out_hp.process(x);
 
-        // Output trim: level-matched to the other three models so switching amps
-        // mid-set doesn't jump the volume. (The three mainline models sit around
-        // 0.12–0.27 RMS under the loudness test; this lands the Vox mid-band.)
-        x * master * 19.0
+        // Output trim: the AC30 has no master volume (the Top Boost Volume is the
+        // gain), so this fixed trim level-matches it to the other models.
+        x * 11.0
     }
 }
 

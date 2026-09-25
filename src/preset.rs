@@ -146,17 +146,25 @@ pub struct MlSection {
 pub struct AmpSection {
     /// "marshall" | "mesa" | "randall" | "vox" | "hiwatt"
     pub model: Option<String>,
-    pub gain: f32,
-    pub bass: f32,
-    pub mid: f32,
-    pub treble: f32,
-    #[serde(default = "presence_default")]
-    pub presence: f32,
-    pub master: f32,
-}
-
-fn presence_default() -> f32 {
-    0.5
+    /// Model-specific front-panel knob positions, keyed by the control's stable
+    /// slug (e.g. `gain`, `presence`, `cut`, `normal`). This is the canonical
+    /// representation; the fixed fields below exist only to load presets written
+    /// before per-model controls and are omitted when a preset is saved.
+    #[serde(default)]
+    pub knobs: std::collections::BTreeMap<String, f32>,
+    // ── Legacy fixed fields (pre per-model controls) ──────────────────────────
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub gain: Option<f32>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub bass: Option<f32>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub mid: Option<f32>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub treble: Option<f32>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub presence: Option<f32>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub master: Option<f32>,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -423,12 +431,18 @@ impl Preset {
             }),
             amp: AmpSection {
                 model: Some(amp_model_str.to_string()),
-                gain: params.amp_gain.load(Relaxed),
-                bass: params.amp_bass.load(Relaxed),
-                mid: params.amp_mid.load(Relaxed),
-                treble: params.amp_treble.load(Relaxed),
-                presence: params.amp_presence.load(Relaxed),
-                master: params.amp_master.load(Relaxed),
+                knobs: amp_model
+                    .controls()
+                    .iter()
+                    .enumerate()
+                    .map(|(i, k)| (k.slug.to_string(), params.amp_knob_value(amp_model, i)))
+                    .collect(),
+                gain: None,
+                bass: None,
+                mid: None,
+                treble: None,
+                presence: None,
+                master: None,
             },
             cabinet: Some(CabSection {
                 model: Some(cab_model_str.to_string()),
@@ -627,14 +641,28 @@ impl Preset {
             _ => AmpModel::Marshall,
         };
         params.amp_model.store(model as u8, Relaxed);
-        params.amp_gain.store(amp.gain.clamp(0.0, 1.0), Relaxed);
-        params.amp_bass.store(amp.bass.clamp(0.0, 1.0), Relaxed);
-        params.amp_mid.store(amp.mid.clamp(0.0, 1.0), Relaxed);
-        params.amp_treble.store(amp.treble.clamp(0.0, 1.0), Relaxed);
-        params
-            .amp_presence
-            .store(amp.presence.clamp(0.0, 1.0), Relaxed);
-        params.amp_master.store(amp.master.clamp(0.0, 1.0), Relaxed);
+        // Start from the model's declared defaults, overlay any legacy fixed fields
+        // (pre per-model presets) by role, then the canonical `knobs` map.
+        for (i, knob) in model.controls().iter().enumerate() {
+            params.set_amp_knob(model, i, knob.default);
+        }
+        for (field, value) in [
+            ("gain", amp.gain),
+            ("bass", amp.bass),
+            ("mid", amp.mid),
+            ("treble", amp.treble),
+            ("presence", amp.presence),
+            ("master", amp.master),
+        ] {
+            if let (Some(slot), Some(v)) = (model.knob_slot(field), value) {
+                params.set_amp_knob(model, slot, v);
+            }
+        }
+        for (slug, &v) in &amp.knobs {
+            if let Some(slot) = model.knob_slot(slug) {
+                params.set_amp_knob(model, slot, v);
+            }
+        }
 
         if let Some(cab) = &self.cabinet {
             let cab_model = match cab.model.as_deref() {

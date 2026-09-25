@@ -29,7 +29,7 @@ use crate::practice::Practice;
 use crate::preset::Preset;
 use crate::recording::{RecordingState, save_wav};
 
-use config::{ADD_TILE, AMP_START, CHAIN_TILE, PEDALS, PRACTICE_TILE, Panels, pedal_of};
+use config::{ADD_TILE, AMP_END, AMP_START, CHAIN_TILE, PEDALS, PRACTICE_TILE, Panels, pedal_of};
 use draw::{draw, render_add_pedal_modal, render_amp_modal, render_cab_modal, render_help_modal};
 use input::{
     NavMemory, add_pedal, amp_choices, cab_choices, ensure_focus_visible, init_amp_cursor,
@@ -671,6 +671,15 @@ pub fn run(
                                     .amp_external_loaded
                                     .load(std::sync::atomic::Ordering::Relaxed),
                             );
+                            // A new model may expose fewer knobs than the old one;
+                            // move a now-hidden amp focus to its last real knob.
+                            let hidden = focus.filter(|&f| {
+                                (AMP_START..AMP_END).contains(&f)
+                                    && f - AMP_START >= params.amp_knob_count()
+                            });
+                            if hidden.is_some() {
+                                focus = Some(AMP_START + params.amp_knob_count() - 1);
+                            }
                             amp_open = false;
                         }
                         KeyCode::Esc | KeyCode::Char('a') | KeyCode::Char('A') => {
@@ -869,8 +878,14 @@ pub fn run(
                         // pedals in panel 4, and is inert on the ribbon/timeline.
                         // Panels are switched with the number keys.
                         KeyCode::Tab => {
-                            focus =
-                                tab_in_panel(focus, &board, &params.chain_slots(), 1, &mut nav_mem);
+                            focus = tab_in_panel(
+                                focus,
+                                &board,
+                                &params.chain_slots(),
+                                1,
+                                &mut nav_mem,
+                                params.amp_knob_count(),
+                            );
                         }
                         KeyCode::BackTab => {
                             focus = tab_in_panel(
@@ -879,6 +894,7 @@ pub fn run(
                                 &params.chain_slots(),
                                 -1,
                                 &mut nav_mem,
+                                params.amp_knob_count(),
                             );
                         }
                         // ←/→ inside the focused panel: the ribbon moves its
@@ -893,10 +909,22 @@ pub fn run(
                                 move_chain_cursor(&params.chain_slots(), &board, chain_cursor, -1);
                         }
                         KeyCode::Right => {
-                            focus = step_knob_in_panel(focus, &board, &params.chain_slots(), 1);
+                            focus = step_knob_in_panel(
+                                focus,
+                                &board,
+                                &params.chain_slots(),
+                                1,
+                                params.amp_knob_count(),
+                            );
                         }
                         KeyCode::Left => {
-                            focus = step_knob_in_panel(focus, &board, &params.chain_slots(), -1);
+                            focus = step_knob_in_panel(
+                                focus,
+                                &board,
+                                &params.chain_slots(),
+                                -1,
+                                params.amp_knob_count(),
+                            );
                         }
                         KeyCode::Up | KeyCode::Char('+') | KeyCode::Char('=') => match focus {
                             Some(ADD_TILE | PRACTICE_TILE | CHAIN_TILE) | None => {}

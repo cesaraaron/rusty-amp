@@ -392,8 +392,9 @@ fn render_amp_box(
         ])
         .split(inner);
 
-    // Amp tone stack knobs.
-    let count = AMP_END - AMP_START;
+    // Amp front-panel knobs: the active model's own controls, count and labels.
+    let controls = params.amp_model().controls();
+    let count = controls.len();
     let knob_cols = Layout::default()
         .direction(Direction::Horizontal)
         .constraints(
@@ -406,12 +407,13 @@ fn render_amp_box(
     // tone controls (edited in the AU modal), so they are dimmed while it is active —
     // exactly as the mic knobs are while an external IR is up.
     let amp_live = ext_amp.is_none();
-    for (i, ki) in (AMP_START..AMP_END).enumerate() {
+    for (i, knob) in controls.iter().enumerate() {
+        let ki = AMP_START + i;
         let val = (KNOBS[ki].param)(params).load(Relaxed);
         render_compact_knob(
             f,
             knob_cols[i],
-            KNOBS[ki].label,
+            knob.label,
             val,
             focus == Some(ki),
             amp_live,

@@ -13,6 +13,53 @@ pub use mesa::Mesa;
 pub use randall::Randall;
 pub use vox::Vox;
 
+/// Maximum number of front-panel knobs any single amp model exposes. Each model's
+/// [`KNOBS`](AmpKnob) list is decoded positionally by its `process`, so the array
+/// passed to [`Amplifier::process`] is always this long and trailing slots are
+/// simply ignored by models with fewer controls.
+pub const AMP_MAX: usize = 7;
+
+/// One amp front-panel control.
+///
+/// `slug` is the stable key used by presets and by the semantic test helpers; the
+/// shared roles (`gain`, `bass`, `mid`, `treble`, `presence`, `master`) are the
+/// same string across models so a control can be addressed by role, while
+/// model-specific controls (`normal`, `cut`, later `reverb`/`speed`/`intensity`)
+/// use their own slugs. `label` is the short uppercase panel text.
+pub struct AmpKnob {
+    pub label: &'static str,
+    pub slug: &'static str,
+    pub default: f32,
+}
+
+/// Build an [`AMP_MAX`] knob array by *role* for a given model, falling back to
+/// each control's default for roles the model doesn't have. Used by the tests
+/// (and anywhere a semantic handful of controls must be swept across every model
+/// regardless of its exact panel).
+pub fn standard_knobs(
+    model: crate::dsp::AmpModel,
+    gain: f32,
+    bass: f32,
+    mid: f32,
+    treble: f32,
+    presence: f32,
+    master: f32,
+) -> [f32; AMP_MAX] {
+    let mut k = [0.0f32; AMP_MAX];
+    for (i, knob) in model.controls().iter().enumerate() {
+        k[i] = match knob.slug {
+            "gain" => gain,
+            "bass" => bass,
+            "mid" => mid,
+            "treble" => treble,
+            "presence" => presence,
+            "master" => master,
+            _ => knob.default,
+        };
+    }
+    k
+}
+
 /// Models the way a real power amp "sees" the loudspeaker's impedance curve
 /// through its negative-feedback loop.
 ///
@@ -474,19 +521,12 @@ impl ToneCache {
 }
 
 /// Common interface every amp model must satisfy.
-/// All knobs are normalised 0–1.
+///
+/// `knobs` holds the model's front-panel controls in the order its
+/// [`KNOBS`](AmpKnob) descriptor declares, padded to [`AMP_MAX`]; every value is
+/// normalised 0–1.
 pub trait Amplifier {
-    #[allow(clippy::too_many_arguments)]
-    fn process(
-        &mut self,
-        sample: f32,
-        gain: f32,
-        bass: f32,
-        mid: f32,
-        treble: f32,
-        presence: f32,
-        master: f32,
-    ) -> f32;
+    fn process(&mut self, sample: f32, knobs: &[f32; AMP_MAX]) -> f32;
 }
 
 /// Owns all amp instances simultaneously so filter state is preserved across
@@ -510,35 +550,14 @@ impl AmpBank {
         }
     }
 
-    #[allow(clippy::too_many_arguments)]
     #[inline]
-    pub fn process(
-        &mut self,
-        model: AmpModel,
-        sample: f32,
-        gain: f32,
-        bass: f32,
-        mid: f32,
-        treble: f32,
-        presence: f32,
-        master: f32,
-    ) -> f32 {
+    pub fn process(&mut self, model: AmpModel, sample: f32, knobs: &[f32; AMP_MAX]) -> f32 {
         match model {
-            AmpModel::Marshall => self
-                .marshall
-                .process(sample, gain, bass, mid, treble, presence, master),
-            AmpModel::Mesa => self
-                .mesa
-                .process(sample, gain, bass, mid, treble, presence, master),
-            AmpModel::Randall => self
-                .randall
-                .process(sample, gain, bass, mid, treble, presence, master),
-            AmpModel::Vox => self
-                .vox
-                .process(sample, gain, bass, mid, treble, presence, master),
-            AmpModel::Hiwatt => self
-                .hiwatt
-                .process(sample, gain, bass, mid, treble, presence, master),
+            AmpModel::Marshall => self.marshall.process(sample, knobs),
+            AmpModel::Mesa => self.mesa.process(sample, knobs),
+            AmpModel::Randall => self.randall.process(sample, knobs),
+            AmpModel::Vox => self.vox.process(sample, knobs),
+            AmpModel::Hiwatt => self.hiwatt.process(sample, knobs),
         }
     }
 }
@@ -551,17 +570,19 @@ mod tests {
     const SR: f32 = 48_000.0;
 
     /// One amp instance per model, addressed through the `Amplifier` trait so the
-    /// sound-quality checks below run identically against all of them.
-    fn each_amp() -> Vec<(&'static str, Box<dyn Amplifier>)> {
+    /// sound-quality checks below run identically against all of them. The model is
+    /// carried alongside so tests can build its control array by role.
+    fn each_amp() -> Vec<(&'static str, AmpModel, Box<dyn Amplifier>)> {
         vec![
             (
                 "Marshall",
+                AmpModel::Marshall,
                 Box::new(Marshall::new(SR)) as Box<dyn Amplifier>,
             ),
-            ("Mesa", Box::new(Mesa::new(SR))),
-            ("Randall", Box::new(Randall::new(SR))),
-            ("Vox", Box::new(Vox::new(SR))),
-            ("Hiwatt", Box::new(Hiwatt::new(SR))),
+            ("Mesa", AmpModel::Mesa, Box::new(Mesa::new(SR))),
+            ("Randall", AmpModel::Randall, Box::new(Randall::new(SR))),
+            ("Vox", AmpModel::Vox, Box::new(Vox::new(SR))),
+            ("Hiwatt", AmpModel::Hiwatt, Box::new(Hiwatt::new(SR))),
         ]
     }
 
@@ -582,24 +603,18 @@ mod tests {
 
     /// Push a tone through one amp and collect the steady-state tail (filter and
     /// envelope transients discarded). `amp_amp` is the input sine amplitude.
-    #[allow(clippy::too_many_arguments)]
     fn run_tone(
         amp: &mut dyn Amplifier,
         freq: f32,
         amp_amp: f32,
-        gain: f32,
-        bass: f32,
-        mid: f32,
-        treble: f32,
-        presence: f32,
-        master: f32,
+        knobs: &[f32; AMP_MAX],
     ) -> Vec<f32> {
         let n = SR as usize;
         let warmup = n / 3; // let sag/bloom envelopes and HP filters settle
         let mut out = Vec::with_capacity(n - warmup);
         for i in 0..n {
             let x = (2.0 * PI * freq * i as f32 / SR).sin() * amp_amp;
-            let y = amp.process(x, gain, bass, mid, treble, presence, master);
+            let y = amp.process(x, knobs);
             if i >= warmup {
                 out.push(y);
             }
@@ -620,14 +635,15 @@ mod tests {
     /// "unpleasant sound" of all (a blast of digital noise).
     #[test]
     fn stable_and_bounded_across_control_sweep() {
-        for (name, mut amp) in each_amp() {
+        for (name, model, mut amp) in each_amp() {
             let mut max_abs = 0.0f32;
             for &gain in &[0.0, 0.5, 1.0] {
                 for &master in &[0.0, 0.5, 1.0] {
+                    let knobs = standard_knobs(model, gain, 0.7, 0.5, 0.7, 0.6, master);
                     // hot low-E so the gain stages are genuinely driven
                     for i in 0..(SR as usize / 4) {
                         let x = (2.0 * PI * 82.41 * i as f32 / SR).sin() * 0.9;
-                        let y = amp.process(x, gain, 0.7, 0.5, 0.7, 0.6, master);
+                        let y = amp.process(x, &knobs);
                         assert!(
                             y.is_finite(),
                             "{name} non-finite at gain={gain} master={master}"
@@ -646,8 +662,13 @@ mod tests {
     /// steady-state output is centred on zero even under hard, asymmetric drive.
     #[test]
     fn output_is_dc_free_under_hard_drive() {
-        for (name, mut amp) in each_amp() {
-            let out = run_tone(&mut *amp, 110.0, 0.8, 0.95, 0.6, 0.5, 0.7, 0.6, 0.7);
+        for (name, model, mut amp) in each_amp() {
+            let out = run_tone(
+                &mut *amp,
+                110.0,
+                0.8,
+                &standard_knobs(model, 0.95, 0.6, 0.5, 0.7, 0.6, 0.7),
+            );
             let dc = mean(&out).abs();
             let level = rms(&out).max(1e-6);
             assert!(
@@ -668,8 +689,13 @@ mod tests {
         // Harmonic bins (well below Nyquist) vs. clearly inharmonic probe bins.
         let harmonics: Vec<f32> = (1..=20).map(|k| f0 * k as f32).collect();
         let inharmonic = [130.0, 290.0, 510.0, 1234.0, 2050.0, 3001.0, 5003.0];
-        for (name, mut amp) in each_amp() {
-            let out = run_tone(&mut *amp, f0, 0.5, 0.95, 0.5, 0.5, 0.7, 0.5, 0.7);
+        for (name, model, mut amp) in each_amp() {
+            let out = run_tone(
+                &mut *amp,
+                f0,
+                0.5,
+                &standard_knobs(model, 0.95, 0.5, 0.5, 0.7, 0.5, 0.7),
+            );
 
             let h2 = goertzel(&out, f0 * 2.0, SR);
             let h3 = goertzel(&out, f0 * 3.0, SR);
@@ -703,14 +729,15 @@ mod tests {
     #[test]
     fn power_chord_low_end_stays_tight() {
         let chord = [82.41f32, 123.47, 164.81]; // E2 root + fifth + octave
-        for (name, mut amp) in each_amp() {
+        for (name, model, mut amp) in each_amp() {
+            let knobs = standard_knobs(model, 0.93, 0.82, 0.12, 0.86, 0.73, 0.65);
             let n = SR as usize;
             let warmup = n / 3;
             let mut out = Vec::with_capacity(n - warmup);
             for i in 0..n {
                 let t = i as f32 / SR;
                 let x: f32 = chord.iter().map(|&f| (2.0 * PI * f * t).sin()).sum::<f32>() * 0.3;
-                let y = amp.process(x, 0.93, 0.82, 0.12, 0.86, 0.73, 0.65);
+                let y = amp.process(x, &knobs);
                 if i >= warmup {
                     out.push(y);
                 }
@@ -732,25 +759,29 @@ mod tests {
     /// linearly. Guards against an inverted or dead control shipping a harsh tone.
     #[test]
     fn tone_and_presence_controls_track() {
-        // (probe freq, control index: 0=bass 1=treble 2=presence)
-        let band = |amp: &mut dyn Amplifier, f: f32, b: f32, t: f32, p: f32| {
-            let out = run_tone(amp, f, 0.05, 0.4, b, 0.5, t, p, 0.7);
+        // Each probe is only run for models that expose the matching control, so a
+        // model without a Mid/Presence knob is exempt rather than falsely failing.
+        let band = |model: AmpModel, amp: &mut dyn Amplifier, f: f32, b: f32, t: f32, p: f32| {
+            let out = run_tone(amp, f, 0.05, &standard_knobs(model, 0.4, b, 0.5, t, p, 0.7));
             goertzel(&out, f, SR)
         };
-        for (name, mut amp) in each_amp() {
+        for (name, model, mut amp) in each_amp() {
             let a = &mut *amp;
             assert!(
-                band(a, 100.0, 0.9, 0.65, 0.5) > band(a, 100.0, 0.1, 0.65, 0.5),
+                band(model, a, 100.0, 0.9, 0.65, 0.5) > band(model, a, 100.0, 0.1, 0.65, 0.5),
                 "{name} bass control dead/inverted at 100 Hz"
             );
             assert!(
-                band(a, 4000.0, 0.5, 0.9, 0.5) > band(a, 4000.0, 0.5, 0.1, 0.5),
+                band(model, a, 4000.0, 0.5, 0.9, 0.5) > band(model, a, 4000.0, 0.5, 0.1, 0.5),
                 "{name} treble control dead/inverted at 4 kHz"
             );
-            assert!(
-                band(a, 5000.0, 0.5, 0.65, 0.95) > band(a, 5000.0, 0.5, 0.65, 0.05),
-                "{name} presence control dead/inverted at 5 kHz"
-            );
+            if model.knob_slot("presence").is_some() {
+                assert!(
+                    band(model, a, 5000.0, 0.5, 0.65, 0.95)
+                        > band(model, a, 5000.0, 0.5, 0.65, 0.05),
+                    "{name} presence control dead/inverted at 5 kHz"
+                );
+            }
         }
     }
 
@@ -760,9 +791,14 @@ mod tests {
     #[test]
     fn amps_are_loudness_matched() {
         let mut levels = Vec::new();
-        for (_name, mut amp) in each_amp() {
+        for (_name, model, mut amp) in each_amp() {
             // Driven hard — the regime the per-amp output trims are tuned to match.
-            let out = run_tone(&mut *amp, 110.0, 0.6, 0.93, 0.5, 0.5, 0.65, 0.5, 0.65);
+            let out = run_tone(
+                &mut *amp,
+                110.0,
+                0.6,
+                &standard_knobs(model, 0.93, 0.5, 0.5, 0.65, 0.5, 0.65),
+            );
             levels.push(rms(&out));
         }
         let lo = levels.iter().cloned().fold(f32::INFINITY, f32::min);
@@ -888,7 +924,8 @@ mod tests {
         const WIN: usize = 30_720;
         let sidebands = |amp_in: f32, gain: f32| -> f32 {
             let mut amp = Marshall::new(SR);
-            let out = run_tone(&mut amp, f0, amp_in, gain, 0.5, 0.5, 0.6, 0.5, 0.8);
+            let knobs = standard_knobs(AmpModel::Marshall, gain, 0.5, 0.5, 0.6, 0.5, 0.8);
+            let out = run_tone(&mut amp, f0, amp_in, &knobs);
             let out = &out[out.len() - WIN..];
             let fund = goertzel(out, f0, SR).max(1e-9);
             (goertzel(out, f0 - 100.0, SR) + goertzel(out, f0 + 100.0, SR)) / fund
@@ -911,7 +948,8 @@ mod tests {
         // clearly above equally-offset control bins that are neither harmonics
         // nor ripple sidebands.
         let mut amp = Marshall::new(SR);
-        let out = run_tone(&mut amp, f0, 0.6, 0.9, 0.5, 0.5, 0.6, 0.5, 0.8);
+        let knobs = standard_knobs(AmpModel::Marshall, 0.9, 0.5, 0.5, 0.6, 0.5, 0.8);
+        let out = run_tone(&mut amp, f0, 0.6, &knobs);
         let out = &out[out.len() - WIN..];
         let sb = goertzel(out, f0 - 100.0, SR) + goertzel(out, f0 + 100.0, SR);
         let ctl = goertzel(out, f0 - 62.5, SR) + goertzel(out, f0 + 62.5, SR);
@@ -1123,15 +1161,16 @@ mod tests {
     /// carry the triode/transformer/bright-cap chain. The Randall is solid-state and
     /// is deliberately left out of these — it has no output transformer or triode
     /// stage to model.
-    fn tube_amps() -> Vec<(&'static str, Box<dyn Amplifier>)> {
+    fn tube_amps() -> Vec<(&'static str, AmpModel, Box<dyn Amplifier>)> {
         vec![
             (
                 "Marshall",
+                AmpModel::Marshall,
                 Box::new(Marshall::new(SR)) as Box<dyn Amplifier>,
             ),
-            ("Mesa", Box::new(Mesa::new(SR))),
-            ("Vox", Box::new(Vox::new(SR))),
-            ("Hiwatt", Box::new(Hiwatt::new(SR))),
+            ("Mesa", AmpModel::Mesa, Box::new(Mesa::new(SR))),
+            ("Vox", AmpModel::Vox, Box::new(Vox::new(SR))),
+            ("Hiwatt", AmpModel::Hiwatt, Box::new(Hiwatt::new(SR))),
         ]
     }
 
@@ -1140,15 +1179,16 @@ mod tests {
     /// the gain stages stay roughly linear, must fall as the gain pot is opened.
     #[test]
     fn bright_cap_brightens_low_gain_settings() {
-        let tilt = |amp: &mut dyn Amplifier, gain: f32| -> f32 {
-            let hi = run_tone(amp, 4000.0, 0.02, gain, 0.5, 0.5, 0.5, 0.5, 0.6);
-            let lo = run_tone(amp, 300.0, 0.02, gain, 0.5, 0.5, 0.5, 0.5, 0.6);
+        let tilt = |model: AmpModel, amp: &mut dyn Amplifier, gain: f32| -> f32 {
+            let knobs = standard_knobs(model, gain, 0.5, 0.5, 0.5, 0.5, 0.6);
+            let hi = run_tone(amp, 4000.0, 0.02, &knobs);
+            let lo = run_tone(amp, 300.0, 0.02, &knobs);
             goertzel(&hi, 4000.0, SR) / goertzel(&lo, 300.0, SR).max(1e-9)
         };
-        for (name, mut amp) in tube_amps() {
+        for (name, model, mut amp) in tube_amps() {
             let a = &mut *amp;
-            let low_gain = tilt(a, 0.1);
-            let high_gain = tilt(a, 0.9);
+            let low_gain = tilt(model, a, 0.1);
+            let high_gain = tilt(model, a, 0.9);
             assert!(
                 low_gain > high_gain * 1.05,
                 "{name}: bright cap not brightening low gain (tilt {low_gain:.3} vs {high_gain:.3})"
@@ -1163,14 +1203,19 @@ mod tests {
     /// clipping. This is the single best proxy for "alive, not artificial".
     #[test]
     fn tube_amps_are_touch_sensitive() {
-        let h2_over_h1 = |amp: &mut dyn Amplifier, drive_in: f32| -> f32 {
-            let out = run_tone(amp, 150.0, drive_in, 0.3, 0.5, 0.5, 0.6, 0.5, 0.6);
+        let h2_over_h1 = |model: AmpModel, amp: &mut dyn Amplifier, drive_in: f32| -> f32 {
+            let out = run_tone(
+                amp,
+                150.0,
+                drive_in,
+                &standard_knobs(model, 0.3, 0.5, 0.5, 0.6, 0.5, 0.6),
+            );
             goertzel(&out, 300.0, SR) / goertzel(&out, 150.0, SR).max(1e-9)
         };
-        for (name, mut amp) in tube_amps() {
+        for (name, model, mut amp) in tube_amps() {
             let a = &mut *amp;
-            let soft = h2_over_h1(a, 0.05);
-            let hard = h2_over_h1(a, 0.5);
+            let soft = h2_over_h1(model, a, 0.05);
+            let hard = h2_over_h1(model, a, 0.5);
             assert!(
                 hard > soft * 1.05,
                 "{name}: not touch sensitive (even-harmonic h2/h1 soft {soft:.3} → hard {hard:.3})"
