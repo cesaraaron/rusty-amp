@@ -9,11 +9,12 @@ mod metronome;
 mod plugins;
 mod practice;
 mod presets;
+mod sessions;
 mod setup;
 mod styles;
 mod tuner;
 
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -36,8 +37,9 @@ use input::{
     init_cab_cursor, move_chain_cursor, move_selected_stage, nudge, press_number, remove_pedal,
     select_amp, select_cab, step_knob_in_panel, tab_in_panel, toggle_pedal, toggle_stage,
 };
-use practice::PracticeUi;
+use practice::{PracticeUi, SaveContext};
 use presets::{PathDialogKind, render_path_dialog, render_preset_modal, render_save_dialog};
+use sessions::{Action as SessionAction, SessionBrowser};
 
 /// Board membership derived from the live enabled flags (one entry per pedal).
 fn sync_board(params: &Params) -> Vec<bool> {
@@ -109,6 +111,41 @@ fn select_devices(
     Ok(Some(selection))
 }
 
+/// Gather the non-session state a save needs and run it, returning a status
+/// message for the session modal.
+#[allow(clippy::too_many_arguments)]
+fn save_current_session(
+    practice_ui: &mut PracticeUi,
+    dir: &Path,
+    params: &Params,
+    practice: &Practice,
+    metronome: &Metronome,
+    ir_browser: &ir_browser::IrBrowser,
+    au_amp_name: Option<&str>,
+    clap_insert_name: Option<&str>,
+) -> Option<String> {
+    let ctx = SaveContext {
+        dir,
+        params,
+        practice,
+        metronome,
+        external_ir: ir_browser.loaded_path().map(PathBuf::as_path),
+        external_ir_active: params
+            .cab_external_active
+            .load(std::sync::atomic::Ordering::Relaxed),
+        au_amp_name: au_amp_name.map(str::to_owned),
+        clap_insert_name: clap_insert_name.map(str::to_owned),
+    };
+    match practice_ui.save_session(ctx) {
+        Ok(0) => Some(format!("Saved {}", dir.display())),
+        Ok(n) => Some(format!(
+            "Saved {} ({n} track(s) without a source were skipped)",
+            dir.display()
+        )),
+        Err(e) => Some(format!("Save failed: {e:#}")),
+    }
+}
+
 pub fn run(
     params: Arc<Params>,
     levels: Arc<Levels>,
@@ -166,6 +203,8 @@ pub fn run(
     // Canonical timeline project, owned by the UI and preserved across device
     // changes; decoded playback buffers are rebuilt per engine.
     let mut practice_ui = PracticeUi::new();
+    // Session (project) browser modal, toggled with `J`.
+    let mut session_browser = SessionBrowser::new();
 
     // ── Session loop: (re)select devices, start the engine, run the UI ─────────
     // The `O` key drops the engine and loops back here so the picker runs again —
@@ -379,6 +418,9 @@ pub fn run(
                 if practice_ui.gain_open() {
                     practice_ui.render_gain_modal(f);
                 }
+                if session_browser.open {
+                    session_browser.render(f);
+                }
                 if tuner_open {
                     tuner::render_tuner(f, &tuner);
                 }
@@ -417,6 +459,84 @@ pub fn run(
 
                 if practice_ui.gain_open() {
                     practice_ui.handle_gain_key(key.code, &mut engine);
+                    continue;
+                }
+
+                if session_browser.open {
+                    let action = session_browser.handle_key(key.code);
+                    match action {
+                        SessionAction::None => {}
+                        SessionAction::New => {
+                            practice_ui.new_session(&mut engine, &practice, &metronome, &capture);
+                            session_browser.refresh();
+                            session_browser.open = false;
+                        }
+                        SessionAction::Save => {
+                            if let Some(dir) = practice_ui.session.saved_dir().cloned() {
+                                let msg = save_current_session(
+                                    &mut practice_ui,
+                                    &dir,
+                                    &params,
+                                    &practice,
+                                    &metronome,
+                                    &ir_browser,
+                                    ext_amp_name,
+                                    plugin_name,
+                                );
+                                session_browser.message = msg;
+                                session_browser.refresh();
+                            } else {
+                                let name = practice_ui.session.name().to_owned();
+                                session_browser.prompt_name(&name);
+                            }
+                        }
+                        SessionAction::SaveAs(name) => {
+                            let dir = crate::project::default_session_dir(&name)
+                                .unwrap_or_else(|| PathBuf::from("./sessions").join(name.clone()));
+                            practice_ui.session.set_name(name);
+                            let msg = save_current_session(
+                                &mut practice_ui,
+                                &dir,
+                                &params,
+                                &practice,
+                                &metronome,
+                                &ir_browser,
+                                ext_amp_name,
+                                plugin_name,
+                            );
+                            session_browser.message = msg;
+                            session_browser.refresh();
+                            session_browser.view_list();
+                        }
+                        SessionAction::Load(dir) => {
+                            match practice_ui.load_session(
+                                &dir,
+                                &mut engine,
+                                &params,
+                                &practice,
+                                &metronome,
+                                &capture,
+                            ) {
+                                Ok(()) => {}
+                                Err(e) => {
+                                    practice_ui.set_message(format!("Load failed: {e:#}"));
+                                }
+                            }
+                            session_browser.open = false;
+                        }
+                        SessionAction::Delete(dir) => {
+                            match std::fs::remove_dir_all(&dir) {
+                                Ok(()) => {
+                                    session_browser.message =
+                                        Some(format!("Deleted {}", dir.display()));
+                                }
+                                Err(e) => {
+                                    session_browser.message = Some(format!("Delete failed: {e}"));
+                                }
+                            }
+                            session_browser.refresh();
+                        }
+                    }
                     continue;
                 }
 
@@ -764,6 +884,9 @@ pub fn run(
                         // `1` live order · `2` amp/cab · `3` timeline · `4` pedals.
                         KeyCode::Char('b') | KeyCode::Char('B') => {
                             practice_ui.open_browser();
+                        }
+                        KeyCode::Char('j') | KeyCode::Char('J') => {
+                            session_browser.open();
                         }
                         KeyCode::Char('1') => {
                             (panels, focus) =

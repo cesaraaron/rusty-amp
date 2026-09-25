@@ -12,6 +12,7 @@ pub mod dsp;
 pub mod host;
 pub mod practice;
 pub mod preset;
+pub mod project;
 pub mod recording;
 pub mod session;
 pub mod ui;

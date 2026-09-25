@@ -25,8 +25,13 @@ use std::sync::atomic::Ordering::Relaxed;
 
 use super::styles::{ACCENT, AMBER, CHROME, DIM, HOT, SAFE, WARN};
 use crate::audio::AudioEngine;
+use crate::dsp::Params;
+use crate::dsp::cab::{ExternalIrCab, MAX_IR_LEN, load_ir};
+use crate::dsp::metronome::Metronome;
 use crate::dsp::player::{MAX_TRACKS, TrackKind as PlayerKind};
 use crate::practice::{DecodedTrack, Practice, decode_track, peaks};
+use crate::preset::Preset;
+use crate::project::{self, AssetCopy, MetronomeSection, TrackSection, TransportSection};
 use crate::recording::{CaptureCommand, CaptureResult, CaptureState, spawn_capture_worker};
 use crate::session::{AssetRef, Session, TrackId, TrackKind, TrackLifecycle};
 
@@ -632,6 +637,233 @@ impl PracticeUi {
         self.recording_id.is_some()
     }
 
+    pub(super) fn set_message(&mut self, msg: String) {
+        self.message = Some(msg);
+    }
+
+    // ── Session persistence ─────────────────────────────────────────────────────
+
+    /// Start a fresh, empty project at the current engine rate, dropping every
+    /// installed track and any in-flight capture.
+    pub(super) fn new_session(
+        &mut self,
+        engine: &mut AudioEngine,
+        practice: &Practice,
+        metronome: &Metronome,
+        capture: &CaptureState,
+    ) {
+        if self.recording_id.is_some() {
+            self.abort_capture(capture);
+        }
+        let ids: Vec<TrackId> = self.session.tracks().iter().map(|t| t.id).collect();
+        for id in ids {
+            let _ = engine.remove_track(id);
+        }
+        self.decodes.clear();
+        self.capture_result = None;
+        let rate = self.sample_rate as u32;
+        self.session = Session::new(rate);
+        self.session.set_project_sample_rate(rate);
+        self.rate_adopted = true;
+        self.selection = Selection::Transport;
+        practice.reset();
+        metronome.active.store(false, Relaxed);
+        self.message = Some("New session".to_owned());
+    }
+
+    /// Save the current project to `ctx.dir`, copying every ready track's source
+    /// asset and the selected IR into the folder. Returns how many tracks had no
+    /// recoverable source (and were therefore not written).
+    pub(super) fn save_session(&mut self, ctx: SaveContext<'_>) -> anyhow::Result<usize> {
+        let name = self.session.name().to_owned();
+        let mut sections = Vec::with_capacity(self.session.len());
+        let mut assets = Vec::new();
+        let mut skipped = 0usize;
+        for track in self.session.tracks() {
+            let rel = match (&track.asset, track.is_ready()) {
+                (Some(asset), true) => {
+                    let ext = asset
+                        .path
+                        .extension()
+                        .and_then(|e| e.to_str())
+                        .unwrap_or("wav");
+                    let rel = format!("audio/track-{}.{}", track.id, ext);
+                    assets.push(AssetCopy {
+                        source: asset.path.clone(),
+                        rel: rel.clone(),
+                    });
+                    Some(rel)
+                }
+                _ => {
+                    skipped += 1;
+                    None
+                }
+            };
+            sections.push(TrackSection {
+                id: track.id,
+                kind: kind_slug(track.kind).to_owned(),
+                name: track.name.clone(),
+                asset: rel,
+                start_ticks: track.start_ticks,
+                length_ticks: track.length_ticks,
+                gain: track.gain,
+                muted: track.muted,
+            });
+        }
+
+        let external_ir = match ctx.external_ir {
+            Some(path) => {
+                let ext = path.extension().and_then(|e| e.to_str()).unwrap_or("wav");
+                let rel = format!("irs/cabinet.{ext}");
+                assets.push(AssetCopy {
+                    source: path.to_path_buf(),
+                    rel: rel.clone(),
+                });
+                Some(rel)
+            }
+            None => None,
+        };
+
+        let transport = TransportSection {
+            playhead: self
+                .session
+                .frames_to_ticks(ctx.practice.position(), self.sample_rate),
+            seek_seconds: self.session.seek_seconds(),
+            loop_enabled: ctx.practice.loop_enabled.load(Relaxed),
+            loop_start: self.session.frames_to_ticks(
+                ctx.practice.loop_start.load(Relaxed) as usize,
+                self.sample_rate,
+            ),
+            loop_end: self.session.frames_to_ticks(
+                ctx.practice.loop_end.load(Relaxed) as usize,
+                self.sample_rate,
+            ),
+        };
+        let metronome = MetronomeSection {
+            enabled: ctx.metronome.active.load(Relaxed),
+            bpm: ctx.metronome.get_bpm(),
+        };
+        let rig = Preset::from_params(name.clone(), None, ctx.params);
+        let manifest = project::build_manifest(
+            name,
+            self.session.project_sample_rate(),
+            transport,
+            metronome,
+            rig,
+            external_ir,
+            ctx.external_ir_active,
+            ctx.au_amp_name,
+            ctx.clap_insert_name,
+            sections,
+        )?;
+        project::write_session(ctx.dir, &manifest, &assets)?;
+        self.session.set_saved_dir(Some(ctx.dir.to_path_buf()));
+        Ok(skipped)
+    }
+
+    /// Load the project folder `dir`: replace the session, apply the rig and
+    /// external IR, restore the transport/metronome, and (re)decode every track.
+    pub(super) fn load_session(
+        &mut self,
+        dir: &Path,
+        engine: &mut AudioEngine,
+        params: &Params,
+        practice: &Practice,
+        metronome: &Metronome,
+        capture: &CaptureState,
+    ) -> anyhow::Result<()> {
+        let manifest = project::read_manifest(dir)?;
+        let new_session = manifest.into_session(dir)?;
+
+        if self.recording_id.is_some() {
+            self.abort_capture(capture);
+        }
+        let old_ids: Vec<TrackId> = self.session.tracks().iter().map(|t| t.id).collect();
+        for id in old_ids {
+            let _ = engine.remove_track(id);
+        }
+        self.decodes.clear();
+        self.capture_result = None;
+
+        manifest.rig.apply(params);
+
+        // External IR: restore (or clear) on both chains.
+        params.cab_external_loaded.store(false, Relaxed);
+        params.cab_external_active.store(false, Relaxed);
+        let mut ir_error = None;
+        if let Some(rel) = &manifest.external_ir {
+            match project::resolve_asset(dir, rel)
+                .and_then(|p| load_ir(&p, self.sample_rate, MAX_IR_LEN))
+            {
+                Ok(loaded) => {
+                    let live = Box::new(ExternalIrCab::new(self.sample_rate, loaded.duplicate()));
+                    let take = Box::new(ExternalIrCab::new(self.sample_rate, loaded));
+                    let _ = engine.set_external_cab(Some(live));
+                    let _ = engine.set_external_cab_take(Some(take));
+                    params.cab_external_loaded.store(true, Relaxed);
+                    params
+                        .cab_external_active
+                        .store(manifest.external_ir_active, Relaxed);
+                }
+                Err(e) => ir_error = Some(format!("IR not restored: {e}")),
+            }
+        }
+
+        self.session = new_session;
+        self.rate_adopted = true;
+        self.selection = Selection::Transport;
+
+        let pending: Vec<(TrackId, TrackKind, PathBuf)> = self
+            .session
+            .tracks()
+            .iter()
+            .filter_map(|t| t.asset.as_ref().map(|a| (t.id, t.kind, a.path.clone())))
+            .collect();
+        for (id, kind, path) in pending {
+            self.start_decode(id, kind, path);
+        }
+
+        practice.reset();
+        let playhead = self
+            .session
+            .ticks_to_frames(manifest.transport.playhead, self.sample_rate);
+        practice.position.store(playhead as u64, Relaxed);
+        practice.request_seek(playhead);
+        practice.loop_start.store(
+            self.session
+                .ticks_to_frames(manifest.transport.loop_start, self.sample_rate)
+                as u64,
+            Relaxed,
+        );
+        practice.loop_end.store(
+            self.session
+                .ticks_to_frames(manifest.transport.loop_end, self.sample_rate) as u64,
+            Relaxed,
+        );
+        practice
+            .loop_enabled
+            .store(manifest.transport.loop_enabled, Relaxed);
+        metronome.set_bpm(manifest.metronome.bpm);
+        metronome.active.store(manifest.metronome.enabled, Relaxed);
+
+        let mut notes = Vec::new();
+        if let Some(n) = &ir_error {
+            notes.push(n.clone());
+        }
+        if let Some(n) = &manifest.au_amp_name {
+            notes.push(format!("AU amp '{n}' not restored"));
+        }
+        if let Some(n) = &manifest.clap_insert_name {
+            notes.push(format!("CLAP insert '{n}' not restored"));
+        }
+        self.message = Some(if notes.is_empty() {
+            format!("Loaded {}", self.session.name())
+        } else {
+            notes.join(" · ")
+        });
+        Ok(())
+    }
+
     // ── Browser / gain modal input ──────────────────────────────────────────────
 
     pub(super) fn handle_browser_key(&mut self, code: KeyCode, practice: &Practice) -> bool {
@@ -1169,6 +1401,25 @@ fn to_player_kind(kind: TrackKind) -> PlayerKind {
         TrackKind::Import => PlayerKind::Import,
         TrackKind::RawTake => PlayerKind::RawTake,
     }
+}
+
+fn kind_slug(kind: TrackKind) -> &'static str {
+    match kind {
+        TrackKind::Import => "import",
+        TrackKind::RawTake => "raw_take",
+    }
+}
+
+/// Everything the UI must gather from outside the session when saving it.
+pub(super) struct SaveContext<'a> {
+    pub dir: &'a Path,
+    pub params: &'a Params,
+    pub practice: &'a Practice,
+    pub metronome: &'a Metronome,
+    pub external_ir: Option<&'a Path>,
+    pub external_ir_active: bool,
+    pub au_amp_name: Option<String>,
+    pub clap_insert_name: Option<String>,
 }
 
 fn file_entry(file: &TrackFile, selected: bool) -> Line<'static> {

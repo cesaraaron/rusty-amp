@@ -1245,8 +1245,9 @@ pub(super) fn render_help_modal(f: &mut Frame) {
     lines.push(row("  Z / U", "  amp-plugin bypass / browser"));
     lines.extend([
         head("Tools"),
-        row("  P", "  preset browser"),
+        row("  P", "  preset browser (rig snapshot)"),
         row("  S", "  save current rig as preset"),
+        row("  J", "  session browser: new / save / save as / load"),
         row("  T", "  chromatic tuner"),
         row("  M", "  practice metronome (+/− tempo, Space on/off)"),
     ]);

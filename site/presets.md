@@ -29,6 +29,10 @@ rusty-amp searches these directories, in order:
 
 Press <kbd>P</kbd> while playing to open the preset browser. Press <kbd>S</kbd> (from anywhere) to save the current state as a new user preset. The browser updates instantly — no restart required.
 
+<div class="note note--info">
+<b>Preset vs session.</b> A preset is a reusable <b>rig</b> snapshot only — applying one changes your pedals/amp/cab but leaves the timeline untouched. To save the whole project (rig <em>plus</em> tracks, positions, loop and transport), use a <a href="tools.html#sessions">session</a> with <kbd>J</kbd>.
+</div>
+
 Bundled presets are marked as system presets and cannot be deleted from within the app. User presets show a `[user]` tag and can be deleted with <kbd>D</kbd>. Any selected preset (bundled or user) can be exported with <kbd>E</kbd>; press <kbd>I</kbd> to import a `.toml` file — see [Import &amp; export](#import-export).
 
 ## Preset browser <span class="muted">(<kbd>P</kbd>)</span> {#browser}

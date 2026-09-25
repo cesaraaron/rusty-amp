@@ -49,6 +49,8 @@ pub(super) struct IrBrowser {
     files: Vec<IrFile>,
     /// Name of the currently loaded IR (file stem), if any.
     loaded: Option<String>,
+    /// Full path of the loaded IR, for session save.
+    loaded_path: Option<PathBuf>,
     message: Option<String>,
     sample_rate: f32,
 }
@@ -60,6 +62,7 @@ impl IrBrowser {
             cursor: 0,
             files: Vec::new(),
             loaded: None,
+            loaded_path: None,
             message: None,
             sample_rate,
         }
@@ -75,6 +78,11 @@ impl IrBrowser {
     /// Name of the loaded IR, for the main header.
     pub(super) fn loaded_name(&self) -> Option<&str> {
         self.loaded.as_deref()
+    }
+
+    /// Full path of the loaded IR, for session save.
+    pub(super) fn loaded_path(&self) -> Option<&PathBuf> {
+        self.loaded_path.as_ref()
     }
 
     /// Handle a keypress while the modal is open.
@@ -122,6 +130,7 @@ impl IrBrowser {
                     params.cab_external_active.store(false, Relaxed);
                     params.cab_external_loaded.store(false, Relaxed);
                     self.loaded = None;
+                    self.loaded_path = None;
                     Some("Built-in cab active".to_owned())
                 }
                 Err(e) => Some(format!("Clear failed: {e}")),
@@ -133,6 +142,7 @@ impl IrBrowser {
         let Some(file) = self.files.get(self.cursor - 1) else {
             return;
         };
+        let chosen = file.path.clone();
 
         self.message = match load_ir(&file.path, self.sample_rate, MAX_IR_LEN) {
             Ok(loaded) => {
@@ -146,6 +156,7 @@ impl IrBrowser {
                         params.cab_external_loaded.store(true, Relaxed);
                         params.cab_external_active.store(true, Relaxed);
                         self.loaded = Some(name.clone());
+                        self.loaded_path = Some(chosen);
                         self.open = false;
                         if take_ok {
                             Some(format!("Loaded {name}"))

@@ -25,9 +25,10 @@ expression: text
 ││                                    ║  W  studio-master width: neutral / wide                                                   ║                                     ││
 ││                                    ║  Z / U  amp-plugin bypass / browser                                                       ║                                     ││
 ││                                    ║Tools                                                                                      ║                                     ││
-││                                    ║  P  preset browser                                                                        ║                                     ││
+││                                    ║  P  preset browser (rig snapshot)                                                         ║                                     ││
 │└────────────────────────────────────║  S  save current rig as preset                                                            ║─────────────────────────────────────┘│
-└─────────────────────────────────────║  T  chromatic tuner                                                                       ║──────────────────────────────────────┘
+└─────────────────────────────────────║  J  session browser: new / save / save as / load                                          ║──────────────────────────────────────┘
+                                      ║  T  chromatic tuner                                                                       ║                                       
                                       ║  M  practice metronome (+/− tempo, Space on/off)                                          ║                                       
                                       ║  V  plugin browser                                                                        ║                                       
                                       ║  R  arm / stop a dry raw take (auto-plays; lands on the timeline)                         ║                                       

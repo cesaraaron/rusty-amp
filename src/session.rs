@@ -114,6 +114,9 @@ pub struct Session {
     seek_seconds: u32,
     next_id: TrackId,
     temp_id: String,
+    name: String,
+    /// `true` once the session has been saved to or loaded from a project folder.
+    saved_dir: Option<PathBuf>,
 }
 
 impl Session {
@@ -130,11 +133,42 @@ impl Session {
             seek_seconds: DEFAULT_SEEK_STEP,
             next_id: 1,
             temp_id: format!("{secs}"),
+            name: "Untitled".to_owned(),
+            saved_dir: None,
         }
     }
 
     pub fn project_sample_rate(&self) -> u32 {
         self.project_sample_rate
+    }
+
+    pub fn name(&self) -> &str {
+        &self.name
+    }
+
+    pub fn set_name(&mut self, name: String) {
+        self.name = name;
+    }
+
+    /// The project folder this session was last saved to / loaded from.
+    pub fn saved_dir(&self) -> Option<&PathBuf> {
+        self.saved_dir.as_ref()
+    }
+
+    pub fn set_saved_dir(&mut self, dir: Option<PathBuf>) {
+        self.saved_dir = dir;
+    }
+
+    /// Replace the whole track list (used when loading a project) and move the id
+    /// counter past every restored id.
+    pub fn restore_tracks(&mut self, tracks: Vec<Track>) {
+        self.next_id = tracks
+            .iter()
+            .map(|t| t.id)
+            .max()
+            .map_or(1, |m| m.saturating_add(1));
+        self.selected = tracks.first().map(|t| t.id);
+        self.tracks = tracks;
     }
 
     /// Adopt a new engine rate as the project rate. Only meaningful before any

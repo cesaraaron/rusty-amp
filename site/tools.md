@@ -12,6 +12,7 @@ toc:
   - { href: "#metronome", label: "Metronome" }
   - { href: "#practice", label: "Practice & timeline" }
   - { href: "#recording", label: "Raw takes" }
+  - { href: "#sessions", label: "Sessions" }
 prev: { href: "plugins.html", label: "CLAP plugins" }
 next: { href: "how-it-works.html", label: "How it works (under the hood)" }
 ---
@@ -104,4 +105,24 @@ Raw takes are **non-destructive and re-ampable**: the timeline stores the dry gu
 
 <div class="note note--info">
 <b>Monitor-only, like the metronome.</b> Imports, the metronome click and already-recorded takes are summed into your monitor <em>after</em> the capture tap, so a new take contains only your live dry guitar.
+</div>
+
+## Sessions <span class="muted">(<kbd>J</kbd>)</span> {#sessions}
+
+A **session** is a portable project folder, not a rig snapshot. Press <kbd>J</kbd> to open the session browser:
+
+- <kbd>N</kbd> — **new** empty session.
+- <kbd>S</kbd> — **save** to the current session folder (prompts for a name the first time).
+- <kbd>A</kbd> — **save as** a typed name.
+- <kbd>Enter</kbd> — **load** the highlighted session.
+- <kbd>D</kbd> — **delete** the highlighted session folder.
+
+Sessions are stored under `~/.config/rusty-amp/sessions/<name>/` and bundle the timeline (tracks, positions, gains, mutes), the playhead/loop and seek step, the metronome, and the built-in rig. Imported originals and your dry raw takes are copied into the project's `audio/` folder, and the active external IR into `irs/`, so the folder is self-contained.
+
+<div class="note">
+<b>Sessions vs presets.</b> A <a href="presets.html">preset</a> is a reusable <b>rig</b> snapshot (pedals/amp/cab settings) that applies without touching your timeline. A <b>session</b> is the whole project — rig plus tracks and transport. Loading a session replaces both; loading a preset only replaces the rig inside the current session.
+</div>
+
+<div class="note note--info">
+<b>External plugins.</b> The built-in rig, the external IR, and all timeline/transport state are restored. Third‑party AU/CLAP binaries can't be made portable by copying files, so a session records which one was loaded but restores the built-in rig instead and tells you what wasn't restored; reload it manually.
 </div>

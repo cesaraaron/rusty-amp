@@ -108,7 +108,8 @@ The app launches immediately with default values. Press <kbd>P</kbd> at any time
 | <kbd>Enter</kbd> | Open the **Add pedal** picker when the `+ ADD` tile is focused |
 | <kbd>D</kbd> | Remove the focused pedal from the board (bypassed and hidden — re-add it from `+ ADD`) |
 | <kbd>[</kbd> / <kbd>]</kbd> | Move the ribbon's selected stage earlier / later in the signal chain (see [signal chain](how-it-works.html#chain)) |
-| <kbd>P</kbd> | Open the preset browser overlay |
+| <kbd>P</kbd> | Open the preset browser overlay (rig snapshots) |
+| <kbd>J</kbd> | Open the [session browser](tools.html#sessions) — new / save / save as / load portable projects |
 | <kbd>T</kbd> | Open the [tuner](tools.html#tuner) — bypasses the rig for a clean signal |
 | <kbd>M</kbd> | Open the [metronome](tools.html#metronome) — an adjustable click that plays along but stays out of recordings |
 | <kbd>V</kbd> | Open the CLAP [plugin browser](plugins.html) |

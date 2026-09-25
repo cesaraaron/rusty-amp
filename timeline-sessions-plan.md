@@ -239,7 +239,20 @@ offline export and plugin-state parity remain follow-ups (sections 6–8).
   the playhead, `R` arms/stops a raw take, `+`/`-` seek step, `G` gain modal,
   `Del` remove. Help text and the docs site updated.
 
-**Deferred — later increments:** session save/load + recovery indexing,
-offline export, and persisting/restoring plugin identity and state (section 6–8).
-Plugin-state capture is the remaining piece needed for a faithful offline render;
-live take-bus mirroring is now in place.
+**Done — increment 3 (session persistence):**
+
+- `src/project.rs` — versioned `session.toml` manifest, atomic
+  `write_session`, validated `read_manifest`, asset path-escape rejection,
+  `list_sessions`, and `Manifest::into_session`.
+- `src/session.rs` — session name + saved-folder tracking, `restore_tracks`.
+- `src/ui/sessions.rs` — `J` session browser (New / Save / Save As / Load /
+  Delete) for portable folders under `~/.config/rusty-amp/sessions/`.
+- Save bundles tracks, positions/gains/mutes, loop/playhead/seek step,
+  metronome and the built-in rig; imported originals and dry takes are copied
+  into `audio/`, the active IR into `irs/`. AU/CLAP identity is recorded but not
+  restored (reported on load).
+
+**Deferred — later increments:** recovery indexing/prompt for abandoned takes,
+and offline export with plugin-state parity (sections 6–8). Plugin-state capture
+is the remaining piece needed for a faithful offline render; live take-bus
+mirroring is in place.
