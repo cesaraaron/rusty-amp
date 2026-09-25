@@ -43,7 +43,7 @@ description: "rusty-amp recreates classic tube and solid-state guitar amps, a fu
         <b>Guitar</b> <span class="arr">→</span> GATE <span class="arr">→</span> WHAMMY
         <span class="arr">→</span> WAH <span class="arr">→</span> COMP <span class="arr">→</span> FUZZ <span class="arr">→</span> TS-808
         <span class="arr">→</span> DS-1 <span class="arr">→</span> ML-2 <span class="arr">→</span> PRE-EQ
-        <span class="arr">→</span> <b>AMP+CAB</b>
+        <span class="arr">→</span> <b>AMP</b> <span class="arr">→</span> <b>CAB</b>
         <span class="arr">→</span> G-EQ <span class="arr">→</span> EQ <span class="arr">→</span> FLANGER
         <span class="arr">→</span> CHORUS <span class="arr">→</span> PHASER <span class="arr">→</span> TREM <span class="arr">→</span> DELAY
         <span class="arr">→</span> REVERB <span class="arr">→</span> <b>OUTPUT</b>

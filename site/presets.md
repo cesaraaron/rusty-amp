@@ -321,10 +321,12 @@ mix  = 0.25
 # preset uses the shipped order (this is how all older presets behave).
 # Unknown names are ignored, duplicates collapsed, and any missing stage is
 # appended in default order, so a hand-edited list can't build a half chain.
-# Stage names: gate whammy wah comp fuzz ts ds metal preeq vibe ampcab
+# The cab must always follow its amp (the reverse is repaired on load). Older
+# files that use the pre-split "ampcab" name expand to "amp", "cab" unchanged.
+# Stage names: gate whammy wah comp fuzz ts ds metal preeq vibe amp cab
 #              geq eq flanger chorus phaser trem delay reverb
 [chain]
-order = ["gate", "whammy", "wah", "comp", "fuzz", "ts", "ds", "metal", "preeq", "vibe", "ampcab", "geq", "eq", "flanger", "chorus", "phaser", "trem", "delay", "reverb"]
+order = ["gate", "whammy", "wah", "comp", "fuzz", "ts", "ds", "metal", "preeq", "vibe", "amp", "cab", "geq", "eq", "flanger", "chorus", "phaser", "trem", "delay", "reverb"]
 ```
 
 <div class="note">

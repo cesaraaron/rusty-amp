@@ -34,8 +34,8 @@ The **Guitar Rig** shows one compact tile row per pedal that's on the board, fol
 
 <div class="note">
 <b>Chain order is yours to rearrange.</b> The shipped order follows the signal flow shown on the header ribbon:
-Gate → Whammy → Wah → Comp → Fuzz → TS-808 → DS-1 → ML-2 → Pre-EQ → Uni-Vibe → <b>AMP+CAB</b> → Graphic EQ → Parametric EQ → Flanger → Chorus → Phaser → Tremolo/Vibrato → Delay → Reverb —
-but press <kbd>1</kbd> for the ribbon, pick a stage with <kbd>←</kbd>/<kbd>→</kbd>, and move it with <kbd>[</kbd> / <kbd>]</kbd> (the amp+cab block always travels together; <kbd>Space</kbd> bypasses the picked stage). The ribbon always shows the live order.
+Gate → Whammy → Wah → Comp → Fuzz → TS-808 → DS-1 → ML-2 → Pre-EQ → Uni-Vibe → <b>AMP</b> → <b>CAB</b> → Graphic EQ → Parametric EQ → Flanger → Chorus → Phaser → Tremolo/Vibrato → Delay → Reverb —
+but press <kbd>1</kbd> for the ribbon, pick a stage with <kbd>←</kbd>/<kbd>→</kbd>, and move it with <kbd>[</kbd> / <kbd>]</kbd> (the amp and cab move independently, but the cab must always follow its amp; <kbd>Space</kbd> bypasses the picked stage). The ribbon always shows the live order.
 Where a pedal sits in that order is part of its character — see <a href="how-it-works.html">How it works</a>.
 </div>
 

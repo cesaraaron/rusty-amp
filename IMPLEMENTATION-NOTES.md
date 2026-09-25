@@ -1,4 +1,4 @@
-# Implementation notes — routing correctness (Phase 1)
+# Implementation notes — routing correctness (Phases 1–2)
 
 This file tracks work done against [`plan.md`](plan.md). It is written so a
 following agent can review the changes and continue the roadmap without
@@ -6,8 +6,8 @@ re-deriving context. Fidelity phases (0, 3, 4, 5) are intentionally **not
 started** — see [Open gaps](#open-gaps-for-a-following-agent) for the exact
 references and decisions each one still needs.
 
-Scope agreed with the maintainer: **Phase 1 routing patch only**, delivered as
-one commit per roadmap item, with all findings recorded here.
+Scope agreed with the maintainer: **Phase 1 routing patch, then Phase 2
+amp/cab split**, delivered as small commits with all findings recorded here.
 
 ---
 
@@ -17,7 +17,7 @@ one commit per roadmap item, with all findings recorded here.
 
 - File: `src/dsp/mod.rs`
 - Added `Params::stage_enabled(stage) -> bool` (mirrors each stage's
-  `*_enabled` atomic; `AmpCab` is always live).
+  `*_enabled` atomic; `Amp`/`Cab` are always live).
 - `DspChain::run_ordered_stage` (`src/dsp/mod.rs`) now returns the incoming
   `Sig` **before** any mono↔stereo bridging when the stage is disabled.
 - Tests added: `bypassed_mono_stage_preserves_stereo`,
@@ -79,6 +79,47 @@ block).
 
 ---
 
+## Phase 2 — amp/cab split
+
+Commit: `feat(dsp): split the amp+cab block into separate Amp and Cab stages`
+
+- **Enum** (`src/dsp/mod.rs`): `ChainStage::AmpCab` (one slot) became
+  `Amp` + `Cab`, so `CHAIN_LEN` is now 20 (10 pre + amp + cab + 8 rack).
+  `pedal_index`/`from_pedal_index` remapped; the rack pedals keep their 0–17
+  indices.
+- **Dispatch**: `run_pre`/`run_post`/`amp_cab`/`ampcab_index` were replaced by a
+  single-pass `run_range` + `run_ordered_stage`. `Amp` always runs and folds its
+  input to mono; `Cab` runs mono→stereo and is skipped only when
+  `ext_amp_supplies_cab()` (a live full-rig AU) is true. Default-order rendering
+  is bit-identical to Phase 1.
+- **External amp path** (`process_block`): stages before `Amp` run per sample
+  (mono), the hosted plugin processes the block, then stages after `Amp`
+  (including `Cab` and any effects left between amp and cab) run per sample.
+- **Sanitizing**: `sanitize_chain_order` now also repairs a cab placed before
+  its amp (swap); `amp_precedes_cab` is the shared predicate.
+- **Presets** (`src/preset.rs`): legacy `"ampcab"` in `[chain]` expands to
+  consecutive `"amp"`, `"cab"` at the same position; new saves write the two
+  names. Tests: `preset_legacy_ampcab_expands_to_amp_cab`,
+  `preset_chain_order_applies_and_round_trips`.
+- **UI**: the ribbon renders separate `AMP` / `CAB` tiles (`AU: NAME` replaces
+  `AMP`; `IR: NAME` / `AU CAB` on the cab tile). `move_selected_stage` rejects a
+  move that would put the cab before its amp
+  (`move_selected_stage_moves_amp_and_cab_separately`). Golden snapshots
+  re-blessed; the only change is the ribbon line splitting `AMP+CAB` into
+  `AMP ──▶ CAB`.
+- **Docs**: `site/presets.md`, `pedals.md`, `how-it-works.md`, `plugins.md`,
+  `amps-cabs.md`, `index.md` updated for the two-stage model and the
+  amp-before-cab constraint.
+
+**Boundary semantics (item 2 of the roadmap).** Effects may be placed between
+`Amp` and `Cab`; that region is documented/treated as line-level processing in a
+virtual load box, not a pedal in the speaker cable. Ordinary pedals are never
+*defaulted* there (the shipped order keeps every pedal before the amp or after
+the cab). The richer "named regions" UI (labels/tooltips) and the optional real
+preamp/loop/power-amp refactor (Phase 2 item 5) are **not** done.
+
+---
+
 ## Findings not yet actioned
 
 ### Deferred: fixed master-bus widener (Phase 1 item 4)
@@ -86,9 +127,8 @@ block).
 `master_bus` (`src/dsp/mod.rs`) always applies `widen(l, r, 1.3)` then a soft
 limiter to every output, including recordings. The roadmap wants a neutral /
 controllable "studio master" instead of an always-on coloration. **Not done**:
-it is an output-path sound-design decision that pairs naturally with the Phase 2
-amp/cab topology split, and changing it alters existing preset sound. Flagged
-rather than silently changed.
+it is an output-path sound-design decision and changing it alters existing
+preset sound. Flagged rather than silently changed.
 
 ### TS-808 header doc contradicts its own constructor
 
@@ -102,11 +142,12 @@ number without hardware/reference data** — the real question is which value is
 circuit-correct, which is a Phase 4 fidelity task. Recommend a schematic or
 measured TS-808 frequency response, then make code and both comments agree.
 
-### Amp and cab are still one reorderable slot
+### Not an actual effects loop yet
 
-`ChainStage::AmpCab` remains a single slot; `amp_cab()` calls `amp_stage` then
-`cab_stage`. Phase 2 (split into `Amp` + `CabMic`, migrate `"ampcab"` preset
-values, preserve AU/IR paths) is untouched.
+Phase 2 split `Amp` and `Cab` but the amp DSP is still one block. A genuine
+amp effects loop (preamp → loop send/return → power amp) is Phase 2 item 5 and
+remains unimplemented. Effects between `Amp` and `Cab` model a *virtual
+load-box / post-power-amp line-level* path, not the amp's internal loop.
 
 ---
 
@@ -150,8 +191,8 @@ Use the Phase 0 matrix; start sparse and add only source-backed effects.
 the enabled signal path in the same change.
 
 No historical/session claim in this repository should be treated as verified by
-the Phase 1 work here; only the routing and documentation defects above were
-addressed.
+the Phase 1–2 work here; only the routing, topology, and documentation defects
+above were addressed.
 
 ---
 
@@ -164,6 +205,8 @@ cargo test --all-features
 cd site && npm run build
 ```
 
-All DSP tests pass (254 at the time of writing). The routing fixes are covered
-by the named tests in `src/dsp/mod.rs`. There is no listening test for Phase 1
-(the changes are wire-transparency and coherence, not voicing).
+All tests pass (258 at the time of writing). The routing/topology fixes are
+covered by the named tests in `src/dsp/mod.rs`, `src/preset.rs`, and
+`src/ui/input.rs`. There is no listening test: Phases 1–2 change routing,
+coherence, and topology, not voicing, and the default-order render is
+bit-identical to before the split.
