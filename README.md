@@ -4,13 +4,13 @@
 
 Plug in your guitar, pick an amp, and play. rusty-amp recreates classic tube and solid-state amplifiers, a full board of stompbox effects, and multi-mic'd cabinets — all driven from a fast, keyboard-only interface with live metering. It ships with artist-inspired presets, so you can dial in a great tone in seconds and tweak from there.
 
-![Screenshot](/site/assets/screenshot.png)
+![Screenshot](/assets/screenshot.png)
 
 > 📖 **Full documentation:** **[danylokravchenko.github.io/rusty-amp](https://danylokravchenko.github.io/rusty-amp/)** — install guide, every pedal and knob, amps & cabinets, presets, plugins, and how it all works under the hood.
 
 ## Demo
 
-![Demo](/site/assets/demo.gif)
+![Demo](/assets/demo.gif)
 
 ## Motivation
 
