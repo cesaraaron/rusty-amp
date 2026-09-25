@@ -855,6 +855,20 @@ pub fn run(
                                 params.cab_external_active.store(now, Relaxed);
                             }
                         }
+                        // Studio-master width: neutral reference ↔ the historic
+                        // studio widening. The output limiter stays on either way.
+                        KeyCode::Char('w') | KeyCode::Char('W') => {
+                            use std::sync::atomic::Ordering::Relaxed;
+                            let to_neutral = params.master_width.load(Relaxed) > 1.0 + 1e-3;
+                            let (width, label) = if to_neutral {
+                                (1.0, "neutral")
+                            } else {
+                                (crate::dsp::DEFAULT_MASTER_WIDTH, "studio wide")
+                            };
+                            params.master_width.store(width, Relaxed);
+                            save_msg =
+                                Some((format!("Master width: {label}"), std::time::Instant::now()));
+                        }
                         KeyCode::Char('s') | KeyCode::Char('S') => {
                             save_open = true;
                             save_name.clear();

@@ -46,6 +46,8 @@ pub struct Preset {
     pub tremolo: Option<TremoloSection>,
     pub delay: Option<DelaySection>,
     pub reverb: ReverbSection,
+    /// Studio-master output width. Absent in older presets → default (`1.3`).
+    pub master: Option<MasterSection>,
     /// Signal-chain order as stage names (`"gate"`, `"comp"`, `"amp"`, `"cab"`,
     /// `"delay"`…). Absent in older presets → the shipped default order. Legacy
     /// `"ampcab"` entries migrate to `"amp"`, `"cab"`.
@@ -277,6 +279,14 @@ pub struct ReverbSection {
     pub room: f32,
     pub damp: f32,
     pub mix: f32,
+}
+
+/// Studio-master output stage. `width` is the stereo widener: `1.0` = neutral
+/// reference (untouched sides), `1.3` = the historic shipped sound. Optional —
+/// omitting `[master]` resets the width to its default.
+#[derive(Debug, Deserialize, Serialize)]
+pub struct MasterSection {
+    pub width: f32,
 }
 
 /// Signal-chain order: stage names from input to output, e.g.
@@ -521,6 +531,9 @@ impl Preset {
                 damp: params.rev_damp.load(Relaxed),
                 mix: params.rev_mix.load(Relaxed),
             },
+            master: Some(MasterSection {
+                width: params.master_width.load(Relaxed),
+            }),
             chain: Some(ChainSection {
                 order: params
                     .chain_slots()
@@ -789,6 +802,14 @@ impl Preset {
         params.rev_room.store(rev.room.clamp(0.0, 1.0), Relaxed);
         params.rev_damp.store(rev.damp.clamp(0.0, 1.0), Relaxed);
         params.rev_mix.store(rev.mix.clamp(0.0, 1.0), Relaxed);
+
+        // Studio master: omitted → the default width, so loading is deterministic.
+        match &self.master {
+            Some(m) => params.master_width.store(m.width.clamp(0.0, 2.0), Relaxed),
+            None => params
+                .master_width
+                .store(crate::dsp::DEFAULT_MASTER_WIDTH, Relaxed),
+        }
 
         if let Some(chain) = &self.chain {
             // Names → stage ids. `"ampcab"` is the legacy pre-split combined
@@ -1125,5 +1146,34 @@ mod tests {
         let mut want = ChainStage::default_order();
         want.sort_unstable();
         assert_eq!(sorted, want);
+    }
+
+    /// The studio-master width round-trips through save/apply, and an omitted
+    /// `[master]` section resets to the default for deterministic loading.
+    #[test]
+    fn preset_master_width_round_trips_and_defaults() {
+        let params = Params::new();
+        params.master_width.store(1.0, Relaxed);
+        let preset = Preset::from_params("Neutral".to_string(), None, &params);
+        assert_eq!(
+            preset.master.as_ref().expect("master saved").width,
+            1.0,
+            "saved width must match"
+        );
+
+        let fresh = Params::new();
+        fresh.master_width.store(1.3, Relaxed);
+        preset.apply(&fresh);
+        assert_eq!(fresh.master_width.load(Relaxed), 1.0);
+
+        // Omitted section → the default width.
+        let mut no_master = Preset::from_params("X".to_string(), None, &params);
+        no_master.master = None;
+        fresh.master_width.store(0.5, Relaxed);
+        no_master.apply(&fresh);
+        assert_eq!(
+            fresh.master_width.load(Relaxed),
+            crate::dsp::DEFAULT_MASTER_WIDTH
+        );
     }
 }

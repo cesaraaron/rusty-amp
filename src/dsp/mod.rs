@@ -469,6 +469,10 @@ const DEFAULT_CAB_MODEL: u8 = CabModel::Mesa as u8;
 const DEFAULT_MIC_POS: f32 = 0.4;
 const DEFAULT_MIC_BLEND: f32 = 0.0;
 const DEFAULT_MIC_ROOM: f32 = 0.0;
+/// Studio-master stereo width. `1.0` = neutral reference (no side boost),
+/// `1.3` = the historic shipped widening. The default keeps existing presets
+/// and recordings sounding as before; `W` cycles neutral ↔ studio live.
+pub const DEFAULT_MASTER_WIDTH: f32 = 1.3;
 
 // When an external IR is loaded it can be toggled against the built-in cabs live;
 // it starts inactive (the engine boots on a built-in cab).
@@ -596,6 +600,10 @@ pub struct Params {
     pub mic_blend: Arc<AtomicF32>,
     // Room mic amount (0 = dry close mic only, 1 = full ambient room)
     pub mic_room: Arc<AtomicF32>,
+
+    // Studio-master stereo width applied on the output bus (`1.0` neutral,
+    // `1.3` the historic widening). The output limiter is independent.
+    pub master_width: Arc<AtomicF32>,
 
     // External-IR cab override. `cab_external_active` selects the loaded IR over the
     // built-in cab (flipped live by the UI, instant, no reload). `cab_external_loaded`
@@ -780,6 +788,7 @@ impl Params {
             mic_pos: p!(DEFAULT_MIC_POS),
             mic_blend: p!(DEFAULT_MIC_BLEND),
             mic_room: p!(DEFAULT_MIC_ROOM),
+            master_width: p!(DEFAULT_MASTER_WIDTH),
             cab_external_active: b!(DEFAULT_CAB_EXTERNAL_ACTIVE),
             cab_external_loaded: b!(false),
 
@@ -909,6 +918,7 @@ impl Params {
         self.mic_pos.store(DEFAULT_MIC_POS, Relaxed);
         self.mic_blend.store(DEFAULT_MIC_BLEND, Relaxed);
         self.mic_room.store(DEFAULT_MIC_ROOM, Relaxed);
+        self.master_width.store(DEFAULT_MASTER_WIDTH, Relaxed);
         // Fall back to the built-in cab. The loaded IR (if any) stays installed in
         // the chain — only its active/inactive selection is a default-able param.
         self.cab_external_active
@@ -1651,8 +1661,9 @@ impl DspChain {
     #[inline]
     pub fn process(&mut self, sample: f32) -> (f32, f32) {
         let order = self.params.chain_slots();
+        let width = self.params.master_width.load(Relaxed);
         let (l, r) = self.process_core(sample, &order);
-        master_bus(l, r)
+        master_bus(l, r, width)
     }
 
     /// Process a block of mono input samples into stereo output buffers.
@@ -1731,22 +1742,26 @@ impl DspChain {
             insert.process_block(out_l, out_r);
         }
 
-        // Master bus, per sample.
+        // Master bus, per sample (width read once per block).
+        let width = self.params.master_width.load(Relaxed);
         for (l, r) in out_l.iter_mut().zip(out_r.iter_mut()) {
-            let (wl, wr) = master_bus(*l, *r);
+            let (wl, wr) = master_bus(*l, *r, width);
             *l = wl;
             *r = wr;
         }
     }
 }
 
-/// Master bus: stereo-widen then soft-limit. Pushes the cab/reverb decorrelation
-/// out for a wider, deeper image without losing mono punch (the mid is untouched),
-/// then catches peaks. Stateless, so it can run per-sample inside the core loop or
-/// as a separate pass over a block with identical results.
+/// Master bus: stereo-widen then soft-limit. `width` pushes the cab/reverb
+/// decorrelation out for a wider, deeper image without losing mono punch (the
+/// mid is untouched); `1.0` is the neutral reference (wire-transparent sides).
+/// The output soft limiter is independent of the coloration and always runs, so
+/// protection never depends on the width setting. Stateless, so it can run
+/// per-sample inside the core loop or as a separate pass over a block with
+/// identical results.
 #[inline]
-fn master_bus(l: f32, r: f32) -> (f32, f32) {
-    let (l, r) = widen(l, r, 1.3);
+fn master_bus(l: f32, r: f32, width: f32) -> (f32, f32) {
+    let (l, r) = widen(l, r, width);
     (soft_limit(l), soft_limit(r))
 }
 
@@ -2034,6 +2049,58 @@ mod tests {
             ),
             Sig::Mono(_) => panic!("live mono stage should keep the stereo domain (dual mono)"),
         }
+    }
+
+    /// The studio master: width `1.0` is the neutral reference (below the limiter
+    /// knee it is wire-transparent), the widener preserves the mid, and the
+    /// output limiter still catches peaks at every width.
+    #[test]
+    fn master_bus_width_is_neutral_at_one_and_limiter_is_independent() {
+        let (nl, nr) = master_bus(0.5, -0.2, 1.0);
+        assert!(
+            (nl - 0.5).abs() < 1e-6 && (nr + 0.2).abs() < 1e-6,
+            "width 1.0 must be neutral, got ({nl}, {nr})"
+        );
+
+        let (wl, wr) = widen(0.5, -0.2, 1.3);
+        let mid_in = 0.5 * (0.5 + -0.2);
+        let mid_out = 0.5 * (wl + wr);
+        assert!((mid_in - mid_out).abs() < 1e-6, "widener changed the mid");
+        assert!(
+            (wl - wr).abs() > (0.5 - -0.2f32).abs(),
+            "widener did not spread sides"
+        );
+
+        for width in [0.0, 1.0, 1.3, 2.0] {
+            let (l, r) = master_bus(4.0, -4.0, width);
+            assert!(
+                l.abs() < 1.2 && r.abs() < 1.2,
+                "limiter failed to bound output at width {width}"
+            );
+        }
+    }
+
+    /// A different master width changes the rendered output (the cab decorrelates
+    /// L/R, so the sides carry content the widener acts on).
+    #[test]
+    fn master_width_changes_the_output() {
+        fn params(width: f32) -> Arc<Params> {
+            let p = Arc::new(Params::new());
+            p.master_width.store(width, Relaxed);
+            p
+        }
+        let sr = 48_000.0;
+        let mut neutral = DspChain::new(sr, params(1.0));
+        let mut wide = DspChain::new(sr, params(1.3));
+
+        let mut diff = 0.0f32;
+        for n in 0..2000 {
+            let x = (2.0 * PI * 110.0 * n as f32 / sr).sin() * 0.5;
+            let (nl, nr) = neutral.process(x);
+            let (wl, wr) = wide.process(x);
+            diff += (nl - wl).abs() + (nr - wr).abs();
+        }
+        assert!(diff > 1e-3, "master width had no audible effect: {diff}");
     }
 
     /// Rapid adjacent swaps (as the UI's `[` / `]` produce) never leave a

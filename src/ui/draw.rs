@@ -1239,6 +1239,7 @@ pub(super) fn render_help_modal(f: &mut Frame) {
         row("  C", "  cabinet model browser"),
         row("  I / X", "  IR browser / IR bypass"),
         row("  O", "  change audio devices"),
+        row("  W", "  studio-master width: neutral / wide"),
     ];
     #[cfg(feature = "au")]
     lines.push(row("  Z / U", "  amp-plugin bypass / browser"));
