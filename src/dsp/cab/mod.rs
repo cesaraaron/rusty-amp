@@ -1,17 +1,21 @@
 pub mod external;
+pub mod fender;
 pub mod ir;
 pub mod marshall;
 pub mod mesa;
 pub mod orange;
+pub mod vox;
 pub mod wem;
 
 use crate::dsp::biquad::Biquad;
 use crate::dsp::conv::FftConvolver;
 
 pub use external::{ExternalIrCab, LoadedIr, MAX_IR_LEN, load_ir};
+pub use fender::FenderCab;
 pub use marshall::MarshallCab;
 pub use mesa::MesaCab;
 pub use orange::OrangeCab;
+pub use vox::VoxCab;
 pub use wem::WemCab;
 
 pub trait Cabinet {
@@ -222,9 +226,21 @@ impl SpeakerDrive {
 // standoff and the cone's recess — this distance matches the ~0.6 ms echo-delay
 // peak measured on real 4×12 captures). Two equidistant side/below neighbours
 // share one tap; the diagonal cone is farther and quieter.
-const CONE_PITCH_M: f32 = 0.28;
+const CONE_PITCH_M_4X12: f32 = 0.28;
+/// A 2×12 stacks two drivers vertically on a slightly wider pitch than a 4×12's
+/// grid; the close mic on one cone hears the other one late and dull.
+const CONE_PITCH_M_2X12: f32 = 0.32;
 const MIC_DIST_M: f32 = 0.10;
 const SOUND_SPEED_M_S: f32 = 343.0;
+
+/// Physical speaker layout a cab is built from. It sets only the neighbour-cone
+/// interference geometry — a closed 4×12's three surrounding cones versus an
+/// open-back 2×12's single stacked partner.
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub enum CabLayout {
+    FourByTwelve,
+    TwoByTwelve,
+}
 /// Off-axis + cardioid-rejection loss applied on top of 1/r spreading,
 /// calibrated so the summed tap gains (~0.22 side / ~0.07 diagonal) keep the
 /// echo-scan comb real 4×12 captures measure at τ ≈ 0.6 ms at ~±2 dB of
@@ -265,17 +281,31 @@ struct ConeSpread {
 }
 
 impl ConeSpread {
-    fn new(sr: f32) -> Self {
+    fn new(sr: f32, layout: CabLayout) -> Self {
         let path = |cone_dist: f32| (cone_dist * cone_dist + MIC_DIST_M * MIC_DIST_M).sqrt();
         let delay = |p: f32| ((p - MIC_DIST_M) / SOUND_SPEED_M_S * sr) as usize;
-        let side_path = path(CONE_PITCH_M);
-        let diag_path = path(CONE_PITCH_M * std::f32::consts::SQRT_2);
-        // 1/r spreading relative to the near cone, times the off-axis loss;
-        // the two equidistant neighbours (beside + below) share one cluster.
-        let g_side = 2.0 * (MIC_DIST_M / side_path) * NEIGHBOR_AXIS_LOSS_SIDE;
-        let g_diag = (MIC_DIST_M / diag_path) * NEIGHBOR_AXIS_LOSS_DIAG;
-        let d_side = delay(side_path).max(1);
-        let d_diag = delay(diag_path).max(d_side + 1);
+        // Neighbour energies and first-arrival delays per layout. 4×12: two
+        // equidistant side/below neighbours (share one cluster) plus the farther
+        // diagonal. 2×12: a single stacked partner.
+        let (g_side, g_diag, d_side, d_diag) = match layout {
+            CabLayout::FourByTwelve => {
+                let side_path = path(CONE_PITCH_M_4X12);
+                let diag_path = path(CONE_PITCH_M_4X12 * std::f32::consts::SQRT_2);
+                let d_side = delay(side_path).max(1);
+                let d_diag = delay(diag_path).max(d_side + 1);
+                (
+                    2.0 * (MIC_DIST_M / side_path) * NEIGHBOR_AXIS_LOSS_SIDE,
+                    (MIC_DIST_M / diag_path) * NEIGHBOR_AXIS_LOSS_DIAG,
+                    d_side,
+                    d_diag,
+                )
+            }
+            CabLayout::TwoByTwelve => {
+                let p = path(CONE_PITCH_M_2X12);
+                let d = delay(p).max(1);
+                ((MIC_DIST_M / p) * NEIGHBOR_AXIS_LOSS_SIDE, 0.0, d, d + 4)
+            }
+        };
         // Sub-tap spreads (samples ≈ the extra path across the cone face); the
         // nearest-rim tap leads each cluster so `d_side`/`d_diag` stay the
         // first-arrival delays. Gains split the neighbour total irregularly so
@@ -318,7 +348,7 @@ impl ConeSpread {
 /// cab path. Not part of the public API.
 #[doc(hidden)]
 pub fn cone_spread_response(sr: f32, len: usize) -> Vec<f32> {
-    let mut cs = ConeSpread::new(sr);
+    let mut cs = ConeSpread::new(sr, CabLayout::FourByTwelve);
     (0..len)
         .map(|i| cs.process(if i == 0 { 1.0 } else { 0.0 }))
         .collect()
@@ -693,11 +723,12 @@ pub struct BlendedCab {
 
 impl BlendedCab {
     /// Build from the six prebuilt IRs: `[close_l, close_r, ribbon_l, ribbon_r,
-    /// room_l, room_r]`.
-    pub fn new(sr: f32, irs: [Vec<f32>; 6]) -> Self {
+    /// room_l, room_r]`, with the physical speaker `layout` driving the
+    /// neighbour-cone interference geometry.
+    pub fn new(sr: f32, irs: [Vec<f32>; 6], layout: CabLayout) -> Self {
         Self {
             speaker: SpeakerDrive::new(sr),
-            spread: ConeSpread::new(sr),
+            spread: ConeSpread::new(sr, layout),
             grille: GrilleEcho::new(sr),
             blend: MicBlend::new(irs),
             mic: MicPosition::new(sr),
@@ -724,6 +755,8 @@ pub struct CabBank {
     marshall: MarshallCab,
     orange: OrangeCab,
     wem: WemCab,
+    vox: VoxCab,
+    fender: FenderCab,
 }
 
 impl CabBank {
@@ -733,6 +766,8 @@ impl CabBank {
             marshall: MarshallCab::new(sr),
             orange: OrangeCab::new(sr),
             wem: WemCab::new(sr),
+            vox: VoxCab::new(sr),
+            fender: FenderCab::new(sr),
         }
     }
 
@@ -750,6 +785,8 @@ impl CabBank {
             super::CabModel::Marshall => self.marshall.process(sample, mic_pos, blend, room),
             super::CabModel::Orange => self.orange.process(sample, mic_pos, blend, room),
             super::CabModel::Wem => self.wem.process(sample, mic_pos, blend, room),
+            super::CabModel::Vox => self.vox.process(sample, mic_pos, blend, room),
+            super::CabModel::Fender => self.fender.process(sample, mic_pos, blend, room),
         }
     }
 }
@@ -1028,7 +1065,7 @@ mod tests {
     /// diagonal-cone delays — late, dull, and well below the direct sound.
     #[test]
     fn neighbor_cones_arrive_late_dull_and_quiet() {
-        let mut cs = ConeSpread::new(SR);
+        let mut cs = ConeSpread::new(SR, CabLayout::FourByTwelve);
         let n = (SR * 0.004) as usize; // 4 ms window covers both arrivals
         let mut out = Vec::with_capacity(n);
         for i in 0..n {
@@ -1178,7 +1215,14 @@ mod tests {
     /// and comb must never blow up or leak a sub-DC bias into the stereo bus.
     #[test]
     fn stable_bounded_and_dc_free_across_the_sweep() {
-        for model in [CabModel::Mesa, CabModel::Marshall, CabModel::Orange] {
+        for model in [
+            CabModel::Mesa,
+            CabModel::Marshall,
+            CabModel::Orange,
+            CabModel::Wem,
+            CabModel::Vox,
+            CabModel::Fender,
+        ] {
             for &pos in &[0.0f32, 0.25, 0.5, 0.75, 1.0] {
                 let mut bank = CabBank::new(SR);
                 let n = SR as usize / 2;

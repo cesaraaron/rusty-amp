@@ -169,7 +169,7 @@ pub struct AmpSection {
 
 #[derive(Debug, Deserialize, Serialize)]
 pub struct CabSection {
-    /// "mesa" (default) | "marshall" | "orange" | "wem"
+    /// "mesa" (default) | "marshall" | "orange" | "wem" | "vox" | "fender"
     pub model: Option<String>,
     /// 0.0 = edge (off-axis, dark) … 1.0 = center (on-axis, bright). Default 0.5.
     #[serde(default = "mic_pos_default")]
@@ -223,6 +223,14 @@ pub struct DelaySection {
     pub time: f32,
     pub feedback: f32,
     pub mix: f32,
+    /// 0 = digital ping-pong, 1 = tape (Echoplex-style). Defaults to 0 so older
+    /// presets keep the digital delay.
+    #[serde(default = "delay_type_default")]
+    pub r#type: f32,
+}
+
+fn delay_type_default() -> f32 {
+    0.0
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -362,6 +370,8 @@ impl Preset {
             CabModel::Marshall => "marshall",
             CabModel::Orange => "orange",
             CabModel::Wem => "wem",
+            CabModel::Vox => "vox",
+            CabModel::Fender => "fender",
         };
         Self {
             name,
@@ -474,6 +484,7 @@ impl Preset {
                 time: params.delay_time.load(Relaxed),
                 feedback: params.delay_feedback.load(Relaxed),
                 mix: params.delay_mix.load(Relaxed),
+                r#type: params.delay_type.load(Relaxed),
             }),
             flanger: Some(FlangerSection {
                 enabled: Some(params.fl_enabled.load(Relaxed)),
@@ -673,6 +684,8 @@ impl Preset {
                 Some("marshall") => CabModel::Marshall,
                 Some("orange") => CabModel::Orange,
                 Some("wem") => CabModel::Wem,
+                Some("vox") => CabModel::Vox,
+                Some("fender") => CabModel::Fender,
                 _ => CabModel::Mesa,
             };
             params.cab_model.store(cab_model as u8, Relaxed);
@@ -717,6 +730,7 @@ impl Preset {
                 .delay_feedback
                 .store(dly.feedback.clamp(0.0, 1.0), Relaxed);
             params.delay_mix.store(dly.mix.clamp(0.0, 1.0), Relaxed);
+            params.delay_type.store(dly.r#type.clamp(0.0, 1.0), Relaxed);
         } else {
             params.delay_enabled.store(false, Relaxed);
         }

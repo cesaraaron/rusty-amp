@@ -86,7 +86,7 @@ pub(super) const PH_END: usize = PH_START + 4;
 pub(super) const TREM_START: usize = PH_END;
 pub(super) const TREM_END: usize = TREM_START + 4;
 pub(super) const DELAY_START: usize = TREM_END;
-pub(super) const DELAY_END: usize = DELAY_START + 3;
+pub(super) const DELAY_END: usize = DELAY_START + 4;
 pub(super) const REV_START: usize = DELAY_END;
 pub(super) const REV_END: usize = REV_START + 3;
 
@@ -189,7 +189,7 @@ pub(super) const KNOBS: &[Knob] = &[
         label: "LEVEL",
         param: |p| &p.cmp_level,
     },
-    // 21–24: Fuzz (TYPE: 0 = Big Muff, 1 = Fuzz Face)
+    // 21–24: Fuzz (TYPE: 0 = Big Muff, 0.5 = Fuzz Face, 1 = Tone Bender)
     Knob {
         label: "TYPE",
         param: |p| &p.fz_type,
@@ -390,7 +390,7 @@ pub(super) const KNOBS: &[Knob] = &[
         label: "MODE",
         param: |p| &p.trem_mode,
     },
-    // 68–70: Delay
+    // 68–71: Delay (TYPE: 0 = digital ping-pong, 1 = tape)
     Knob {
         label: "TIME",
         param: |p| &p.delay_time,
@@ -403,7 +403,11 @@ pub(super) const KNOBS: &[Knob] = &[
         label: "MIX",
         param: |p| &p.delay_mix,
     },
-    // 71–73: Reverb
+    Knob {
+        label: "TYPE",
+        param: |p| &p.delay_type,
+    },
+    // 72–74: Reverb
     Knob {
         label: "ROOM",
         param: |p| &p.rev_room,
@@ -711,7 +715,7 @@ mod tests {
         // Deliberate tripwire: bump these when you add or remove a pedal/knob so
         // the change is a conscious, reviewed edit rather than an accident.
         assert_eq!(PEDALS.len(), 18, "pedal count changed");
-        assert_eq!(KNOBS.len(), 75, "knob count changed");
+        assert_eq!(KNOBS.len(), 76, "knob count changed");
     }
 
     #[test]

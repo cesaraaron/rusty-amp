@@ -1,5 +1,5 @@
 use super::ir::{self, Texture};
-use super::{BlendedCab, Cabinet};
+use super::{BlendedCab, CabLayout, Cabinet};
 use crate::dsp::biquad::Biquad;
 
 /// Marshall 4×12 with Celestion Greenback speakers, multi-mic'd.
@@ -147,7 +147,7 @@ impl MarshallCab {
             synth(&mut Self::voicing_room(sr), &ROOM_TEX_R),
         ];
         Self {
-            inner: BlendedCab::new(sr, irs),
+            inner: BlendedCab::new(sr, irs, CabLayout::FourByTwelve),
         }
     }
 

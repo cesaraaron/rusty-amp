@@ -2,11 +2,11 @@ use super::{OnePoleLp, param_changed};
 use crate::dsp::biquad::Biquad;
 use crate::dsp::oversample::Oversampler4;
 
-/// Big Muff–style fuzz simulation.
+/// Multi-voice fuzz pedal (Big Muff / Fuzz Face / Tone Bender MkII).
 ///
 /// Signal path:
 ///   DC block → input HP (~70 Hz) → [4× OS: two cascaded asymmetric soft-clip
-///   stages] → DC block → mid scoop → variable tone LP → level
+///   stages] → DC block → (Muff mid scoop) → variable tone LP → level
 ///
 /// Fuzz character & authenticity:
 ///   • A fuzz is far more saturated than an overdrive/distortion: it slams the
@@ -15,8 +15,13 @@ use crate::dsp::oversample::Oversampler4;
 ///     stages** inside the oversampler — one stage alone stays too "polite".
 ///   • The clipping is mildly **asymmetric**, which is what gives a fuzz its
 ///     spitty, gated edge and a touch of octave texture on the top.
-///   • The Big Muff's voice is **mid-scooped** — a fixed dip around 700 Hz gives
-///     the scooped, wall-of-sound timbre without depending on the tone knob.
+///   • **Big Muff** (TYPE low): mid-scooped — a fixed dip around 700 Hz gives the
+///     scooped, wall-of-sound timbre.
+///   • **Fuzz Face** (TYPE mid): lower gain into a softer, rounder germanium-style
+///     clip that keeps the midrange, so it cleans up and stays vocal.
+///   • **Tone Bender MkII** (TYPE high): Jimmy Page's Led Zeppelin fuzz — three
+///     germanium transistors running hotter and harder than a Fuzz Face, with a
+///     thicker, more compressed midrange bite (no scoop).
 ///   • The tone control is a simple dark→bright low-pass sweep, like the passive
 ///     tone stage feeding the output buffer.
 ///   • 4× oversampling is essential here: square-ish clipping is extremely rich
@@ -61,8 +66,10 @@ impl Fuzz {
         self.last_tone = tone;
     }
 
-    /// `fuzz` 0–1 (sustain/gain), `tone` 0–1, `level` 0–1, `kind` 0–1
-    /// (0 = Big Muff, 1 = Fuzz Face).
+    /// `fuzz` 0–1 (sustain/gain), `tone` 0–1, `level` 0–1, and `kind` 0–1
+    /// selecting the voicing: low = Big Muff, mid = Fuzz Face, high = Tone Bender
+    /// MkII (thresholds at 0.25 / 0.75 so the shipped presets' 0.0 and 0.5 map to
+    /// Muff and Fuzz Face).
     #[inline]
     pub fn process(&mut self, x: f32, fuzz: f32, tone: f32, level: f32, kind: f32) -> f32 {
         if param_changed(tone, self.last_tone) {
@@ -72,35 +79,68 @@ impl Fuzz {
         let x = self.dc_block.process(x);
         let x = self.input_hp.process(x);
 
-        // Two fuzz voicings share the pedal. The Big Muff slams the signal into
+        // Three fuzz voicings share the pedal. The Big Muff slams the signal into
         // cascaded near-square clippers and scoops the mids for its wall-of-sound;
         // the Fuzz Face runs a lower gain into a softer, rounder germanium-style
-        // clip and keeps the midrange, so it cleans up and stays vocal.
-        let fuzz_face = kind >= 0.5;
-        let (x, level_scalar) = if fuzz_face {
-            let gain = 1.0 + fuzz * 55.0;
-            let x = self.os.process(x, |u| {
-                let s = ff_clip(u * gain);
-                ff_clip(s * 1.7)
-            });
-            (x, 0.62)
+        // clip and keeps the midrange; the Tone Bender MkII drives a three-stage
+        // germanium chain harder still, for its thicker, more compressed bite.
+        let voice = if kind < 0.25 {
+            Voice::Muff
+        } else if kind < 0.75 {
+            Voice::FuzzFace
         } else {
-            // Enormous gain into the cascaded clippers — this is what makes it a fuzz
-            // rather than an overdrive.
-            let gain = 1.0 + fuzz * 120.0;
-            let x = self.os.process(x, |u| {
-                let s1 = fuzz_clip(u * gain);
-                fuzz_clip(s1 * 2.5)
-            });
-            (x, 0.5)
+            Voice::ToneBender
+        };
+        let (x, level_scalar) = match voice {
+            Voice::Muff => {
+                // Enormous gain into the cascaded clippers — this is what makes it a
+                // fuzz rather than an overdrive.
+                let gain = 1.0 + fuzz * 120.0;
+                let x = self.os.process(x, |u| {
+                    let s1 = fuzz_clip(u * gain);
+                    fuzz_clip(s1 * 2.5)
+                });
+                (x, 0.5)
+            }
+            Voice::FuzzFace => {
+                let gain = 1.0 + fuzz * 55.0;
+                let x = self.os.process(x, |u| {
+                    let s = ff_clip(u * gain);
+                    ff_clip(s * 1.7)
+                });
+                (x, 0.62)
+            }
+            Voice::ToneBender => {
+                // Hotter than the Fuzz Face and a touch harder-kneed: the MkII's
+                // third germanium stage pushes it into a thicker, more sustained
+                // clip while keeping the mids (no scoop).
+                let gain = 1.0 + fuzz * 90.0;
+                let x = self.os.process(x, |u| {
+                    let s1 = tb_clip(u * gain);
+                    let s2 = tb_clip(s1 * 2.1);
+                    tb_clip(s2 * 1.3)
+                });
+                (x, 0.55)
+            }
         };
 
         let x = self.post_dc.process(x);
-        // The Big Muff's fixed mid scoop; the Fuzz Face keeps its mids.
-        let x = if fuzz_face { x } else { self.scoop.process(x) };
+        // Only the Big Muff scoops; the Fuzz Face and Tone Bender keep their mids.
+        let x = match voice {
+            Voice::Muff => self.scoop.process(x),
+            _ => x,
+        };
 
         self.tone.process(x) * level * level_scalar
     }
+}
+
+/// The three fuzz voicings the `TYPE` control switches between.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Voice {
+    Muff,
+    FuzzFace,
+    ToneBender,
 }
 
 /// Asymmetric soft clipper for the fuzz gain stages.
@@ -128,6 +168,18 @@ fn ff_clip(x: f32) -> f32 {
         (0.7 * x).tanh() / 0.7
     } else {
         0.8 * (0.9 * x / 0.8).tanh()
+    }
+}
+
+/// Tone Bender MkII clipper. The MkII runs a third germanium transistor, so it
+/// clips harder and with a sharper knee than a Fuzz Face, but keeps a little
+/// positive/negative asymmetry for the even-harmonic grit that makes it sing.
+#[inline]
+fn tb_clip(x: f32) -> f32 {
+    if x >= 0.0 {
+        (1.15 * x).tanh() / 1.15
+    } else {
+        0.82 * ((x * 1.1) / 0.82).tanh()
     }
 }
 
@@ -167,29 +219,48 @@ mod tests {
         assert!(dc < 0.02, "fuzz has DC offset: {dc}");
     }
 
-    /// The Fuzz Face voicing must stay finite and bounded, and must sound
-    /// genuinely different from the Big Muff (different gain structure and no mid
-    /// scoop) — a preset switching `type` has to hear a change.
+    /// The Fuzz Face and Tone Bender voicings must stay finite and bounded, and
+    /// each must sound genuinely different from the Big Muff and from each other
+    /// (different gain structure and mid handling) — a preset switching `type` has
+    /// to hear a change.
     #[test]
-    fn fuzz_face_voicing_is_distinct_and_bounded() {
+    fn fuzz_voicings_are_distinct_and_bounded() {
         let sr = 48_000.0;
         let mut muff = Fuzz::new(sr);
         let mut face = Fuzz::new(sr);
-        let mut max_abs = 0.0f32;
-        let mut diff = 0.0f32;
+        let mut bender = Fuzz::new(sr);
+        let mut max_face = 0.0f32;
+        let mut max_bender = 0.0f32;
+        let mut diff_face = 0.0f32;
+        let mut diff_bender = 0.0f32;
         for n in 0..(sr as usize) {
             let x = (2.0 * PI * 110.0 * n as f32 / sr).sin() * 0.7;
             let a = muff.process(x, 0.8, 0.5, 0.7, 0.0);
-            let b = face.process(x, 0.8, 0.5, 0.7, 1.0);
-            assert!(b.is_finite(), "fuzz face non-finite at {n}");
-            max_abs = max_abs.max(b.abs());
-            diff += (a - b).abs();
+            let b = face.process(x, 0.8, 0.5, 0.7, 0.5);
+            let c = bender.process(x, 0.8, 0.5, 0.7, 1.0);
+            assert!(b.is_finite() && c.is_finite(), "fuzz non-finite at {n}");
+            max_face = max_face.max(b.abs());
+            max_bender = max_bender.max(c.abs());
+            diff_face += (a - b).abs();
+            diff_bender += (a - c).abs();
         }
-        assert!(max_abs <= 2.0, "fuzz face output unbounded: {max_abs}");
-        assert!(max_abs > 0.05, "fuzz face output too quiet: {max_abs}");
+        assert!(max_face <= 2.0, "fuzz face output unbounded: {max_face}");
         assert!(
-            diff / sr > 0.05,
+            max_bender <= 2.0,
+            "tone bender output unbounded: {max_bender}"
+        );
+        assert!(max_face > 0.05, "fuzz face output too quiet: {max_face}");
+        assert!(
+            max_bender > 0.05,
+            "tone bender output too quiet: {max_bender}"
+        );
+        assert!(
+            diff_face / sr > 0.05,
             "fuzz face voicing barely differs from the Muff"
+        );
+        assert!(
+            diff_bender / sr > 0.05,
+            "tone bender voicing barely differs from the Muff"
         );
     }
 }

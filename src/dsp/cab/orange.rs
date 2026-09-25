@@ -1,5 +1,5 @@
 use super::ir::{self, Texture};
-use super::{BlendedCab, Cabinet};
+use super::{BlendedCab, CabLayout, Cabinet};
 use crate::dsp::biquad::Biquad;
 
 /// Orange PPC412 4×12 with Celestion Vintage 30 speakers, multi-mic'd.
@@ -152,7 +152,7 @@ impl OrangeCab {
             synth(&mut Self::voicing_room(sr), &ROOM_TEX_R),
         ];
         Self {
-            inner: BlendedCab::new(sr, irs),
+            inner: BlendedCab::new(sr, irs, CabLayout::FourByTwelve),
         }
     }
 

@@ -19,11 +19,11 @@ attack  = 0.30
 level   = 0.52
 
 # ── Fuzz Face ─────────────────────────────────────────────────────────────────
-# The Time solo is a Fuzz Face, not a Muff: type 1 selects the softer, mid-rich
+# The Time solo is a Fuzz Face, not a Muff: type 0.5 selects the softer, mid-rich
 # voicing. Gritty and vocal with the tone up so it snarls instead of smoothing over.
 [fuzz]
 enabled = true
-type    = 1.0   # 0 = Big Muff, 1 = Fuzz Face
+type    = 0.5   # 0 = Big Muff, 0.5 = Fuzz Face, 1 = Tone Bender
 fuzz    = 0.55
 tone    = 0.62
 level   = 0.55

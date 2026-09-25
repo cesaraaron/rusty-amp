@@ -20,10 +20,10 @@ level   = 0.50
 
 # ── Fuzz Face ─────────────────────────────────────────────────────────────────
 # Off. The isolated chorus is clean — no fuzz fur, just the amp and pedals.
-# type 1 = Fuzz Face; values retained so it can be dialled back in.
+# type 0.5 = Fuzz Face; values retained so it can be dialled back in.
 [fuzz]
 enabled = false
-type    = 1.0   # 0 = Big Muff, 1 = Fuzz Face
+type    = 0.5   # 0 = Big Muff, 0.5 = Fuzz Face, 1 = Tone Bender
 fuzz    = 0.25
 tone    = 0.62
 level   = 0.50

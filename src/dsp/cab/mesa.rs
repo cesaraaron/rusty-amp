@@ -1,5 +1,5 @@
 use super::ir::{self, Texture};
-use super::{BlendedCab, Cabinet};
+use super::{BlendedCab, CabLayout, Cabinet};
 use crate::dsp::biquad::Biquad;
 
 /// Mesa/Boogie 4×12 with Celestion Vintage 30 speakers, multi-mic'd.
@@ -166,7 +166,7 @@ impl MesaCab {
             synth(&mut Self::voicing_room(sr), &ROOM_TEX_R),
         ];
         Self {
-            inner: BlendedCab::new(sr, irs),
+            inner: BlendedCab::new(sr, irs, CabLayout::FourByTwelve),
         }
     }
 

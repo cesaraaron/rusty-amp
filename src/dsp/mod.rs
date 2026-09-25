@@ -141,6 +141,8 @@ pub enum CabModel {
     Marshall = 1,
     Orange = 2,
     Wem = 3,
+    Vox = 4,
+    Fender = 5,
 }
 
 impl CabModel {
@@ -149,6 +151,8 @@ impl CabModel {
             1 => Self::Marshall,
             2 => Self::Orange,
             3 => Self::Wem,
+            4 => Self::Vox,
+            5 => Self::Fender,
             _ => Self::Mesa,
         }
     }
@@ -160,6 +164,8 @@ impl CabModel {
             Self::Marshall => "Marshall 4×12 (GB)",
             Self::Orange => "Orange PPC412 (V30)",
             Self::Wem => "WEM 4×12 (Fane)",
+            Self::Vox => "Vox 2×12 (Alnico Blue)",
+            Self::Fender => "Fender 2×12 (Jensen)",
         }
     }
 
@@ -169,6 +175,8 @@ impl CabModel {
             Self::Marshall => "MARSH GB",
             Self::Orange => "ORANGE",
             Self::Wem => "WEM FANE",
+            Self::Vox => "VOX BLUE",
+            Self::Fender => "FENDER 12",
         }
     }
 
@@ -177,13 +185,22 @@ impl CabModel {
             Self::Mesa => Self::Marshall,
             Self::Marshall => Self::Orange,
             Self::Orange => Self::Wem,
-            Self::Wem => Self::Mesa,
+            Self::Wem => Self::Vox,
+            Self::Vox => Self::Fender,
+            Self::Fender => Self::Mesa,
         }
     }
 
     /// All models in picker order — the single source for the cab modal,
     /// cursor init, and tests.
-    pub const ALL: [Self; 4] = [Self::Mesa, Self::Marshall, Self::Orange, Self::Wem];
+    pub const ALL: [Self; 6] = [
+        Self::Mesa,
+        Self::Marshall,
+        Self::Orange,
+        Self::Wem,
+        Self::Vox,
+        Self::Fender,
+    ];
 }
 
 /// One slot in the reorderable signal chain: the 10 pre pedals (mono DSP),
@@ -502,6 +519,8 @@ const DEFAULT_DELAY_ENABLED: bool = false;
 const DEFAULT_DELAY_TIME: f32 = 0.30;
 const DEFAULT_DELAY_FEEDBACK: f32 = 0.40;
 const DEFAULT_DELAY_MIX: f32 = 0.30;
+// 0 = digital ping-pong, 1 = tape (Echoplex-style).
+const DEFAULT_DELAY_TYPE: f32 = 0.0;
 
 const DEFAULT_FL_ENABLED: bool = false;
 const DEFAULT_FL_RATE: f32 = 0.30;
@@ -656,6 +675,7 @@ pub struct Params {
     pub delay_time: Arc<AtomicF32>,
     pub delay_feedback: Arc<AtomicF32>,
     pub delay_mix: Arc<AtomicF32>,
+    pub delay_type: Arc<AtomicF32>,
 
     // Flanger (stereo rack, post-cab modulation)
     pub fl_enabled: Arc<AtomicBool>,
@@ -805,6 +825,7 @@ impl Params {
             delay_time: p!(DEFAULT_DELAY_TIME),
             delay_feedback: p!(DEFAULT_DELAY_FEEDBACK),
             delay_mix: p!(DEFAULT_DELAY_MIX),
+            delay_type: p!(DEFAULT_DELAY_TYPE),
 
             fl_enabled: b!(DEFAULT_FL_ENABLED),
             fl_rate: p!(DEFAULT_FL_RATE),
@@ -935,6 +956,7 @@ impl Params {
         self.delay_time.store(DEFAULT_DELAY_TIME, Relaxed);
         self.delay_feedback.store(DEFAULT_DELAY_FEEDBACK, Relaxed);
         self.delay_mix.store(DEFAULT_DELAY_MIX, Relaxed);
+        self.delay_type.store(DEFAULT_DELAY_TYPE, Relaxed);
 
         self.fl_enabled.store(DEFAULT_FL_ENABLED, Relaxed);
         self.fl_rate.store(DEFAULT_FL_RATE, Relaxed);
@@ -1430,7 +1452,8 @@ impl DspChain {
                 delay,
                 delay_time,
                 delay_feedback,
-                delay_mix
+                delay_mix,
+                delay_type
             ),
             ChainStage::Reverb => {
                 stereo_stage!(

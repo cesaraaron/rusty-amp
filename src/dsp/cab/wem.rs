@@ -1,5 +1,5 @@
 use super::ir::{self, Texture};
-use super::{BlendedCab, Cabinet};
+use super::{BlendedCab, CabLayout, Cabinet};
 use crate::dsp::biquad::Biquad;
 
 /// WEM 4×12 loaded with Fane Crescendo speakers, multi-mic'd.
@@ -154,7 +154,7 @@ impl WemCab {
             synth(&mut Self::voicing_room(sr), &ROOM_TEX_R),
         ];
         Self {
-            inner: BlendedCab::new(sr, irs),
+            inner: BlendedCab::new(sr, irs, CabLayout::FourByTwelve),
         }
     }
 
