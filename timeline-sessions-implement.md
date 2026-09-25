@@ -67,7 +67,7 @@ metronome are monitor-only.
 - The take bus is processed by a **second `DspChain`** with independent state.
 - Raw capture is **dry** (pre-gate/pedals/amp), pushed into an `rtrb` ring by the
   callback and drained by a writer worker to a mono float WAV under
-  `~/.config/rusty-amp/recovery/<session-temp-id>/`.
+  `~/.config/rusty-riff/recovery/<session-temp-id>/`.
 - `R` arms a new row (auto-plays if paused) / stops; loop out-point auto-stops
   capture **before** wrap. Stale worker results are rejected by generation.
 - Scrollable timeline rows, import-at-playhead (`B`), `+`/`-` seek step,
@@ -81,7 +81,7 @@ metronome are monitor-only.
   reports that takes fall back to the built-in rig.
 
 ### Persistence — sessions
-- A session is a portable folder `~/.config/rusty-amp/sessions/<name>/`:
+- A session is a portable folder `~/.config/rusty-riff/sessions/<name>/`:
   `session.toml`, `audio/track-<id>.<ext>`, `irs/cabinet.<ext>`.
 - `J` opens the browser: `N` new, `S` save, `A` save as, `Enter` load, `D` delete.
 - Save copies imported originals + dry takes into `audio/`, the active IR into
@@ -208,9 +208,9 @@ Abandoned dry takes are now discoverable and restorable (§7):
 - UI snapshots (insta): `src/ui/snapshots/` — update deliberately with
   `INSTA_UPDATE=always cargo test` or `cargo insta review`.
 - CI commands: `cargo fmt --all -- --check`,
-  `cargo clippy --all-targets --all-features -- -D warnings`, `cargo test`,
-  and `npm run build` in `site/`. `cargo build --release` and
-  `cargo check --no-default-features` are also kept green.
+  `cargo clippy --all-targets --all-features -- -D warnings`, `cargo test`.
+  `cargo build --release` and `cargo check --no-default-features` are also kept
+  green.
 
 ### Verification status
 
@@ -219,7 +219,6 @@ Abandoned dry takes are now discoverable and restorable (§7):
 | `cargo fmt --check` / `clippy -D warnings` / `cargo test` (292 tests) | green |
 | `cargo build --release` (macOS, `clap`+`au`+`pipewire`) | green |
 | `cargo check --no-default-features` | green |
-| `npm run build` (`site/`) | green |
 | Hardware monitoring, loop-aligned capture, twin/export plugin CPU, device change | **not yet run** — needs `cargo run --release` on real hardware |
 - **Hardware-only checks (not automated):** real audio monitoring, capture
   alignment under a loop, plugin CPU with twin instances, device changes.

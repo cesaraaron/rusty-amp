@@ -8,10 +8,17 @@ missing. Evidence for historical gear claims lives in
 before reviewing or continuing. (This file was formerly
 `IMPLEMENTATION-NOTES.md`.)
 
+> **De-fork note (2026-09-25).** This repository is a modified fork renamed
+> **rusty-riff**. The Eleventy docs site (`site/`) that earlier entries below
+> reference was removed in the cleanup; current documentation is the README,
+> `CONTRIBUTING.md`, and the in-app `K` help. Historical `site/*` mentions below
+> describe what those past commits did at the time.
+
 ## Status
 
 | Area | State | Where |
 | --- | --- | --- |
+| De-fork cleanup — docs site removed, project renamed `rusty-riff` | **Done** | increment log |
 | Phase 1 — bypass transparency, order snapshot, route tests, studio-master width | **Done** (see review: the order snapshot needs A1) | below |
 | Phase 2 items 1–4 — Amp/Cab split, migration, UI | **Done** | below |
 | Phase 2 item 5 — real preamp/loop/power-amp split | Not started | plan Phase 2.5 |
@@ -248,7 +255,7 @@ finding **resolved** here, with the commit, when its item ships.
 | --- | --- | --- | --- | --- | --- |
 | R1 | **High** | The chain-order seqlock reader spins without bound on the audio thread while a writer holds the sequence odd; a preempted UI writer stalls the callback. Single-writer is assumed, not enforced. | `Params::chain_slots` / `set_chain_order`, `src/dsp/mod.rs` ~1110–1140; called from `process` / `process_block` | A1 | open |
 | R2 | Medium | Routing state is read at inconsistent rates: `use_ext_amp` per block, but the Cab stage's `ext_amp_supplies_cab()` per sample. A mid-block AU toggle can run the built-in amp with no cab for the rest of the block. `process()` never runs the AU yet skips the cab when a full-rig AU is flagged active. | `process_block` ~1697 vs `run_ordered_stage` ~1605; `ext_amp_supplies_cab` ~1379 | A2 | open |
-| R3 | Low | With a **full-rig** AU, stages placed between AMP and CAB process the AU's already-miked output, not a line-level signal; the docs describe that region only as "virtual load box". | `run_ordered_stage` Cab arm; `site/plugins.md`, `site/how-it-works.md` | A4 | open |
+| R3 | Low | With a **full-rig** AU, stages placed between AMP and CAB process the AU's already-miked output, not a line-level signal; the docs describe that region only as "virtual load box". | `run_ordered_stage` Cab arm; README and in-app `K` help | A4 | open |
 | R4 | Low | `amp_stage` doc says it is bypassed when an external amp is active (only `process_block` does that); comments still say "19 byte stores" although `CHAIN_LEN = 20`. | `src/dsp/mod.rs` ~1107, ~1386 | A1, A2 | open |
 | R5 | Low | Relative links in `docs/fidelity-references.md` pointed at `plan.md` / `IMPLEMENTATION-NOTES.md` inside `docs/` (files that do not exist there). | `docs/fidelity-references.md` lines 3, 27, 86, 164 | Doc reorganization (this commit) | **resolved** |
 | R6 | Low | The determinism test fingerprint omits amp knobs, fuzz/delay `type`, and knob values of enabled stages, so it would not catch a regression there (loading is currently correct: `apply` resets amp knobs to model defaults and serde defaults the types). | `rig_fingerprint`, `src/preset.rs` ~967 | A3 | open |
@@ -307,7 +314,13 @@ Append one row per commit from Workstreams A/B onward.
 
 | Commit | Item | Summary | Tests | Deviations |
 | --- | --- | --- | --- | --- |
-| _(this commit)_ | docs | Renamed `plan.md` → `fidelity-plan.md`, `IMPLEMENTATION-NOTES.md` → `fidelity-implement.md`; added Workstreams A/B to the plan and this review; fixed links (R5). | n/a | — |
+| `e77b04d` | docs | Renamed `plan.md` → `fidelity-plan.md`, `IMPLEMENTATION-NOTES.md` → `fidelity-implement.md`; added Workstreams A/B to the plan and this review; fixed links (R5). | n/a | — |
+| `a100885` | chore | Removed the Eleventy docs site (`site/`), `.eleventy.js`, `package.json`, and the Pages workflow; kept `demo.gif`/`screenshot.png` as `assets/`. | n/a | site docs retired |
+| `d6b8b53` | refactor | Renamed the crate/binary, config dir, CLAP host id, workspace file, release assets, and UI snapshots from `rusty-amp` to `rusty-riff`; added a one-time `~/.config/rusty-amp` → `~/.config/rusty-riff` migration. | `cargo test --all-features` (snapshot re-blessed) | — |
+| `5c0fa6f` | docs | Replaced the README with a rusty-riff version; added `NOTICE` crediting the original project. | n/a | — |
+| `26359e2` | docs | Rewrote `CONTRIBUTING.md` as local development notes (no fork/PR/site flow). | n/a | — |
+| `3a13c5f` | docs | Updated and renamed `Agents.md` → `AGENTS.md`; dropped the docs-site section and old config paths. | n/a | — |
+| `52d3195` | docs | Rewrote `.claude/skills/add-*` without the docs-site steps or PR flow. | n/a | — |
 
 ---
 
@@ -348,8 +361,9 @@ replace the Twin's generic Freeverb "spring".
 ### Phase 5 — rebuild bundled presets
 
 Use the Phase 0 matrix; start sparse and add only source-backed effects.
-`site/presets.md` descriptions claiming a session rig must be updated to match
-the enabled signal path in the same change.
+Preset descriptions claiming a session rig must be updated to match
+the enabled signal path in the same change (now in the README and the preset
+`description` fields).
 
 No historical/session claim in this repository should be treated as verified by
 the Phase 1–2 work here; only the routing, topology, and documentation defects
@@ -363,7 +377,6 @@ above were addressed.
 cargo fmt --check
 cargo clippy --all-targets --all-features -- -D warnings
 cargo test --all-features
-cd site && npm run build
 ```
 
 All tests pass (262 at the time of writing). The routing/topology fixes are

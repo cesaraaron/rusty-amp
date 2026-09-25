@@ -40,7 +40,7 @@ Status: implementation plan, not a claim that the existing presets reproduce the
 | Echo/reverb | Delay has digital ping-pong and EP-3-style single-time tape modes (`src/dsp/effects/delay.rs`); many Pink Floyd preset comments call the latter *Echorec-style*. Twin onboard "spring" invokes the generic Freeverb implementation (`src/dsp/amp/fender.rs` and `src/dsp/effects/reverb.rs`). | Binson Echorec (magnetic drum/multiple selectable heads), Echoplex tape, spring tank, and digital/studio hall are different devices. Implement distinct modes where evidence and sonic impact justify them; otherwise label current ones as approximations. Avoid using an extra hall as a substitute for a spring without an audible reason. |
 | TS-808 documentation | The prose in `src/dsp/effects/tube_screamer.rs` describes a ~60 Hz input coupling high-pass while its constructor instantiates a **340 Hz** high-pass. | Measure/verify the actual passband and circuit-derived frequency, reconcile code and docs, then retune. This is a candidate cause of preset pre/post-EQ compensation; do not assume either number is correct without hardware/reference data. |
 | Output bus | `master_bus` applies fixed 1.3× mid/side widening and a soft limiter after the rack/plugin (`src/dsp/mod.rs`). | An always-on widener is a studio aesthetic rather than part of a historical guitar → amp → mic rig. Add a neutral or controllable reference mode, avoid unexpected mono changes, and assess limiter operation at level-matched settings. Keep a protective output ceiling. |
-| Preset application | `src/preset.rs` requires `[tube_screamer]`, `[amp]`, `[reverb]`. Most omitted optional effects turn **off** on apply, but omitted `[noise_gate]` and `[cabinet]` retain prior settings; `[chain]` absent resets the order. The docs' broad claim that omitted sections leave current settings unchanged is inaccurate. | Make bundled tones deterministic regardless of the previously loaded preset, while retaining documented compatibility for existing user TOML. Clarify omit/disable semantics in `site/presets.md`; add repeatability tests. Fewer enabled pedals need not imply huge TOML files: off sections may be omitted where safe. |
+| Preset application | `src/preset.rs` requires `[tube_screamer]`, `[amp]`, `[reverb]`. Most omitted optional effects turn **off** on apply, but omitted `[noise_gate]` and `[cabinet]` retain prior settings; `[chain]` absent resets the order. The docs' broad claim that omitted sections leave current settings unchanged is inaccurate. | Make bundled tones deterministic regardless of the previously loaded preset, while retaining documented compatibility for existing user TOML. Clarify omit/disable semantics in the README and in-app help; add repeatability tests. Fewer enabled pedals need not imply huge TOML files: off sections may be omitted where safe. |
 
 ### Order-of-operations caveats
 
@@ -118,16 +118,16 @@ Use the Phase 0 evidence matrix to decide what is on each recording, *including 
 | `led_zeppelin_stairway_solo.toml`, `led_zeppelin_whole_lotta_love.toml` | Verify session amp, guitar, cabinet, and use (or absence) of Tone Bender, TS, slap delay and compression **per track**. In particular, `stairway_solo` describes a "small-amp" voice while selecting a Plexi/Greenback 4×12 and a TS boost; resolve source evidence before changing the preset. |
 | `eagles_hotel_california_clean.toml`, `eagles_hotel_california_solo.toml` | Verify clean/lead amp and guitar parts in the recorded multi-guitar arrangement; the current clean preset layers onboard "spring", chorus, digital delay and rack reverb, and the lead uses compressor + TS + two EQs. A single mono preset cannot reproduce two separately recorded/harmonized lead performances. |
 
-For every edited preset: list only intended enabled effects, explicitly set any persistent state needed for deterministic loading, use `[chain]` only if deviating from default, set amp-specific `[amp.knobs]` where necessary, verify unit/range meanings (especially echo times and fuzz `type`), and replace overconfident "real rig" claims with sourced or qualified language. Update the bundled-presets table and TOML examples in `site/presets.md` in the same change.
+For every edited preset: list only intended enabled effects, explicitly set any persistent state needed for deterministic loading, use `[chain]` only if deviating from default, set amp-specific `[amp.knobs]` where necessary, verify unit/range meanings (especially echo times and fuzz `type`), and replace overconfident "real rig" claims with sourced or qualified language. Update the bundled-presets documentation (README) and any TOML examples in the same change.
 
 **Gate:** loading any bundled preset after any other bundled preset gives the same full rig; its description matches its enabled signal path; a listener can turn off each optional effect and identify why it was included.
 
 ## Cross-cutting compatibility, docs, and verification
 
-- Keep old preset files and saved knob values loadable. `ampcab` migration, `type` enums, model names, absent `[chain]`, amp-specific knobs and mic settings need explicit regression fixtures. Don't accidentally override user work or personal presets under `~/.config/rusty-amp/presets/`.
-- Update `site/how-it-works.md`, `site/pedals.md`, `site/amps-cabs.md`, `site/presets.md`, `site/plugins.md`, `site/getting-started.md`, and `site/tools.md` whenever the relevant routing/claims/UI change; refresh other site copy/examples as necessary. Follow `AGENTS.md` and `CONTRIBUTING.md`: model/control/preset changes require docs in the same PR.
+- Keep old preset files and saved knob values loadable. `ampcab` migration, `type` enums, model names, absent `[chain]`, amp-specific knobs and mic settings need explicit regression fixtures. Don't accidentally override user work or personal presets under `~/.config/rusty-riff/presets/`.
+- Update the README, `CONTRIBUTING.md`, and the in-app `K` help whenever the relevant routing/claims/UI change. Follow `AGENTS.md` and `CONTRIBUTING.md`: model/control/preset changes should update those docs in the same commit. (The Eleventy docs site was removed in the de-fork cleanup — there is no website to update.)
 - Verify block and single-sample paths where applicable, AU full-rig vs amp-only mode, external IR, CLAP insert, recording tap versus monitor-only practice buses, tuner bypass, mono fold-down, output peak safety, and live parameter/model switches. Maintain preallocation, lock-free control handoff, and stateful filters/sag; do not free displaced IRs/plugins on the callback.
-- Run targeted tests after each phase, then `cargo test`, `cargo fmt --check`, and the repository's normal Clippy checks on relevant feature combinations; build the docs with `npm run build` in `site/`. Perform audio/performance evaluation using a release build (`cargo run --release`) and real interface hardware when available. Repeat broad checks only when later work changes covered code.
+- Run targeted tests after each phase, then `cargo test`, `cargo fmt --check`, and the repository's normal Clippy checks on relevant feature combinations. Perform audio/performance evaluation using a release build (`cargo run --release`) and real interface hardware when available. Repeat broad checks only when later work changes covered code.
 
 ## Suggested delivery sequence
 
@@ -164,7 +164,7 @@ Global rules for every commit in this section:
   thread.
 - Every commit passes: `cargo fmt --check`,
   `cargo clippy --all-targets --all-features -- -D warnings`,
-  `cargo test --all-features`, and (when `site/` changed) `cd site && npm run build`.
+  `cargo test --all-features`.
 - Clippy denies `unwrap`/`expect`/`panic`/`exit` in non-test code: use `?`,
   `unwrap_or_else`, and `anyhow` errors (examples return `anyhow::Result<()>` from
   `main` instead of calling `std::process::exit`).
@@ -324,8 +324,8 @@ would not catch a regression in any of those.
 
 #### A4. Document what "between AMP and CAB" means with a full-rig AU
 
-**Changes:** `site/plugins.md` and `site/how-it-works.md` — one short
-paragraph each: with an **amp-only** AU (or the built-in amp), stages between
+**Changes:** the README and the in-app `K` help — one short
+paragraph: with an **amp-only** AU (or the built-in amp), stages between
 AMP and CAB are line-level/virtual-load-box processing; with a **full-rig** AU
 the CAB stage is skipped, so those stages process the AU's *already-miked*
 output (equivalent to post-cab). Add the same caveat to the `[ / ]` row of the
@@ -469,7 +469,7 @@ cargo run --release --example fidelity_render -- [OPTIONS]
   --presets all | <stem>[,<stem>…]   bundled presets from ./presets (default: all)
   --synth                             use analysis::synth::corpus (default if no --di)
   --di <dir>                          user DI corpus with manifest.toml
-                                      (default dir: ~/.config/rusty-amp/fidelity/di/)
+                                      (default dir: ~/.config/rusty-riff/fidelity/di/)
   --sr <hz>                           render rate (default 48000)
   --out <dir>                         default: target/fidelity/<unix-seconds>/
   --width preset | <float>            keep preset master width or override (e.g. 1.0)
@@ -488,7 +488,7 @@ cargo run --release --example fidelity_render -- [OPTIONS]
 file              = "strat_neck_bends.wav"
 guitar            = "Strat, neck single-coil"
 pickup            = "single_coil"     # single_coil | p90 | humbucker
-calibrated        = true              # recorded through rusty-amp after `N` calibration
+calibrated        = true              # recorded through rusty-riff after `N` calibration
 trim_db           = 0.0               # extra trim applied by the harness if not calibrated
 reference_version = 1
 content           = ["lead", "bends", "sustain"]
@@ -498,7 +498,7 @@ notes             = "Gilmour-style phrasing, guitar vol 10"
 The harness warns when a DI's `reference_version` differs from the current
 `REFERENCE_VERSION` or `calibrated = false` with `trim_db = 0`.
 
-**How to record a DI with rusty-amp itself** (document in `site/tools.md`):
+**How to record a DI with rusty-riff itself** (document in the README):
 calibrate (`N`), press `R` to record a dry take, save the session (`J`); the
 take WAV in the session folder is a calibrated DI — copy it into the DI dir and
 add a manifest entry.
@@ -649,7 +649,7 @@ when calibrated, `IN uncal` otherwise, and a red `CLIP` while `raw_clip` is set
 (cleared after ~1 s by the UI). Re-bless insta snapshots and mention it in the
 commit message.
 
-#### B5. Persistence — `~/.config/rusty-amp/input-calibration.toml`
+#### B5. Persistence — `~/.config/rusty-riff/input-calibration.toml`
 
 In `src/audio/calibration.rs` (control-thread functions):
 
@@ -698,7 +698,7 @@ malformed file ⇒ `None`, no panic.
   `src/ui/practice.rs`): read `calibration.trim_db` (unchanged during the take,
   because the wizard refuses to open while recording) and `REFERENCE_VERSION`
   (or `None` when uncalibrated, i.e. trim 0 and no saved entry).
-- Recovery takes (`~/.config/rusty-amp/recovery`) carry no metadata today; leave
+- Recovery takes (`~/.config/rusty-riff/recovery`) carry no metadata today; leave
   them `None` and note it.
 - Timeline row: show a dim `uncal` tag for raw takes with `input_trim_db == None`.
 - Tests: manifest round-trip with and without the fields; an old manifest (no
@@ -706,13 +706,14 @@ malformed file ⇒ `None`, no panic.
 
 #### B7. Documentation
 
-- `site/getting-started.md`: new section "Calibrate your input level" (why,
-  steps, pickup classes, what "uncal" means, how to recalibrate after changing
-  interface gain).
-- `site/tools.md`: "Fidelity harness" (commands above, DI manifest, recording a
-  DI with `R`, reading `report.toml`, ABX workflow, baseline check).
-- `site/how-it-works.md`: an "Input conditioning" box before the noise gate.
-- Help modal: `N` row. `Agents.md`: add `src/analysis/`,
+- README: new section "Calibrate your input level" (why, steps, pickup
+  classes, what "uncal" means, how to recalibrate after changing interface
+  gain).
+- README / `CONTRIBUTING.md`: "Fidelity harness" (commands above, DI manifest,
+  recording a DI with `R`, reading `report.toml`, ABX workflow, baseline check).
+- README: an "Input conditioning" note before the noise gate in the
+  signal-chain description.
+- Help modal: `N` row. `AGENTS.md`: add `src/analysis/`,
   `src/audio/calibration.rs`, and `examples/fidelity_render.rs` to the module
   table and the sound-analysis tools list.
 - `docs/fidelity-references.md`: in the source-log template, the

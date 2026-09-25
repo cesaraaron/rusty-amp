@@ -117,7 +117,7 @@ Replace the fixed 10-row, two-track pane in `src/ui/practice.rs` and its `Constr
 
 ## 7. Session storage and restore contract
 
-Session means a **project**, not a preset or an already rendered WAV. Proposed default location: `~/.config/rusty-amp/sessions/<session-name>/`, with a path picker for Save As/Open. A portable folder may have this shape (names illustrative):
+Session means a **project**, not a preset or an already rendered WAV. Proposed default location: `~/.config/rusty-riff/sessions/<session-name>/`, with a path picker for Save As/Open. A portable folder may have this shape (names illustrative):
 
 ```text
 my-session/
@@ -175,7 +175,7 @@ muted = false
 - On load, parse and validate version, project rate, loop/order, IDs, asset paths and existence; decode/resample/assets and prepare plugin/IR instances off-thread; then replace the active session coherently. A failure should keep the previous working session. Reset effect playback state at the new session boundary, seek to the saved playhead, and **load paused** even if transport was playing when saved, unless users explicitly opt into auto-play. Restore track selection/panel UI if useful, but treat appearance as secondary to audio/project data.
 - If a required AU/CLAP binary or plugin state is unavailable, report which one is missing and what was not restored; never display an external rig as active if its processor is absent. The raw project audio still loads, so the user can resolve it or switch to a built-in rig deliberately.
 - Sessions should restore the selected loaded IR, whether it was active, full-rig versus amp-only AU routing, plugin insert, and all available control values. A standalone preset load may replace rig settings within the session but must not delete/move its tracks. Changing audio devices must not erase the session, including a partly recovered one.
-- Recovery location proposal: `~/.config/rusty-amp/recovery/<temporary-session-id>/`. Store dry audio plus minimal metadata (track ID, start tick, source rate, frame count, capture health). Offer a recovery prompt or browser entry on next launch; a user may choose restore, save into a session, or discard. Only garbage-collect after explicit discard or verified incorporation into a durable project.
+- Recovery location proposal: `~/.config/rusty-riff/recovery/<temporary-session-id>/`. Store dry audio plus minimal metadata (track ID, start tick, source rate, frame count, capture health). Offer a recovery prompt or browser entry on next launch; a user may choose restore, save into a session, or discard. Only garbage-collect after explicit discard or verified incorporation into a durable project.
 
 ## 8. Work packages and file map
 
@@ -185,7 +185,7 @@ muted = false
 4. **Take/live render split:** use separate per-bus `DspChain` instances, including external amp/IR/insert when active, and a common control snapshot. Profile the cost, synchronization and exact mixing order.
 5. **Timeline UI:** refactor `src/ui/practice.rs`, `src/ui/mod.rs`, `src/ui/draw.rs` (and relevant navigation helpers) for unbounded-looking, bounded/scrollable rows, per-track controls, seek-step choices and export/session modals. Keep existing preset keys and plugin browsers functional.
 6. **Offline export + plugin restore:** add an exporter module/worker, refactor `src/host/{clap_host,au}.rs` and `src/ui/{plugins,amp_plugins,ir_browser}.rs` to expose stable identities and restorable state. Use the same routing rules as live take playback; fail visibly if equivalence cannot be guaranteed.
-7. **Docs:** update `site/tools.md`, `site/getting-started.md`, `site/presets.md` (preset vs session meaning), `site/plugins.md` (plugin/session/export behavior), and the recording widget in `site/assets/site.js`; update help text and UI snapshots with the new bindings.
+7. **Docs:** update the README and the in-app `K` help (preset vs session meaning, plugin/session/export behavior, and the new bindings); update UI snapshots.
 
 Suggested delivery order: establish the session/clock model and playback track IDs; add safe raw capture; integrate the take bus and dynamic UI; add session/recovery persistence; finish offline export and plugin-state parity; update docs/tests with each increment. The branch is feature work, so intermediate patches may be reviewed separately, but the final user flow is incomplete until export and save/load round-trip together.
 
@@ -199,7 +199,7 @@ Suggested delivery order: establish the session/clock model and playback track I
 6. Save a project, quit, reopen on a different audio device/sample rate, then compare track times, gains, loop, metronome, seek step, rig settings and export. Test a missing import, unavailable plug-in, interrupted save, corrupt manifest, and recoverable abandoned take without destroying a previously loaded session.
 7. Validate export against built-in, external IR, amp-only/full-rig AU, and CLAP setups with saved parameter settings; show an actionable error if a plugin cannot be faithfully restored. Check latency and tails on repeated exports and when changing knobs during a render.
 8. Test large-file/many-track memory bounds, audio CPU/latency at 44.1/48/96 kHz in a release build, playback/record startup timing, UI at small terminal sizes, and preset/session keyboard-modal interactions.
-9. Run targeted Rust tests, then `cargo fmt --check`, `cargo test`, `cargo clippy --all-targets -- -D warnings`, and `npm run build` in `site/` after code/docs changes. Update existing ratatui snapshots for intentional UI changes. Hardware monitoring tests belong on `cargo run --release`.
+9. Run targeted Rust tests, then `cargo fmt --check`, `cargo test`, and `cargo clippy --all-targets -- -D warnings` after code changes. Update existing ratatui snapshots for intentional UI changes. Hardware monitoring tests belong on `cargo run --release`.
 
 ## 10. Review questions before implementation
 
@@ -256,7 +256,7 @@ offline export and plugin-state parity remain follow-ups (sections 6–8).
   `list_sessions`, and `Manifest::into_session`.
 - `src/session.rs` — session name + saved-folder tracking, `restore_tracks`.
 - `src/ui/sessions.rs` — `J` session browser (New / Save / Save As / Load /
-  Delete) for portable folders under `~/.config/rusty-amp/sessions/`.
+  Delete) for portable folders under `~/.config/rusty-riff/sessions/`.
 - Save bundles tracks, positions/gains/mutes, loop/playhead/seek step,
   metronome and the built-in rig; imported originals and dry takes are copied
   into `audio/`, the active IR into `irs/`. AU/CLAP identity is recorded but not
@@ -323,7 +323,7 @@ out-point) now **pauses** the transport.
 
 **Verification (increment 9):** `cargo fmt --check`,
 `cargo clippy --all-targets --all-features -- -D warnings`, `cargo test`
-(292 passing), `cargo build --release`, `cargo check --no-default-features`, and
-`npm run build` in `site/` are all green. Added regression tests for clip move
+(292 passing), `cargo build --release`, and `cargo check --no-default-features`
+are all green. Added regression tests for clip move
 (`PlayerVoice::set_start`) and export placement/filtering. The hardware-only
 acceptance items in §9 remain to be run on a real interface.
