@@ -1,6 +1,6 @@
 use anyhow::{Result, anyhow};
 use cpal::{
-    Device, Stream, StreamConfig,
+    Device, FromSample, Sample, Stream, StreamConfig,
     traits::{DeviceTrait, HostTrait, StreamTrait},
 };
 use rtrb::{Consumer, Producer, RingBuffer};
@@ -42,6 +42,25 @@ pub const MAX_BLOCK: usize = 4096;
 /// makes even a clean DI sound dull and distant. Always test audio on
 /// `cargo run --release` — debug builds can underrun at this size.
 const LIVE_BUFFER_FRAMES: u32 = 256;
+
+/// ALSA-specific period size. Unlike CoreAudio, cpal's `BufferSize::Fixed` on
+/// ALSA sets the transfer *period* (the per-callback chunk), not a total buffer,
+/// and cpal's ALSA thread runs without realtime priority — so a 256-frame period
+/// (~5.3 ms) is easily missed under load and the capture stream overruns
+/// continuously ("A buffer underrun or overrun occurred"). A larger period is
+/// far more forgiving and still feels live.
+#[cfg(target_os = "linux")]
+const ALSA_PERIOD_FRAMES: u32 = 1024;
+
+/// The fixed period to request for this host's streams.
+fn requested_frames(host: &cpal::Host) -> u32 {
+    #[cfg(target_os = "linux")]
+    if host.id() == cpal::HostId::Alsa {
+        return ALSA_PERIOD_FRAMES;
+    }
+    let _ = host;
+    LIVE_BUFFER_FRAMES
+}
 
 /// Appends one timestamped line to `~/.config/rusty-amp/audio.log`.
 ///
@@ -352,7 +371,8 @@ pub fn start(
         .map(|(d, _)| d)
         .ok_or_else(|| anyhow!("Output device index {output_idx} not found"))?;
 
-    let (input_cfg, output_cfg, sr, _in_fmt) = negotiate_configs(&input_device, &output_device)?;
+    let (input_cfg, output_cfg, sr, in_fmt, out_fmt) =
+        negotiate_configs(&input_device, &output_device)?;
 
     let in_channels = input_cfg.channels as usize;
     let out_channels = output_cfg.channels as usize;
@@ -367,8 +387,9 @@ pub fn start(
         .unwrap_or_else(|_| format!("output-{output_idx}"));
     let shown_ch = guitar_ch + 1;
     let shown_sr = sr as u32;
+    let frames = requested_frames(&host);
     let msg = format!(
-        "Audio: in '{input_name}' ch {shown_ch}/{in_channels} -> out '{output_name}' ch {out_channels}, {shown_sr} Hz, requesting buffer {LIVE_BUFFER_FRAMES} frames",
+        "Audio: in '{input_name}' ch {shown_ch}/{in_channels} ({in_fmt}) -> out '{output_name}' ch {out_channels} ({out_fmt}), {shown_sr} Hz, requesting buffer {frames} frames",
     );
     // Both: stderr for pre-TUI failures, log file for everything after
     // (stderr is invisible once the alternate screen is up).
@@ -378,15 +399,17 @@ pub fn start(
     // Ask both directions for a small callback first; a device that rejects the
     // fixed size (common with PipeWire's ALSA plugin) gets a second chance with
     // the backend default rather than failing startup outright.
-    let fixed = cpal::BufferSize::Fixed(LIVE_BUFFER_FRAMES);
+    let fixed = cpal::BufferSize::Fixed(frames);
     match build_engine(
         &input_device,
         with_buffer(&input_cfg, fixed),
         in_channels,
         guitar_ch,
+        in_fmt,
         &output_device,
         with_buffer(&output_cfg, fixed),
         out_channels,
+        out_fmt,
         sr,
         Arc::clone(&params),
         Arc::clone(&levels),
@@ -398,7 +421,7 @@ pub fn start(
         Ok(engine) => Ok(engine),
         Err(err) => {
             let msg = format!(
-                "Audio: {LIVE_BUFFER_FRAMES}-frame buffer rejected ({err}); retrying with backend default buffer",
+                "Audio: stream build with a {frames}-frame request failed ({err}); retrying with backend default buffer",
             );
             eprintln!("{msg}");
             log_line(&msg);
@@ -407,9 +430,11 @@ pub fn start(
                 with_buffer(&input_cfg, cpal::BufferSize::Default),
                 in_channels,
                 guitar_ch,
+                in_fmt,
                 &output_device,
                 with_buffer(&output_cfg, cpal::BufferSize::Default),
                 out_channels,
+                out_fmt,
                 sr,
                 params,
                 levels,
@@ -425,7 +450,13 @@ pub fn start(
 fn negotiate_configs(
     input: &Device,
     output: &Device,
-) -> Result<(StreamConfig, StreamConfig, f32, cpal::SampleFormat)> {
+) -> Result<(
+    StreamConfig,
+    StreamConfig,
+    f32,
+    cpal::SampleFormat,
+    cpal::SampleFormat,
+)> {
     let in_sup = input.default_input_config()?;
     let in_sr = in_sup.sample_rate();
     let in_fmt = in_sup.sample_format();
@@ -456,6 +487,7 @@ fn negotiate_configs(
             default
         }
     };
+    let out_fmt = out_sup.sample_format();
 
     // Buffer size is chosen by the caller: `start` first requests the small
     // [`LIVE_BUFFER_FRAMES`] size and falls back to the backend default if the
@@ -463,7 +495,7 @@ fn negotiate_configs(
     let in_cfg: StreamConfig = in_sup.into();
     let out_cfg: StreamConfig = out_sup.into();
 
-    Ok((in_cfg, out_cfg, in_sr as f32, in_fmt))
+    Ok((in_cfg, out_cfg, in_sr as f32, in_fmt, out_fmt))
 }
 
 /// Returns a copy of `cfg` with its requested buffer size replaced.
@@ -474,15 +506,261 @@ fn with_buffer(cfg: &StreamConfig, buffer_size: cpal::BufferSize) -> StreamConfi
     }
 }
 
+/// All state owned by the audio *input* callback.
+///
+/// Bundling it in one struct lets the same block-processing code be compiled for
+/// whichever sample format the device requires — some interfaces (e.g. a Focusrite
+/// Scarlett Solo) expose `S32_LE` capture rather than `f32`, so hard-coding an f32
+/// stream fails to open at all. `on_input` converts the device's samples into the
+/// engine's `f32` domain on the way in.
+struct InputState {
+    chain: DspChain,
+    tuner_detector: TunerDetector,
+    metro_voice: MetronomeVoice,
+    player: PlayerVoice,
+    attack: f32,
+    release: f32,
+    in_env: f32,
+    out_env: f32,
+    in_channels: usize,
+    out_channels: usize,
+    guitar_ch: usize,
+    in_buf: Vec<f32>,
+    out_l: Vec<f32>,
+    out_r: Vec<f32>,
+    insert_rx: Consumer<InsertCommand>,
+    dropped_tx: Producer<Box<dyn StereoInsert>>,
+    ext_cab_rx: Consumer<ExtCabCommand>,
+    ext_dropped_tx: Producer<Box<ExternalIrCab>>,
+    ext_amp_rx: Consumer<ExtAmpCommand>,
+    ext_amp_dropped_tx: Producer<Box<dyn StereoInsert>>,
+    backing_rx: Consumer<Option<PlayerTrack>>,
+    backing_dropped_tx: Producer<PlayerTrack>,
+    record_rx: Consumer<Option<PlayerTrack>>,
+    record_dropped_tx: Producer<PlayerTrack>,
+    producer: Producer<f32>,
+    levels: Arc<Levels>,
+    recording: Arc<RecordingState>,
+    tuner: Arc<Tuner>,
+    metronome: Arc<Metronome>,
+    practice: Arc<Practice>,
+}
+
+impl InputState {
+    /// Deinterleave, process and fan the input block back out to the ring buffer
+    /// the output callback drains. Samples arrive as the device's `T` and are
+    /// converted to `f32` on the way in.
+    fn on_input<T>(&mut self, data: &[T])
+    where
+        T: Sample,
+        f32: FromSample<T>,
+    {
+        // Apply any pending insert swaps before processing this block. The old
+        // insert is shipped back to the control thread for disposal; if that
+        // queue is somehow full we drop it here as a last resort.
+        while let Ok(cmd) = self.insert_rx.pop() {
+            if let Some(old) = self.chain.replace_insert(cmd) {
+                let _ = self.dropped_tx.push(old);
+            }
+        }
+        // Same lock-free discipline for external-IR cab swaps.
+        while let Ok(cmd) = self.ext_cab_rx.pop() {
+            if let Some(old) = self.chain.replace_external_cab(cmd) {
+                let _ = self.ext_dropped_tx.push(old);
+            }
+        }
+        // ...and for external-amp swaps.
+        while let Ok(cmd) = self.ext_amp_rx.pop() {
+            if let Some(old) = self.chain.replace_ext_amp(cmd) {
+                let _ = self.ext_amp_dropped_tx.push(old);
+            }
+        }
+        // Practice backing/take tracks: install the decoded buffers, ship the
+        // displaced ones back for off-thread disposal.
+        while let Ok(cmd) = self.backing_rx.pop() {
+            if let Some(old) = self.player.set_backing(cmd) {
+                let _ = self.backing_dropped_tx.push(old);
+            }
+        }
+        while let Ok(cmd) = self.record_rx.pop() {
+            if let Some(old) = self.player.set_record(cmd) {
+                let _ = self.record_dropped_tx.push(old);
+            }
+        }
+
+        let frames = data.len() / self.in_channels;
+        if self.out_l.len() < frames {
+            self.out_l.resize(frames, 0.0);
+            self.out_r.resize(frames, 0.0);
+        }
+
+        // Deinterleave the guitar channel into the mono input block, converting
+        // from the device's sample type to the engine's f32 domain.
+        self.in_buf.clear();
+        self.in_buf
+            .extend(data.chunks(self.in_channels).map(|frame| {
+                f32::from_sample(frame.get(self.guitar_ch).copied().unwrap_or(T::EQUILIBRIUM))
+            }));
+
+        if self.tuner.active.load(Relaxed) {
+            // Bypass the whole rig: clean dry guitar to both channels, and
+            // analyse the same signal for pitch and spectrum.
+            self.tuner_detector.process(&self.in_buf, &self.tuner);
+            for ((dst_l, dst_r), &x) in self
+                .out_l
+                .iter_mut()
+                .zip(self.out_r.iter_mut())
+                .zip(self.in_buf.iter())
+            {
+                *dst_l = x;
+                *dst_r = x;
+            }
+        } else {
+            self.chain
+                .process_block(&self.in_buf, &mut self.out_l, &mut self.out_r);
+        }
+
+        let metro_active = self.metronome.active.load(Relaxed);
+        let metro_bpm = self.metronome.bpm.load(Relaxed);
+
+        // One transport snapshot per block (and any pending seek applied here).
+        let transport = self.practice.snapshot();
+        self.player.begin(&transport);
+
+        for ((&sample, &l), &r) in self
+            .in_buf
+            .iter()
+            .zip(self.out_l.iter())
+            .zip(self.out_r.iter())
+        {
+            let a = sample.abs();
+            self.in_env += if a > self.in_env {
+                self.attack
+            } else {
+                self.release
+            } * (a - self.in_env);
+
+            let mono = 0.5 * (l + r);
+
+            let a = mono.abs();
+            self.out_env += if a > self.out_env {
+                self.attack
+            } else {
+                self.release
+            } * (a - self.out_env);
+
+            if self.recording.active.load(Relaxed)
+                && let Ok(mut buf) = self.recording.buffer.try_lock()
+            {
+                // Interleaved stereo (L, R) — captured before the metronome
+                // click is added, so an active metronome never lands in the WAV.
+                buf.push(l);
+                buf.push(r);
+            }
+
+            // Metronome click and the practice player are mixed into the monitor
+            // path only (post-record), so neither ever lands in the WAV.
+            let click = self.metro_voice.next_sample(metro_active, metro_bpm);
+            let (pl, pr) = self.player.next_frame(&transport);
+            let (out_left, out_right) = (l + click + pl, r + click + pr);
+            let out_mono = mono + click + 0.5 * (pl + pr);
+
+            // Fan the stereo pair out to the device channels: L→0, R→1, any extra
+            // channels get the mono sum; a mono device gets the sum.
+            for ch in 0..self.out_channels {
+                let s = if self.out_channels == 1 {
+                    out_mono
+                } else {
+                    match ch {
+                        0 => out_left,
+                        1 => out_right,
+                        _ => out_mono,
+                    }
+                };
+                let _ = self.producer.push(s);
+            }
+        }
+        // Publish the timeline cursor for the UI. Stored after the loop so a
+        // block's worth of playback shows as one position.
+        self.practice.store_position(self.player.cursor());
+        self.levels.input.store(self.in_env, Relaxed);
+        self.levels.output.store(self.out_env, Relaxed);
+    }
+}
+
+/// Build the input stream for a concrete device sample type.
+fn build_input_stream<T>(
+    device: &Device,
+    cfg: StreamConfig,
+    mut state: InputState,
+) -> Result<Stream>
+where
+    T: cpal::SizedSample,
+    f32: FromSample<T>,
+{
+    let mut err_count = 0u64;
+    device
+        .build_input_stream(
+            cfg,
+            move |data: &[T], _| state.on_input(data),
+            move |e| {
+                // An XRUN is transient and cpal recovers; logging every one floods
+                // the log (and stderr) during a bad patch, so report the first and
+                // then only occasionally.
+                err_count += 1;
+                if err_count == 1 || err_count.is_multiple_of(200) {
+                    let msg = format!("input error: {e} (occurrence {err_count})");
+                    eprintln!("{msg}");
+                    log_line(&msg);
+                }
+            },
+            None,
+        )
+        .map_err(|e| anyhow!("input stream: {e}"))
+}
+
+/// Build the output stream for a concrete device sample type.
+fn build_output_stream<T>(
+    device: &Device,
+    cfg: StreamConfig,
+    mut consumer: Consumer<f32>,
+) -> Result<Stream>
+where
+    T: cpal::SizedSample + FromSample<f32>,
+{
+    let mut err_count = 0u64;
+    device
+        .build_output_stream(
+            cfg,
+            move |data: &mut [T], _| {
+                for s in data.iter_mut() {
+                    *s = T::from_sample(consumer.pop().unwrap_or(0.0));
+                }
+            },
+            move |e| {
+                err_count += 1;
+                if err_count == 1 || err_count.is_multiple_of(200) {
+                    let msg = format!("output error: {e} (occurrence {err_count})");
+                    eprintln!("{msg}");
+                    log_line(&msg);
+                }
+            },
+            None,
+        )
+        .map_err(|e| anyhow!("output stream: {e}"))
+}
+
 #[allow(clippy::too_many_arguments)]
 fn build_engine(
     input_device: &Device,
     input_cfg: StreamConfig,
     in_channels: usize,
     guitar_ch: usize,
+    in_fmt: cpal::SampleFormat,
     output_device: &Device,
     output_cfg: StreamConfig,
     out_channels: usize,
+    out_fmt: cpal::SampleFormat,
     sr: f32,
     params: Arc<Params>,
     levels: Arc<Levels>,
@@ -494,184 +772,120 @@ fn build_engine(
     recording.sample_rate.store(sr as u32, Relaxed);
 
     let buf_samples = (sr as usize) / 5 * out_channels * 2;
-    let (mut producer, mut consumer) = RingBuffer::<f32>::new(buf_samples);
+    let (producer, consumer) = RingBuffer::<f32>::new(buf_samples);
 
-    let mut chain = DspChain::new(sr, Arc::clone(&params));
+    let chain = DspChain::new(sr, Arc::clone(&params));
 
     // Tuner: when engaged, the rig is bypassed and the dry guitar feeds both the
     // output (a clean signal to tune against) and the pitch/spectrum detector.
-    let mut tuner_detector = TunerDetector::new(sr);
+    let tuner_detector = TunerDetector::new(sr);
 
     // Metronome: when engaged, a click is mixed into the monitor output only —
     // added *after* the recording tap so it is never captured in the WAV.
-    let mut metro_voice = MetronomeVoice::new(sr);
+    let metro_voice = MetronomeVoice::new(sr);
 
     // Practice player: backing track + recorded take, both mixed into the monitor
     // output only (post-record), like the metronome.
-    let mut player = PlayerVoice::new();
+    let player = PlayerVoice::new();
 
     // Lock-free handoff for swapping the plugin insert in/out without touching the
     // running stream: commands flow UI → audio, displaced inserts flow back to be
     // dropped off the audio thread.
-    let (insert_tx, mut insert_rx) = RingBuffer::<InsertCommand>::new(INSERT_QUEUE_CAP);
-    let (mut dropped_tx, dropped_rx) = RingBuffer::<Box<dyn StereoInsert>>::new(INSERT_QUEUE_CAP);
-    let (ext_cab_tx, mut ext_cab_rx) = RingBuffer::<ExtCabCommand>::new(INSERT_QUEUE_CAP);
-    let (mut ext_dropped_tx, ext_dropped_rx) =
-        RingBuffer::<Box<ExternalIrCab>>::new(INSERT_QUEUE_CAP);
-    let (ext_amp_tx, mut ext_amp_rx) = RingBuffer::<ExtAmpCommand>::new(INSERT_QUEUE_CAP);
-    let (mut ext_amp_dropped_tx, ext_amp_dropped_rx) =
+    let (insert_tx, insert_rx) = RingBuffer::<InsertCommand>::new(INSERT_QUEUE_CAP);
+    let (dropped_tx, dropped_rx) = RingBuffer::<Box<dyn StereoInsert>>::new(INSERT_QUEUE_CAP);
+    let (ext_cab_tx, ext_cab_rx) = RingBuffer::<ExtCabCommand>::new(INSERT_QUEUE_CAP);
+    let (ext_dropped_tx, ext_dropped_rx) = RingBuffer::<Box<ExternalIrCab>>::new(INSERT_QUEUE_CAP);
+    let (ext_amp_tx, ext_amp_rx) = RingBuffer::<ExtAmpCommand>::new(INSERT_QUEUE_CAP);
+    let (ext_amp_dropped_tx, ext_amp_dropped_rx) =
         RingBuffer::<Box<dyn StereoInsert>>::new(INSERT_QUEUE_CAP);
     // Practice-track handoff: decoded tracks flow UI → audio, displaced tracks flow
     // back to the control thread so their buffers are never freed in the callback.
-    let (backing_tx, mut backing_rx) = RingBuffer::<Option<PlayerTrack>>::new(INSERT_QUEUE_CAP);
-    let (mut backing_dropped_tx, backing_dropped_rx) =
-        RingBuffer::<PlayerTrack>::new(INSERT_QUEUE_CAP);
-    let (record_tx, mut record_rx) = RingBuffer::<Option<PlayerTrack>>::new(INSERT_QUEUE_CAP);
-    let (mut record_dropped_tx, record_dropped_rx) =
-        RingBuffer::<PlayerTrack>::new(INSERT_QUEUE_CAP);
+    let (backing_tx, backing_rx) = RingBuffer::<Option<PlayerTrack>>::new(INSERT_QUEUE_CAP);
+    let (backing_dropped_tx, backing_dropped_rx) = RingBuffer::<PlayerTrack>::new(INSERT_QUEUE_CAP);
+    let (record_tx, record_rx) = RingBuffer::<Option<PlayerTrack>>::new(INSERT_QUEUE_CAP);
+    let (record_dropped_tx, record_dropped_rx) = RingBuffer::<PlayerTrack>::new(INSERT_QUEUE_CAP);
 
     let attack = 1.0 - (-1.0 / (0.001 * sr)).exp();
     let release = 1.0 - (-1.0 / (0.300 * sr)).exp();
-    let mut in_env = 0.0f32;
-    let mut out_env = 0.0f32;
 
     // Reusable scratch buffers for block processing. Pre-sized generously so the
     // audio thread never reallocates for normal device buffer sizes; the `resize`
     // below only grows them on the rare callback that asks for a larger block.
-    let mut in_buf: Vec<f32> = Vec::with_capacity(MAX_BLOCK);
-    let mut out_l: Vec<f32> = vec![0.0; MAX_BLOCK];
-    let mut out_r: Vec<f32> = vec![0.0; MAX_BLOCK];
+    let in_buf: Vec<f32> = Vec::with_capacity(MAX_BLOCK);
+    let out_l: Vec<f32> = vec![0.0; MAX_BLOCK];
+    let out_r: Vec<f32> = vec![0.0; MAX_BLOCK];
 
-    let input_stream = input_device.build_input_stream(
-        input_cfg,
-        move |data: &[f32], _| {
-            // Apply any pending insert swaps before processing this block. The old
-            // insert is shipped back to the control thread for disposal; if that
-            // queue is somehow full we drop it here as a last resort.
-            while let Ok(cmd) = insert_rx.pop() {
-                if let Some(old) = chain.replace_insert(cmd) {
-                    let _ = dropped_tx.push(old);
-                }
-            }
-            // Same lock-free discipline for external-IR cab swaps.
-            while let Ok(cmd) = ext_cab_rx.pop() {
-                if let Some(old) = chain.replace_external_cab(cmd) {
-                    let _ = ext_dropped_tx.push(old);
-                }
-            }
-            // ...and for external-amp swaps.
-            while let Ok(cmd) = ext_amp_rx.pop() {
-                if let Some(old) = chain.replace_ext_amp(cmd) {
-                    let _ = ext_amp_dropped_tx.push(old);
-                }
-            }
-            // Practice backing/take tracks: install the decoded buffers, ship the
-            // displaced ones back for off-thread disposal.
-            while let Ok(cmd) = backing_rx.pop() {
-                if let Some(old) = player.set_backing(cmd) {
-                    let _ = backing_dropped_tx.push(old);
-                }
-            }
-            while let Ok(cmd) = record_rx.pop() {
-                if let Some(old) = player.set_record(cmd) {
-                    let _ = record_dropped_tx.push(old);
-                }
-            }
+    let state = InputState {
+        chain,
+        tuner_detector,
+        metro_voice,
+        player,
+        attack,
+        release,
+        in_env: 0.0,
+        out_env: 0.0,
+        in_channels,
+        out_channels,
+        guitar_ch,
+        in_buf,
+        out_l,
+        out_r,
+        insert_rx,
+        dropped_tx,
+        ext_cab_rx,
+        ext_dropped_tx,
+        ext_amp_rx,
+        ext_amp_dropped_tx,
+        backing_rx,
+        backing_dropped_tx,
+        record_rx,
+        record_dropped_tx,
+        producer,
+        levels,
+        recording,
+        tuner,
+        metronome,
+        practice,
+    };
 
-            let frames = data.len() / in_channels;
-            if out_l.len() < frames {
-                out_l.resize(frames, 0.0);
-                out_r.resize(frames, 0.0);
-            }
+    // Build each stream in the sample format the device actually supports. ALSA
+    // exposes the Scarlett's capture as S32_LE, so an f32 stream would fail to
+    // open; `on_input`/`build_output_stream` convert to and from the engine's f32
+    // domain. Unsupported formats are reported clearly rather than silently
+    // mis-configured.
+    macro_rules! build_in {
+        ($t:ty) => {
+            build_input_stream::<$t>(input_device, input_cfg, state)?
+        };
+    }
+    let input_stream = match in_fmt {
+        cpal::SampleFormat::F32 => build_in!(f32),
+        cpal::SampleFormat::F64 => build_in!(f64),
+        cpal::SampleFormat::I8 => build_in!(i8),
+        cpal::SampleFormat::I16 => build_in!(i16),
+        cpal::SampleFormat::I32 => build_in!(i32),
+        cpal::SampleFormat::U8 => build_in!(u8),
+        cpal::SampleFormat::U16 => build_in!(u16),
+        cpal::SampleFormat::U32 => build_in!(u32),
+        other => return Err(anyhow!("input sample format {other} is not supported")),
+    };
 
-            // Deinterleave the guitar channel into the mono input block.
-            in_buf.clear();
-            in_buf.extend(
-                data.chunks(in_channels)
-                    .map(|frame| frame.get(guitar_ch).copied().unwrap_or(0.0)),
-            );
-
-            if tuner.active.load(Relaxed) {
-                // Bypass the whole rig: clean dry guitar to both channels, and
-                // analyse the same signal for pitch and spectrum.
-                tuner_detector.process(&in_buf, &tuner);
-                for ((dst_l, dst_r), &x) in
-                    out_l.iter_mut().zip(out_r.iter_mut()).zip(in_buf.iter())
-                {
-                    *dst_l = x;
-                    *dst_r = x;
-                }
-            } else {
-                chain.process_block(&in_buf, &mut out_l, &mut out_r);
-            }
-
-            let metro_active = metronome.active.load(Relaxed);
-            let metro_bpm = metronome.bpm.load(Relaxed);
-
-            // One transport snapshot per block (and any pending seek applied here).
-            let transport = practice.snapshot();
-            player.begin(&transport);
-
-            for ((&sample, &l), &r) in in_buf.iter().zip(out_l.iter()).zip(out_r.iter()) {
-                let a = sample.abs();
-                in_env += if a > in_env { attack } else { release } * (a - in_env);
-
-                let mono = 0.5 * (l + r);
-
-                let a = mono.abs();
-                out_env += if a > out_env { attack } else { release } * (a - out_env);
-
-                if recording.active.load(Relaxed)
-                    && let Ok(mut buf) = recording.buffer.try_lock()
-                {
-                    // Interleaved stereo (L, R) — captured before the metronome
-                    // click is added, so an active metronome never lands in the WAV.
-                    buf.push(l);
-                    buf.push(r);
-                }
-
-                // Metronome click and the practice player are mixed into the monitor
-                // path only (post-record), so neither ever lands in the WAV.
-                let click = metro_voice.next_sample(metro_active, metro_bpm);
-                let (pl, pr) = player.next_frame(&transport);
-                let (out_left, out_right) = (l + click + pl, r + click + pr);
-                let out_mono = mono + click + 0.5 * (pl + pr);
-
-                // Fan the stereo pair out to the device channels: L→0, R→1,
-                // any extra channels get the mono sum; a mono device gets the sum.
-                for ch in 0..out_channels {
-                    let s = if out_channels == 1 {
-                        out_mono
-                    } else {
-                        match ch {
-                            0 => out_left,
-                            1 => out_right,
-                            _ => out_mono,
-                        }
-                    };
-                    let _ = producer.push(s);
-                }
-            }
-            // Publish the timeline cursor for the UI. Stored after the loop so a
-            // block's worth of playback shows as one position.
-            practice.store_position(player.cursor());
-            levels.input.store(in_env, Relaxed);
-            levels.output.store(out_env, Relaxed);
-        },
-        |e| eprintln!("input error: {e}"),
-        None,
-    )?;
-
-    let output_stream = output_device.build_output_stream(
-        output_cfg,
-        move |data: &mut [f32], _| {
-            for s in data.iter_mut() {
-                *s = consumer.pop().unwrap_or(0.0);
-            }
-        },
-        |e| eprintln!("output error: {e}"),
-        None,
-    )?;
+    macro_rules! build_out {
+        ($t:ty) => {
+            build_output_stream::<$t>(output_device, output_cfg, consumer)?
+        };
+    }
+    let output_stream = match out_fmt {
+        cpal::SampleFormat::F32 => build_out!(f32),
+        cpal::SampleFormat::F64 => build_out!(f64),
+        cpal::SampleFormat::I8 => build_out!(i8),
+        cpal::SampleFormat::I16 => build_out!(i16),
+        cpal::SampleFormat::I32 => build_out!(i32),
+        cpal::SampleFormat::U8 => build_out!(u8),
+        cpal::SampleFormat::U16 => build_out!(u16),
+        cpal::SampleFormat::U32 => build_out!(u32),
+        other => return Err(anyhow!("output sample format {other} is not supported")),
+    };
 
     input_stream.play()?;
     output_stream.play()?;
