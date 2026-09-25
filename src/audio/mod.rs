@@ -391,9 +391,9 @@ pub fn start(
     let msg = format!(
         "Audio: in '{input_name}' ch {shown_ch}/{in_channels} ({in_fmt}) -> out '{output_name}' ch {out_channels} ({out_fmt}), {shown_sr} Hz, requesting buffer {frames} frames",
     );
-    // Both: stderr for pre-TUI failures, log file for everything after
-    // (stderr is invisible once the alternate screen is up).
-    eprintln!("{msg}");
+    // Log file only: `start` runs while the TUI owns the terminal's alternate
+    // screen, so anything written to stderr would be painted over the UI and
+    // persist (ratatui only redraws cells it believes changed).
     log_line(&msg);
 
     // Ask both directions for a small callback first; a device that rejects the
@@ -423,7 +423,6 @@ pub fn start(
             let msg = format!(
                 "Audio: stream build with a {frames}-frame request failed ({err}); retrying with backend default buffer",
             );
-            eprintln!("{msg}");
             log_line(&msg);
             build_engine(
                 &input_device,
@@ -497,7 +496,6 @@ fn negotiate_configs(
                     let msg = format!(
                         "Audio: output does not support {in_sr} Hz; falling back to its default {fallback_sr} Hz"
                     );
-                    eprintln!("{msg}");
                     log_line(&msg);
                     default
                 }
@@ -736,12 +734,11 @@ where
             move |data: &[T], _| state.on_input(data),
             move |e| {
                 // An XRUN is transient and cpal recovers; logging every one floods
-                // the log (and stderr) during a bad patch, so report the first and
-                // then only occasionally.
+                // the log (and does file I/O on the audio thread) during a bad
+                // patch, so report the first and then only occasionally.
                 err_count += 1;
                 if err_count == 1 || err_count.is_multiple_of(200) {
                     let msg = format!("input error: {e} (occurrence {err_count})");
-                    eprintln!("{msg}");
                     log_line(&msg);
                 }
             },
@@ -772,7 +769,6 @@ where
                 err_count += 1;
                 if err_count == 1 || err_count.is_multiple_of(200) {
                     let msg = format!("output error: {e} (occurrence {err_count})");
-                    eprintln!("{msg}");
                     log_line(&msg);
                 }
             },

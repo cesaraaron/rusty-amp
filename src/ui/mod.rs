@@ -59,16 +59,14 @@ fn select_devices(
     notice: Option<&str>,
 ) -> Result<Option<setup::Selection>> {
     let devices = crate::audio::list_devices()?;
-    // Same facts as the modals, on stderr: one paste shows exactly what the user
-    // could pick, even if they misread the fullscreen list.
+    // Same facts as the modals, in the log file. Never stderr: `run` already owns
+    // the alternate screen here, so printing would smear the list over the UI.
     for (i, d) in devices.inputs.iter().enumerate() {
         let line = format!("Input {}: '{}' ({} ch)", i + 1, d.name, d.channels);
-        eprintln!("{line}");
         crate::audio::log_line(&line);
     }
     for (i, name) in devices.outputs.iter().enumerate() {
         let line = format!("Output {}: '{name}'", i + 1);
-        eprintln!("{line}");
         crate::audio::log_line(&line);
     }
 
@@ -91,7 +89,6 @@ fn select_devices(
             guitar_ch + 1,
             output,
         );
-        eprintln!("{line}");
         crate::audio::log_line(&line);
         return Ok(Some(setup::Selection {
             input_idx,
@@ -223,7 +220,6 @@ pub fn run(
                     selection.output_idx + 1,
                 );
                 crate::audio::log_line(&msg);
-                eprintln!("{msg}");
                 start_error = Some(msg);
                 continue 'session;
             }
