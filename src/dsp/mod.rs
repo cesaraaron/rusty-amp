@@ -1018,6 +1018,35 @@ impl Params {
         self.amp_params[model as usize][i].store(v.clamp(0.0, 1.0), Relaxed);
     }
 
+    /// Whether `stage` is currently enabled. The amp+cab block has no bypass
+    /// flag and is always live; every other stage mirrors its `*_enabled` atomic.
+    ///
+    /// The ordered dispatch consults this *before* any mono↔stereo bridging so a
+    /// bypassed stage is wire-transparent in either domain.
+    pub fn stage_enabled(&self, stage: ChainStage) -> bool {
+        match stage {
+            ChainStage::Gate => self.ng_enabled.load(Relaxed),
+            ChainStage::Whammy => self.pitch_enabled.load(Relaxed),
+            ChainStage::Wah => self.wah_enabled.load(Relaxed),
+            ChainStage::Comp => self.cmp_enabled.load(Relaxed),
+            ChainStage::Fuzz => self.fz_enabled.load(Relaxed),
+            ChainStage::Ts => self.ts_enabled.load(Relaxed),
+            ChainStage::Ds => self.ds_enabled.load(Relaxed),
+            ChainStage::Metal => self.ml_enabled.load(Relaxed),
+            ChainStage::PreEq => self.peq_enabled.load(Relaxed),
+            ChainStage::Vibe => self.uv_enabled.load(Relaxed),
+            ChainStage::AmpCab => true,
+            ChainStage::Geq => self.geq_enabled.load(Relaxed),
+            ChainStage::Eq => self.eq_enabled.load(Relaxed),
+            ChainStage::Flanger => self.fl_enabled.load(Relaxed),
+            ChainStage::Chorus => self.ch_enabled.load(Relaxed),
+            ChainStage::Phaser => self.ph_enabled.load(Relaxed),
+            ChainStage::Trem => self.trem_enabled.load(Relaxed),
+            ChainStage::Delay => self.delay_enabled.load(Relaxed),
+            ChainStage::Reverb => self.rev_enabled.load(Relaxed),
+        }
+    }
+
     /// Snapshot the chain order (one atomic load per slot) for the audio thread.
     pub fn chain_slots(&self) -> [u8; CHAIN_LEN] {
         std::array::from_fn(|i| self.chain_order[i].load(Relaxed))
@@ -1475,10 +1504,16 @@ impl DspChain {
     /// Walk one ordered stage with domain bridging: a mono pedal on a stereo
     /// signal sums to mono, processes, and duplicates back (like a real mono
     /// pedal fed from a stereo send); a stereo pedal on mono promotes to dual
-    /// mono. Bypassed pedals pass through untouched in either domain.
+    /// mono.
+    ///
+    /// A disabled stage is **wire-transparent**: it returns the signal untouched
+    /// in whatever domain it arrived, so moving a bypassed pedal never changes
+    /// the stereo image (a mono pedal on a stereo feed must not collapse it, a
+    /// stereo pedal on mono must not promote it). Only a *live* domain-crossing
+    /// effect bridges domains.
     #[inline]
     fn run_ordered_stage(&mut self, sig: Sig, stage: ChainStage) -> Sig {
-        if stage == ChainStage::AmpCab {
+        if stage == ChainStage::AmpCab || !self.params.stage_enabled(stage) {
             return sig;
         }
         if stage.is_mono_pedal() {
@@ -1819,6 +1854,51 @@ mod tests {
             let (bl, br) = chain_b.process(x);
             assert_eq!(al, bl, "L diverged at sample {n}");
             assert_eq!(ar, br, "R diverged at sample {n}");
+        }
+    }
+
+    /// A bypassed mono pedal on a stereo feed must not collapse it to mono:
+    /// before the enabled-check fix, the dispatch summed 0.5*(l+r) *before*
+    /// consulting the bypass flag, so a disabled stage still destroyed the image.
+    #[test]
+    fn bypassed_mono_stage_preserves_stereo() {
+        // Wah is bypassed by default; it is a mono pre pedal.
+        let mut chain = DspChain::new(48_000.0, Arc::new(Params::new()));
+        let out = chain.run_ordered_stage(Sig::Stereo(0.7, -0.3), ChainStage::Wah);
+        match out {
+            Sig::Stereo(l, r) => {
+                assert_eq!(l, 0.7, "left channel was altered/collapsed");
+                assert_eq!(r, -0.3, "right channel was altered/collapsed");
+            }
+            Sig::Mono(_) => panic!("bypassed mono stage collapsed stereo to mono"),
+        }
+    }
+
+    /// A bypassed stereo pedal on a mono feed must not promote it early: the
+    /// domain only changes when a *live* stereo effect actually runs.
+    #[test]
+    fn bypassed_stereo_stage_preserves_mono() {
+        // Chorus is bypassed by default; it is a stereo rack pedal.
+        let mut chain = DspChain::new(48_000.0, Arc::new(Params::new()));
+        let out = chain.run_ordered_stage(Sig::Mono(0.5), ChainStage::Chorus);
+        match out {
+            Sig::Mono(x) => assert_eq!(x, 0.5, "mono sample was altered"),
+            Sig::Stereo(..) => panic!("bypassed stereo stage promoted mono to stereo"),
+        }
+    }
+
+    /// Wiring sanity for the helper: the amp+cab block is always live, and every
+    /// other stage tracks its own `*_enabled` flag.
+    #[test]
+    fn stage_enabled_mirrors_bypass_flags() {
+        let params = Params::new();
+        assert!(params.stage_enabled(ChainStage::AmpCab));
+        assert!(!params.stage_enabled(ChainStage::Wah));
+        params.wah_enabled.store(true, Relaxed);
+        assert!(params.stage_enabled(ChainStage::Wah));
+        for v in 0..CHAIN_LEN as u8 {
+            let stage = ChainStage::from_u8(v).expect("every slot is a stage");
+            let _ = params.stage_enabled(stage);
         }
     }
 
