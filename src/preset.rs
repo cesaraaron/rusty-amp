@@ -961,9 +961,10 @@ mod tests {
     }
 
     /// A sound-determining fingerprint: chain order, amp/cab/mic/master
-    /// selectors, and every stage's on/off flag. Knob values of *disabled*
-    /// effects are intentionally retained by `apply`, so they are not part of the
-    /// audible rig and are excluded.
+    /// selectors, every stage's on/off flag, the active amp's full knob bank, and
+    /// every knob (including `fz_type`/`delay_type`) of each **enabled** stage.
+    /// Knob values of *disabled* effects are intentionally retained by `apply`,
+    /// so they are not part of the audible rig and are excluded.
     fn rig_fingerprint(p: &Params) -> Vec<f32> {
         let mut v: Vec<f32> = p.chain_slots().iter().map(|&b| f32::from(b)).collect();
         v.push((p.amp_model() as u8) as f32);
@@ -994,6 +995,58 @@ mod tests {
         ] {
             v.push(if flag.load(Relaxed) { 1.0 } else { 0.0 });
         }
+
+        // The active amp's *used* knob bank (the amp is always live). Slots beyond
+        // the model's control count are padding and are not audible, so they are
+        // excluded (a preset legitimately leaves them at the prior value).
+        let model = p.amp_model();
+        for i in 0..model.controls().len() {
+            v.push(p.amp_params[model as usize][i].load(Relaxed));
+        }
+
+        // Every knob of each enabled stage, read through the same fields the
+        // `mono_stage!` / `stereo_stage!` macros use.
+        macro_rules! knobs {
+            ($enabled:ident, $($param:ident),+) => {
+                if p.$enabled.load(Relaxed) {
+                    $( v.push(p.$param.load(Relaxed)); )+
+                }
+            };
+        }
+        knobs!(ng_enabled, ng_threshold, ng_release);
+        knobs!(pitch_enabled, pitch_pitch, pitch_mix, pitch_tone);
+        knobs!(wah_enabled, wah_freq, wah_sens, wah_q, wah_mix);
+        knobs!(cmp_enabled, cmp_sustain, cmp_attack, cmp_level);
+        knobs!(fz_enabled, fz_fuzz, fz_tone, fz_level, fz_type);
+        knobs!(ts_enabled, ts_drive, ts_tone, ts_level);
+        knobs!(ds_enabled, ds_drive, ds_tone, ds_level);
+        knobs!(ml_enabled, ml_dist, ml_low, ml_high, ml_level);
+        knobs!(peq_enabled, peq_low, peq_mid, peq_high);
+        knobs!(uv_enabled, uv_rate, uv_depth, uv_mix, uv_mode);
+        knobs!(
+            geq_enabled,
+            geq_b1,
+            geq_b2,
+            geq_b3,
+            geq_b4,
+            geq_b5,
+            geq_b6,
+            geq_b7,
+            geq_level
+        );
+        knobs!(eq_enabled, eq_low, eq_mid, eq_high);
+        knobs!(fl_enabled, fl_rate, fl_depth, fl_feedback, fl_mix);
+        knobs!(ch_enabled, ch_rate, ch_depth, ch_mix);
+        knobs!(ph_enabled, ph_rate, ph_depth, ph_feedback, ph_mix);
+        knobs!(trem_enabled, trem_rate, trem_depth, trem_shape, trem_mode);
+        knobs!(
+            delay_enabled,
+            delay_time,
+            delay_feedback,
+            delay_mix,
+            delay_type
+        );
+        knobs!(rev_enabled, rev_room, rev_damp, rev_mix);
         v
     }
 
@@ -1022,6 +1075,86 @@ mod tests {
         let mut reversed = ChainStage::default_order();
         reversed.reverse();
         p.set_chain_order(&reversed);
+        // Every knob scrambled, so any value a preset fails to overwrite is
+        // detectable either in the fingerprint or in the rendered audio.
+        macro_rules! scramble {
+            ($($param:ident),+ $(,)?) => {
+                $( p.$param.store(0.93, Relaxed); )+
+            };
+        }
+        scramble!(
+            ng_threshold,
+            ng_release,
+            pitch_pitch,
+            pitch_mix,
+            pitch_tone,
+            wah_freq,
+            wah_sens,
+            wah_q,
+            wah_mix,
+            cmp_sustain,
+            cmp_attack,
+            cmp_level,
+            fz_fuzz,
+            fz_tone,
+            fz_level,
+            ts_drive,
+            ts_tone,
+            ts_level,
+            ds_drive,
+            ds_tone,
+            ds_level,
+            ml_dist,
+            ml_low,
+            ml_high,
+            ml_level,
+            peq_low,
+            peq_mid,
+            peq_high,
+            uv_rate,
+            uv_depth,
+            uv_mix,
+            uv_mode,
+            geq_b1,
+            geq_b2,
+            geq_b3,
+            geq_b4,
+            geq_b5,
+            geq_b6,
+            geq_b7,
+            geq_level,
+            eq_low,
+            eq_mid,
+            eq_high,
+            fl_rate,
+            fl_depth,
+            fl_feedback,
+            fl_mix,
+            ch_rate,
+            ch_depth,
+            ch_mix,
+            ph_rate,
+            ph_depth,
+            ph_feedback,
+            ph_mix,
+            trem_rate,
+            trem_depth,
+            trem_shape,
+            trem_mode,
+            delay_time,
+            delay_feedback,
+            delay_mix,
+            rev_room,
+            rev_damp,
+            rev_mix,
+        );
+        p.fz_type.store(1.0, Relaxed);
+        p.delay_type.store(1.0, Relaxed);
+        for bank in &p.amp_params {
+            for knob in bank.iter() {
+                knob.store(0.93, Relaxed);
+            }
+        }
         p
     }
 
@@ -1051,6 +1184,81 @@ mod tests {
                 path.display()
             );
         }
+    }
+
+    /// The render-level determinism gate: a bundled preset must produce
+    /// bit-identical audio whether it was applied to a fresh or a hostile prior
+    /// rig. Stronger than the fingerprint because it exercises the full DSP path.
+    #[test]
+    fn bundled_presets_render_identically_after_hostile_state() {
+        use crate::dsp::DspChain;
+
+        // A `DspChain::new` is ~1.7 s in debug at 48 kHz (cab/amp construction,
+        // not sample count), so the render gate covers a representative subset of
+        // bundled presets chosen to span the effect types the bundles actually
+        // enable; the fingerprint test above covers the full set cheaply.
+        const RENDER_SUBSET: &[&str] = &[
+            // comp, fuzz, TS, pre-EQ, vibe, EQ, delay, reverb
+            "pink_floyd_shine_on_crazy_diamond.toml",
+            // TS, pre-EQ, EQ, flanger, phaser, delay, reverb
+            "van_halen_aint_talkin_bout_love.toml",
+            // comp, EQ, chorus, delay, reverb
+            "eagles_hotel_california_clean.toml",
+        ];
+
+        let sr = 48_000.0;
+        // A deterministic, decaying two-tone DI at 0.5 peak.
+        let di: Vec<f32> = (0..4800)
+            .map(|n| {
+                let t = n as f32 / sr;
+                let env = (-8.0 * t).exp();
+                0.5 * env
+                    * ((2.0 * std::f32::consts::PI * 110.0 * t).sin()
+                        + 0.5 * (2.0 * std::f32::consts::PI * 440.0 * t).sin())
+            })
+            .collect();
+
+        let mut rendered = 0;
+        for entry in std::fs::read_dir("presets").expect("presets/ dir") {
+            let path = entry.unwrap().path();
+            let Some(name) = path.file_name().and_then(|n| n.to_str()) else {
+                continue;
+            };
+            if !RENDER_SUBSET.contains(&name) {
+                continue;
+            }
+            rendered += 1;
+            let preset = Preset::load(&path, PresetSource::System)
+                .unwrap_or_else(|e| panic!("failed to parse {}: {e}", path.display()));
+
+            let render = |prior: Params| -> (Vec<f32>, Vec<f32>) {
+                preset.apply(&prior);
+                let params = std::sync::Arc::new(prior);
+                let mut chain = DspChain::new(sr, std::sync::Arc::clone(&params));
+                let mut l = vec![0.0f32; di.len()];
+                let mut r = vec![0.0f32; di.len()];
+                chain.process_block(&di, &mut l, &mut r);
+                (l, r)
+            };
+
+            let (fresh_l, fresh_r) = render(Params::new());
+            let (hostile_l, hostile_r) = render(hostile_params());
+            for (channel, fresh, hostile) in
+                [("L", &fresh_l, &hostile_l), ("R", &fresh_r, &hostile_r)]
+            {
+                if let Some(i) = fresh.iter().zip(hostile).position(|(a, b)| a != b) {
+                    panic!(
+                        "{} {channel} differs by prior state at sample {i}",
+                        path.display()
+                    );
+                }
+            }
+        }
+        assert_eq!(
+            rendered,
+            RENDER_SUBSET.len(),
+            "a subset preset was not found; update RENDER_SUBSET"
+        );
     }
 
     /// Scratch dir for export tests: unique per process so parallel tests never
