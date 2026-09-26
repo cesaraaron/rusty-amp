@@ -1,96 +1,43 @@
 name        = "Led Zeppelin — Stairway to Heaven (Solo)"
-description = "Inspired by the 'Stairway to Heaven' solo (1971), commonly reported as a Telecaster into a small Supro combo; with no Supro model yet, this approximates it with a bright, mid-forward Plexi plus a Tube Screamer. Not a verified session rig."
+description = "Inspired by the 'Stairway to Heaven' solo (1971), commonly reported as a Telecaster into a small Supro combo: our Supro-style small combo through an open-back 2×12, with a short slap and a touch of room. Not a verified session rig."
 year        = 1971
 
 # ── Noise Gate ────────────────────────────────────────────────────────────────
-# Light — a medium-gain crunch, and the solo's quiet pickup-roll runs must not be
-# clamped.
+# Light — the solo's quiet pickup-roll runs must not be clamped.
 [noise_gate]
 enabled   = true
 threshold = 0.12
 release   = 0.36
 
-# ── Compressor ────────────────────────────────────────────────────────────────
-# Only a whisper of compression for sustain. Page's tone is dynamic — too much
-# squeeze and the light-and-shade of the solo disappears.
-[compressor]
-enabled = true
-sustain = 0.30
-attack  = 0.45
-level   = 0.52
-
-[fuzz]
-enabled = false
-fuzz  = 0.50
-tone  = 0.50
-level = 0.60
-
-# ── Tube Screamer ─────────────────────────────────────────────────────────────
-# A light boost pushing the Plexi's front end: more gain and mid push,
-# not more distortion.
+# TS off — the Tube Screamer is a 1979 pedal; the Stairway solo predates it. The
+# amp's own breakup carries the lead.
 [tube_screamer]
-enabled = true
+enabled = false
 drive = 0.22
 tone  = 0.58
 level = 0.66
 
-[distortion]
-enabled = false
-drive = 0.40
-tone  = 0.50
-level = 0.65
-
-# ── Pre-amp EQ ────────────────────────────────────────────────────────────────
-# Mids up for the vocal Page lead voice, lows trimmed so chords stay tight, top
-# open for the Tele/Les Paul bite.
-[preamp_eq]
-enabled = true
-low  = 0.44
-mid  = 0.60
-high = 0.56
-
-# Uni-Vibe off — not part of this tone; stored so it is explicitly bypassed.
-[uni_vibe]
-enabled = false
-rate    = 0.24
-depth   = 0.40
-mix     = 0.0
-mode    = 0.0
-
 # ── Amp ───────────────────────────────────────────────────────────────────────
-# A cranked Marshall Super Lead "Plexi" — the non-master head Page used, pushed
-# into power-amp crunch: medium gain, strong mids, bright top. Enough to sing,
-# far from metal.
+# Small Supro-style combo: Volume and Tone, no master. Pushed for the singing,
+# compressed small-amp voice.
 [amp]
-model  = "plexi"
-gain   = 0.48
-bass   = 0.44
-mid    = 0.62
-treble = 0.62
-presence = 0.58
+model  = "supro"
+gain   = 0.78
+treble = 0.60
 
 # ── Cabinet ───────────────────────────────────────────────────────────────────
-# Greenbacks near on-axis with a light ribbon and just a little room — immediate
-# and present, the way a close-mic'd small combo sits.
+# Open-back 2×12 (Jensen-style) — the closest approximation to a small combo's
+# open, boxy cab. A dedicated small-combo cab is a later build.
 [cabinet]
-model     = "marshall"
-mic_pos   = 0.56
-mic_blend = 0.18
-mic_room  = 0.24
-
-# ── Parametric EQ ─────────────────────────────────────────────────────────────
-# A mid-forward finish with the lows tucked and a little brightness on top.
-[eq]
-enabled = true
-low  = 0.44
-mid  = 0.58
-high = 0.56
+model     = "fender"
+mic_pos   = 0.50
+mic_blend = 0.20
+mic_room  = 0.22
 
 # ── Delay ─────────────────────────────────────────────────────────────────────
 # A short slap (~130 ms), barely there — it thickens the single note without
-# turning into an audible echo. `type` is pinned to the digital ping-pong the
-# preset has always resolved to; a tape/EP-3 voicing is a possible later change
-# once a source confirms the session echo (see docs/fidelity-references.md).
+# becoming an audible echo. The session echo device is unverified (see
+# docs/fidelity-references.md).
 [delay]
 enabled  = true
 type     = 0.0
