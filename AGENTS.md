@@ -53,6 +53,7 @@ disposed of on the control thread.
 | Practice / jam-along | `src/practice.rs` (shared transport + offline decode via symphonia), `src/dsp/player.rs` (audio-thread `PlayerVoice`), `src/ui/practice.rs` (timeline pane + track browser), `src/dsp/resample.rs` (shared windowed-sinc resampler) |
 | Sessions / export | `src/session.rs` (runtime session/track state), `src/project.rs` (portable project folders), `src/export.rs` (offline take render) |
 | Plugin hosting | `src/host/` — CLAP effect insert (`clap` feature) and macOS Audio Unit amp override (`au` feature) |
+| Analysis / calibration | `src/analysis/` — offline metrics (BS.1770 LUFS, LTAS), the deterministic synthetic DI corpus, and offline preset rendering; `examples/fidelity_render.rs` is the harness; `src/audio/calibration.rs` is the input trim/wizard state |
 
 ---
 
@@ -76,6 +77,7 @@ The repository includes several standalone analysis utilities under `examples/` 
 - `examples/cab_spectrum.rs` — visualizes cabinet frequency content
 - `examples/au_cab_extract.rs` and `examples/au_params.rs` — inspect AudioUnit cabinet and parameter data
 - `examples/cone_interference.rs`, `examples/di_compare.rs`, `examples/knob_match.rs`, and `examples/rig_loudness.rs` — compare signal paths, input stages, and loudness behavior
+- `examples/fidelity_render.rs` — the fidelity harness: renders presets offline over the synthetic corpus or a DI manifest, reports loudness/tone/level metrics, and checks against `docs/fidelity/baseline-synth-48k.toml` (see `CONTRIBUTING.md` → "Fidelity harness")
 
 External impulse responses (IRs) for cabinet simulation are stored in `~/.config/rusty-riff/irs/`.
 

@@ -261,6 +261,59 @@ The automated tests don't listen, so an audio change still needs an ear:
 3. Confirm no audible clicks or artifacts when toggling bypass or switching models
 4. Confirm the preset round-trips correctly (save → reload → values match)
 
+## Fidelity harness
+
+`examples/fidelity_render.rs` renders presets offline through the real live
+chain and reports loudness/tone/level metrics, so a voicing change can be
+compared before/after with numbers, not just by ear. The measurement helpers and
+the deterministic synthetic DI corpus live in `src/analysis/`.
+
+```bash
+# Synthetic Karplus-Strong corpus, all bundled presets, into target/fidelity/<ts>/
+cargo run --release --example fidelity_render -- --presets all
+
+# A subset, a fixed output dir, and the neutral master width
+cargo run --release --example fidelity_render -- \
+    --presets van_halen_brown_sound,acdc_back_in_black --out /tmp/fid --width 1.0
+
+# A user DI corpus: <dir>/manifest.toml lists the WAVs (see below)
+cargo run --release --example fidelity_render -- --di ~/.config/rusty-riff/fidelity/di
+
+# Reference excerpts (<dir>/<preset-stem>.wav), LUFS-matched before comparison
+cargo run --release --example fidelity_render -- --ref /path/to/refs
+
+# Level-matched blind A/B/X files + key + listening-notes template
+cargo run --release --example fidelity_render -- --abx van_halen_brown_sound:acdc_back_in_black
+
+# CPU: realtime factor per preset at 44.1/48/96 kHz (warn above rtf 0.5)
+cargo run --release --example fidelity_render -- --bench
+
+# Baseline drift check (and how to regenerate after an intended voicing change)
+cargo run --release --example fidelity_render -- --check docs/fidelity/baseline-synth-48k.toml
+cargo run --release --example fidelity_render -- --presets all \
+    --write-baseline docs/fidelity/baseline-synth-48k.toml
+```
+
+Outputs land under `--out`: `<preset>/<di>.wav`, `report.toml` (full per-render
+metrics + third-octave LTAS) and `summary.csv` (scalar columns). A DI manifest
+looks like:
+
+```toml
+[[di]]
+file              = "strat_neck_bends.wav"
+guitar            = "Strat, neck single-coil"
+calibrated        = true              # recorded through rusty-riff after `N`
+trim_db           = 0.0               # applied by the harness only if not calibrated
+reference_version = 1
+```
+
+To record your own DI: calibrate (`N`), press `R` for a dry take, save the
+session (`J`); the take WAV in the session folder is already calibrated.
+
+The baseline covers the `chugs` phrase; `--check` tolerates
+lufs_i ±0.1, crest ±0.2 dB, correlation ±0.02, centroid ±1 %, and ±0.25 dB per
+LTAS band. Regenerate it in the same commit as any intended voicing change.
+
 ## License
 
 rusty-riff is released under the [Apache 2.0 license](LICENSE). It is a modified

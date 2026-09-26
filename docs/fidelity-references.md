@@ -155,7 +155,8 @@ Source:            <citation: interview, session notes, schematic, manual, measu
 Recording vs live: <which recording/section; live context noted separately>
 Supports:          <documented | plausible | unknown>
 What it changes:   <the preset/DSP change this source would justify>
-Listen/measure:    <blind A/B or measurement notes, if done>
+Listen/measure:    <blind A/B or measurement notes; cite a harness run and its
+                    report.toml (DI names, width, REFERENCE_VERSION)>
 ```
 
 ## 4. What is explicitly out of scope here
