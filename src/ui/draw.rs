@@ -1271,6 +1271,10 @@ pub(super) fn render_help_modal(f: &mut Frame) {
         ),
         row("  ←/→", "  move inside the focused panel"),
         row("  [ / ]", "  move the ribbon's stage earlier / later"),
+        row(
+            "  note",
+            "  between AMP and CAB = line-level; a full-rig AU is post-mic",
+        ),
         row("  Space", "  bypass stage, pedal, or transport under focus"),
         head("Play & edit"),
         row("  ↑/↓  +/−", "  knob / adjust value"),
