@@ -63,7 +63,9 @@ pub const KNOBS: &[AmpKnob] = &[
 ///     Intensity) are modelled in-amp, unlike the rack spring-reverb and tremolo
 ///     pedals — the real combo has them built in.
 ///   • **6L6 power section**: gentle sag and a big, clean output transformer, so the
-///     lows stay tight and the top stays open.
+///     lows stay tight and the top stays open. Twin Reverbs are **solid-state
+///     rectified** in every revision (blackface AB763 through silverface AA769), so
+///     the supply is stiff and the compression is soft, not valve-rectifier sag.
 pub struct Fender {
     sr: f32,
     front: FrontEnd,

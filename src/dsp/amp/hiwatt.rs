@@ -63,9 +63,10 @@ pub const KNOBS: &[AmpKnob] = &[
 ///     only when genuinely slammed.
 ///   • A **wide-bandwidth, low-cut inter-stage HP** (~150 Hz) keeps the low end
 ///     solid and tight rather than the Marshall's thicker, mid-forward coupling.
-///   • The passive FMV stack uses Hiwatt-derived values — a **flatter mid** than
-///     the Marshall (larger mid-pot load) with a bright top — matching the DR103's
-///     clear, un-scooped voice.
+///   • A **passive TMB tone stack** — the DR103's "unique TMB" network, wired
+///     FMV-style with Hiwatt-derived values — gives a **flatter mid** than the
+///     Marshall (larger mid-pot load) with a bright top, matching the DR103's
+///     clear, un-scooped voice. It is **passive**, not an active Baxandall.
 ///   • Light power-amp sag and a strong output transformer keep the bottom tight;
 ///     the bloom is present but gentle, true to the amp's clean headroom.
 pub struct Hiwatt {

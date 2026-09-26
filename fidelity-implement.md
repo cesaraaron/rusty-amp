@@ -350,6 +350,7 @@ Append one row per commit from Workstreams A/B onward.
 | phase0 | docs | `docs/fidelity-references.md` §2 now carries the recording dates/studios/producers/credits per preset group, cited to Wikipedia (secondary) and marked `documented`, plus the Phase-5 contradiction list. Gear remains unsourced (`plausible`/`unknown`, `Source: _TBD_`). | n/a | only secondary sources so far; gear needs primary sourcing |
 | phase0-gear | docs | Gear link pass: added **verified secondary** gear sources (gilmourish for Floyd; Guitar World for Eagles/Zeppelin; MusicRadar/Mixdown for Slash; musicradar/Guitar World for Page/EVH) and marked each `plausible`; unverified rows stay `TBD`. **Phase 0 closed (evidence-as-available)** — all presets are *inspired by*. Also recorded **Phase 3 component references** (Marshall 1959 silicon bridge; Hiwatt BYX94 + passive TMB; Twin solid-state + Jensen C12N; Greenback G12M specs) in the Phase 3 section. | n/a | full session-gear sourcing is out of scope; the amp/cab work will rely on component refs + the harness, not session history |
 | plexi-rect | amp | The model 1959 Super Lead is silicon-rectified (Unicord 1970 schematic; GZ34 phased out ~1966), so `Plexi::power_amp` was retuned from valve-style sag to a stiff solid-state rail (attack 150→220/s, release 5→6.7/s, sag depth 1.8→1.3, ripple depth 0.05→0.035) and the doc comments corrected; bloom is now attributed to the output transformer/speaker. The stale "tube-rectified Marshall" note in `hiwatt.rs` was fixed. | all `dsp::amp` tests incl. `amps_are_loudness_matched`; harness before/after `--check` | only `lufs_i` moved — **+0.15–0.19 dB** on the six Plexi presets (less supply compression); crest, correlation, centroid and LTAS unchanged. `docs/fidelity/baseline-synth-48k.toml` regenerated in this commit. |
+| phase3-audit | docs | Audited Hiwatt/WEM and Twin/Jensen against the component refs: both already match (Hiwatt passive FMV-style TMB + stiff silicon supply; WEM cab = Fane Crescendo; Twin passive Fender stack + solid-state rectifier; Fender cab = Jensen-style open 2×12; Greenback cab consistent with G12M specs). Reworded the Hiwatt doc ("passive TMB", not Baxandall) and the Twin doc (solid-state rectifier in every revision). No voicing changes. Remaining Phase 3 work is measurement-bound (re-amp/mic captures). | n/a (comments/docs only) | the models are *plausible* against refs, not verified against captures |
 
 ### Reference rig (B8)
 
@@ -451,6 +452,32 @@ for a measured-IR match):
   Fs 75 Hz. <https://celestion.com/product/g12m-greenback/>
 
 Still needed for a measured match: re-amp captures and compatible mic/IR captures.
+
+### Phase 3 — audit results (2026-09-25)
+
+Checked the models against the references above:
+
+- **Marshall Plexi — corrected.** The valve-rectifier sag was wrong; `Plexi::power_amp`
+  now uses a stiff solid-state rail (see the `plexi-rect` increment). Measured delta:
+  only `lufs_i`, +0.15–0.19 dB on the six Plexi presets.
+- **Hiwatt DR103 — already aligned.** The model already uses `ToneStack` with
+  `Components::HIWATT` (a passive FMV-style TMB, not an active Baxandall) and a
+  stiff, silicon-rectified supply (`sag` 0.45, ~90 ms release). The doc was reworded
+  to match the schematic ("passive TMB", not "Baxandall"). The WEM cab is already
+  modelled as **Fane Crescendo** (bright, efficient upper-mids, leaner low end) —
+  matching the cited WEM Super Starfinder + Fane rig. No voicing change.
+- **Fender Twin — already aligned.** The model uses `Components::FENDER` (passive
+  Fender stack) with a stiff supply (solid-state rectified in every Twin revision);
+  the doc now states this explicitly. The Fender cab is an open-back 2×12 with a
+  Jensen-style ceramic voicing (sub-HP 82 Hz, presence 2.5–4 kHz, rolloff ~7–8 kHz)
+  — consistent with the stock Jensen C12N. No voicing change.
+- **Greenback cab — consistent.** The Marshall cab holds level through 3–5 kHz and
+  rolls off at 6.6–7 kHz, consistent with the G12M's 75–5000 Hz rated range plus a
+  deliberate fizz cut. No change without a measured capture.
+
+**Remaining Phase 3 work is measurement-bound:** matching magnitude/phase/decay and
+control sweeps needs re-amp captures and mic/IR captures, which we do not have.
+Until then the amp/cab models are *plausible*, not verified against captures.
 
 ### Phase 4 — named pedal/echo/reverb circuits
 
