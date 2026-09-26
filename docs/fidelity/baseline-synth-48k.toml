@@ -185,94 +185,94 @@ db = -28.242409
 
 [[render]]
 preset = "eagles_hotel_california_clean"
-lufs_i = -24.00638
-crest_db = 17.960073
-correlation = 0.4585863
-centroid_hz = 3991.8
+lufs_i = -23.324112
+crest_db = 18.170567
+correlation = 0.43670818
+centroid_hz = 3874.8958
 
 [[render.ltas]]
 hz = 70.0
-db = 15.665756
+db = 15.193504
 
 [[render.ltas]]
 hz = 88.19447
-db = -3.0919266
+db = -3.418869
 
 [[render.ltas]]
 hz = 111.11807
-db = -4.6560974
+db = -5.027794
 
 [[render.ltas]]
 hz = 140.0
-db = 5.048195
+db = 4.6039886
 
 [[render.ltas]]
 hz = 176.38895
-db = -3.450386
+db = -4.1763916
 
 [[render.ltas]]
 hz = 222.23615
-db = 1.6917496
+db = 2.274269
 
 [[render.ltas]]
 hz = 280.0
-db = -2.695755
+db = -0.9241791
 
 [[render.ltas]]
 hz = 352.7779
-db = -4.441536
+db = -4.6344604
 
 [[render.ltas]]
 hz = 444.4723
-db = -2.722847
+db = -3.5642242
 
 [[render.ltas]]
 hz = 560.0
-db = -7.3826523
+db = -6.447777
 
 [[render.ltas]]
 hz = 705.5558
-db = 0.7643051
+db = 0.3432312
 
 [[render.ltas]]
 hz = 888.9446
-db = -4.3794327
+db = -3.8396301
 
 [[render.ltas]]
 hz = 1120.0
-db = -3.189125
+db = -2.353897
 
 [[render.ltas]]
 hz = 1411.1116
-db = -6.3036118
+db = -5.196335
 
 [[render.ltas]]
 hz = 1777.8892
-db = -0.9179306
+db = -0.55592346
 
 [[render.ltas]]
 hz = 2240.0
-db = -2.6110458
+db = -2.7012787
 
 [[render.ltas]]
 hz = 2822.2231
-db = 5.448044
+db = 4.058426
 
 [[render.ltas]]
 hz = 3555.7783
-db = 0.99622345
+db = 1.1746368
 
 [[render.ltas]]
 hz = 4480.0
-db = 17.283981
+db = 16.700714
 
 [[render.ltas]]
 hz = 5644.4463
-db = 2.5339432
+db = 3.5283432
 
 [[render.ltas]]
 hz = 7111.5566
-db = -3.5899963
+db = -5.036392
 
 [[render]]
 preset = "eagles_hotel_california_solo"
@@ -458,94 +458,94 @@ db = -29.70964
 
 [[render]]
 preset = "led_zeppelin_stairway_solo"
-lufs_i = -18.019547
-crest_db = 15.071207
-correlation = 0.5923776
-centroid_hz = 2722.155
+lufs_i = -21.262476
+crest_db = 18.588917
+correlation = 0.748878
+centroid_hz = 3737.707
 
 [[render.ltas]]
 hz = 70.0
-db = 14.887215
+db = 15.39666
 
 [[render.ltas]]
 hz = 88.19447
-db = -1.4357147
+db = -0.5123749
 
 [[render.ltas]]
 hz = 111.11807
-db = -6.3763275
+db = -5.139015
 
 [[render.ltas]]
 hz = 140.0
-db = 10.859192
+db = 9.732712
 
 [[render.ltas]]
 hz = 176.38895
-db = -0.66593933
+db = -3.6697845
 
 [[render.ltas]]
 hz = 222.23615
-db = 15.708351
+db = 7.7523575
 
 [[render.ltas]]
 hz = 280.0
-db = 8.225288
+db = -4.303299
 
 [[render.ltas]]
 hz = 352.7779
-db = 1.6447525
+db = -10.326546
 
 [[render.ltas]]
 hz = 444.4723
-db = 16.108383
+db = 0.21794128
 
 [[render.ltas]]
 hz = 560.0
-db = 0.5884781
+db = -8.3424225
 
 [[render.ltas]]
 hz = 705.5558
-db = 15.175133
+db = 2.7371445
 
 [[render.ltas]]
 hz = 888.9446
-db = 8.392857
+db = 0.4439926
 
 [[render.ltas]]
 hz = 1120.0
-db = -13.533714
+db = -6.2929993
 
 [[render.ltas]]
 hz = 1411.1116
-db = -3.9873123
+db = -5.8630447
 
 [[render.ltas]]
 hz = 1777.8892
-db = -0.99017334
+db = 3.0948486
 
 [[render.ltas]]
 hz = 2240.0
-db = -7.581421
+db = -1.8116837
 
 [[render.ltas]]
 hz = 2822.2231
-db = -2.6281357
+db = 6.1200333
 
 [[render.ltas]]
 hz = 3555.7783
-db = -12.453728
+db = -3.045021
 
 [[render.ltas]]
 hz = 4480.0
-db = 6.211586
+db = 15.894066
 
 [[render.ltas]]
 hz = 5644.4463
-db = -16.468773
+db = -1.1782227
 
 [[render.ltas]]
 hz = 7111.5566
-db = -31.680122
+db = -10.905556
 
 [[render]]
 preset = "led_zeppelin_whole_lotta_love"

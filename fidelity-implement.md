@@ -354,6 +354,8 @@ Append one row per commit from Workstreams A/B onward.
 | phase3-audit | docs | Audited Hiwatt/WEM and Twin/Jensen against the component refs: both already match (Hiwatt passive FMV-style TMB + stiff silicon supply; WEM cab = Fane Crescendo; Twin passive Fender stack + solid-state rectifier; Fender cab = Jensen-style open 2×12; Greenback cab consistent with G12M specs). Reworded the Hiwatt doc ("passive TMB", not Baxandall) and the Twin doc (solid-state rectifier in every revision). No voicing changes. Remaining Phase 3 work is measurement-bound (re-amp/mic captures). | n/a (comments/docs only) | the models are *plausible* against refs, not verified against captures |
 | cheap-pass | presets | Preset-honesty pass: added `year` metadata to all 17 bundled presets plus a `no_new_device_anachronisms` test (the three known TS-808 cases are allowlisted for Phase 5); set `[master] width = 1.0` on every preset (period guitar is a mono track — R8); hedged the over-claiming descriptions (Stairway small-amp vs Plexi, Hotel California 12-string / two harmonized players, and "the real rig" wording). Regenerated the baseline. | `no_new_device_anachronisms`, `all_bundled_presets_parse`; baseline `--check` (17) | `width = 1.0` lowers `lufs_i` ~0.3–0.7 dB and raises correlation (less side energy) across all presets; removable per preset or live via `W` |
 | supro-amp | amp | Added the **Supro-style small combo** (`src/dsp/amp/supro.rs`, `AmpModel::Supro`): a two-knob (Volume/Tone) valve-rectified small American combo, built from the shared blocks (tube rectifier-style sag, small output transformer, small-cab speaker load, passive stack Tone). Wired through `AmpBank`, the `AmpModel` enum/`ALL`/`controls`/cycle, the preset model strings, and the UI counts; amp-modal snapshot re-blessed. | all `dsp::amp` tests (touch-sensitive, bright-cap, loudness-matched) + `ui::` tests | `AMP_MAX` unchanged (2 knobs); the model is an **approximation**, not schematic-exact; no preset uses it yet (the Phase 5 Stairway rebuild is next) |
+| stairway-supro | preset | Rebuilt `led_zeppelin_stairway_solo` on the Supro combo through a Fender open 2×12, dropped the anachronistic TS-808 and the compensating pre-EQ/parametric EQ (sparse gate → Supro → cab → slap → room), updated the description; removed its `KNOWN_ANACHRONISMS` entry. | `all_bundled_presets_parse`, `no_new_device_anachronisms`; harness before/after + level-matched A/B | **pending maintainer listening:** brighter, more dynamic and ~3–5 dB quieter than the old Plexi+TS+2-EQ chain; A/B under `target/fidelity/stairway-matched/` (gitignored) |
+| spring-tank | effects | Replaced the Twin's Freeverb-derived onboard "spring" with `SpringReverb` (`src/dsp/effects/spring.rs`): a 20-stage first-order-allpass dispersion cascade (lows delayed more than highs → downward chirp) into two unequal damped recirculating spring lines (27/41 ms), HP 180 Hz at both ends, LP 5 kHz, decay-normalized so a long tail does not also mean a loud reverb. `Fender` now uses it in the same slot (post-voice, before the bias tremolo/power amp); the panel knob is the recovery level. | `dsp::effects::spring` (silence, decaying tail, dispersion group-delay, full-decay stability); all `dsp::amp` + full suite (327) | model, not a capture; the wet is additive (no dry attenuation); baseline for `eagles_hotel_california_clean` regenerated in this commit (spring vs old Freeverb: +0.55 dB `lufs_i`, crest/correlation near-unchanged) |
 
 ### Reference rig (B8)
 
@@ -487,9 +489,16 @@ Until then the amp/cab models are *plausible*, not verified against captures.
 Needs circuit data + measured sweeps for: Muff vs Fuzz Face vs Tone Bender
 (`src/dsp/effects/fuzz.rs`), TS-808 high-pass (above), Dyna Comp vs the generic
 compressor, manual-wah vs `wah.rs` auto-wah (needs an expression input), Phase
-90 / MXR flanger / Electric Mistress / Uni-Vibe modulation trajectories, a real
-Binson Echorec model if evidence calls for it, and a spring-tank model to
-replace the Twin's generic Freeverb "spring".
+90 / MXR flanger / Electric Mistress / Uni-Vibe modulation trajectories, and a
+real Binson Echorec model if evidence calls for it.
+
+**Done:** the Twin's onboard Freeverb-derived "spring" was replaced with a
+dedicated mono spring-tank model (`src/dsp/effects/spring.rs`,
+`SpringReverb`): a dispersive allpass cascade (lows delayed more than highs, so
+a transient chirps downward) feeding two damped, unequal recirculating spring
+lines, high-passed at both ends and low-passed at 5 kHz. It keeps the Twin's
+original placement (post-voice, before the bias tremolo and power amp). Model,
+not a capture.
 
 ### Phase 5 — rebuild bundled presets
 

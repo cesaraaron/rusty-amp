@@ -3,7 +3,7 @@ use super::{
     OutputTransformer, SpeakerLoad, ToneCache, VoiceBalance,
 };
 use crate::dsp::biquad::Biquad;
-use crate::dsp::effects::{Reverb, Tremolo};
+use crate::dsp::effects::{SpringReverb, Tremolo};
 use crate::dsp::oversample::Oversampler8;
 use crate::dsp::tonestack::{Components, ToneStack};
 
@@ -59,7 +59,7 @@ pub const KNOBS: &[AmpKnob] = &[
 ///     curve far up the Volume knob, with a bright cap for the blackface sparkle and
 ///     a scooped Fender tone stack. It breaks up late and evenly, then compresses
 ///     softly rather than clamping — the clean bed under Eagles and Gilmour.
-///   • **Onboard spring reverb** (Reverb) and **bias/optical tremolo** (Speed /
+///   • **Onboard spring reverb** (SpringReverb) and **bias/optical tremolo** (Speed /
 ///     Intensity) are modelled in-amp, unlike the rack spring-reverb and tremolo
 ///     pedals — the real combo has them built in.
 ///   • **6L6 power section**: gentle sag and a big, clean output transformer, so the
@@ -86,7 +86,7 @@ pub struct Fender {
     envelope: f32,
     speaker: SpeakerLoad,
     // Onboard spring reverb (mono tank; the amp stage is mono → mono).
-    reverb: Reverb,
+    spring: SpringReverb,
     // Output-stage bias tremolo.
     trem: Tremolo,
 }
@@ -119,7 +119,7 @@ impl Fender {
             envelope: 0.0,
             // Open-back 2×12 (Jensen-style) resonance ~80 Hz, lightly damped.
             speaker: SpeakerLoad::new(sr, 80.0, 0.9, 0.04, 0.18, 0.9),
-            reverb: Reverb::new(sr),
+            spring: SpringReverb::new(sr),
             trem: Tremolo::new(sr),
         };
         f.update_tone_stack(0.5, 0.45, 0.65);
@@ -189,9 +189,11 @@ impl Amplifier for Fender {
         let x = self.tone.process(x);
         let x = self.voice.process(x);
 
-        // Onboard spring reverb: mono tank, summed back to the mono amp signal.
-        let (rl, rr) = self.reverb.process(x, x, 0.5, 0.35, reverb * 0.45);
-        let x = 0.5 * (rl + rr);
+        // Onboard spring tank: mono, before the bias tremolo and power amp as in
+        // the real Twin. The knob is the reverb recovery level; the tank's own
+        // decay/damping are fixed.
+        let wet = self.spring.process(x, 0.72, 0.42);
+        let x = x + wet * reverb * 2.5;
         // Output-stage bias tremolo (amplitude only).
         let (tl, tr) = self.trem.process(x, x, speed, intensity, 0.0, 0.0);
         let x = 0.5 * (tl + tr);

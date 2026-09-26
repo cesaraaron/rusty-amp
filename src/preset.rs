@@ -978,7 +978,6 @@ mod tests {
     /// enabled device outside this list whose debut postdates the preset's `year`
     /// fails the test, so a new anachronism cannot slip in unnoticed.
     const KNOWN_ANACHRONISMS: &[(&str, &str)] = &[
-        ("led_zeppelin_stairway_solo", "tube_screamer"),
         ("pink_floyd_shine_on_crazy_diamond", "tube_screamer"),
         ("eagles_hotel_california_solo", "tube_screamer"),
     ];
