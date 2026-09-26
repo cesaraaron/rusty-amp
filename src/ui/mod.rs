@@ -329,6 +329,20 @@ pub fn run(
             }
         };
 
+        // Apply the saved input calibration for this device. Startup and the `O`
+        // device-change flow both pass through here.
+        if let Some(entry) = crate::audio::calibration::load_calibration(&engine.input_identity()) {
+            calibration
+                .trim_db
+                .store(entry.trim_db, std::sync::atomic::Ordering::Relaxed);
+            if entry.reference_version != crate::audio::calibration::REFERENCE_VERSION {
+                save_msg = Some((
+                    "input calibration is from an older reference — recalibrate (N)".to_string(),
+                    std::time::Instant::now(),
+                ));
+            }
+        }
+
         // ── Plugin browser (CLAP insert) ──────────────────────────────────────────
         #[cfg(feature = "clap")]
         let mut browser =

@@ -16,9 +16,9 @@ use crate::dsp::{DspChain, Levels, Params, StereoInsert};
 use crate::practice::Practice;
 use crate::recording::{CaptureState, capture_ring};
 
-mod calibration;
+pub mod calibration;
 
-use calibration::{CAL_RING_CAPACITY, CAL_WINDOW_MS, TrimState, condition_block};
+use calibration::{CAL_RING_CAPACITY, CAL_WINDOW_MS, InputIdentity, TrimState, condition_block};
 pub use calibration::{InputCalibration, WindowStat};
 
 /// A swappable plugin insert handed to the audio thread (`Some` to install, `None`
@@ -186,12 +186,20 @@ pub struct AudioEngine {
     capture_rx: Option<Consumer<f32>>,
     /// Receives raw calibration windows from the audio thread (control thread).
     cal_stats_rx: Consumer<WindowStat>,
+    /// Identity of the running input, for calibration persistence.
+    identity: InputIdentity,
 }
 
 impl AudioEngine {
     /// The sample rate (Hz) the engine negotiated and is running at.
     pub fn sample_rate(&self) -> f32 {
         self.sample_rate
+    }
+
+    /// Identity of the input the engine is running with (device, channels,
+    /// guitar channel), used to look up and save input calibration.
+    pub fn input_identity(&self) -> InputIdentity {
+        self.identity.clone()
     }
 
     /// Drain any captured calibration windows into `out` (control thread only).
@@ -551,6 +559,12 @@ pub fn start(
     let shown_ch = guitar_ch + 1;
     let shown_sr = sr as u32;
     let frames = requested_frames(&host);
+    // Calibration identity: the device name plus the channels actually opened.
+    let identity = InputIdentity {
+        device: input_name.clone(),
+        channels: in_channels as u16,
+        channel: guitar_ch as u16,
+    };
     let msg = format!(
         "Audio: in '{input_name}' ch {shown_ch}/{in_channels} ({in_fmt}) -> out '{output_name}' ch {out_channels} ({out_fmt}), {shown_sr} Hz, requesting buffer {frames} frames",
     );
@@ -581,6 +595,7 @@ pub fn start(
         Arc::clone(&metronome),
         Arc::clone(&practice),
         Arc::clone(&calibration),
+        identity.clone(),
     ) {
         Ok(engine) => Ok(engine),
         Err(err) => {
@@ -606,6 +621,7 @@ pub fn start(
                 metronome,
                 practice,
                 calibration,
+                identity,
             )
         }
     }
@@ -1151,6 +1167,7 @@ fn build_engine(
     metronome: Arc<Metronome>,
     practice: Arc<Practice>,
     calibration: Arc<InputCalibration>,
+    identity: InputIdentity,
 ) -> Result<AudioEngine> {
     capture.sample_rate.store(sr as u32, Relaxed);
 
@@ -1339,6 +1356,7 @@ fn build_engine(
         track_ack_rx,
         capture_rx: Some(capture_rx),
         cal_stats_rx: cal_rx,
+        identity,
     })
 }
 

@@ -7,6 +7,8 @@
 //! default and is bit-identical to no trim at all.
 
 use atomic_float::AtomicF32;
+use serde::{Deserialize, Serialize};
+use std::path::{Path, PathBuf};
 use std::sync::atomic::AtomicBool;
 
 use crate::dsp::effects::db_to_lin;
@@ -113,6 +115,166 @@ pub fn condition_block(
         *x = raw * state.gain;
     }
     flags
+}
+
+// ── Reference targets and persistence ─────────────────────────────────────────
+
+/// Bumped when the provisional targets change; recorded with each saved entry so
+/// the UI can warn about a stale calibration.
+pub const REFERENCE_VERSION: u32 = 1;
+
+/// The pickup class a calibration was measured with.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum PickupClass {
+    SingleCoil,
+    P90,
+    #[default]
+    Humbucker,
+}
+
+/// Provisional engine-reference targets: the 99th-percentile 10 ms window peak
+/// a defined performance should read, per pickup class.
+pub fn target_peak_dbfs(p: PickupClass) -> f32 {
+    match p {
+        PickupClass::SingleCoil => -9.0,
+        PickupClass::P90 => -4.5,
+        PickupClass::Humbucker => -3.0,
+    }
+}
+
+/// Identity of an input: device name, channel count and guitar channel.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct InputIdentity {
+    pub device: String,
+    pub channels: u16,
+    pub channel: u16,
+}
+
+/// One saved calibration (a row in `input-calibration.toml`).
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct CalibrationEntry {
+    pub device: String,
+    pub channels: u16,
+    pub channel: u16,
+    #[serde(default)]
+    pub trim_db: f32,
+    #[serde(default)]
+    pub pickup: PickupClass,
+    #[serde(default)]
+    pub measured_peak_dbfs: f32,
+    #[serde(default)]
+    pub target_peak_dbfs: f32,
+    #[serde(default = "current_reference_version")]
+    pub reference_version: u32,
+    #[serde(default)]
+    pub calibrated_unix: u64,
+    #[serde(default)]
+    pub note: String,
+}
+
+impl CalibrationEntry {
+    pub fn identity(&self) -> InputIdentity {
+        InputIdentity {
+            device: self.device.clone(),
+            channels: self.channels,
+            channel: self.channel,
+        }
+    }
+
+    pub fn matches(&self, identity: &InputIdentity) -> bool {
+        self.device == identity.device
+            && self.channels == identity.channels
+            && self.channel == identity.channel
+    }
+}
+
+/// The on-disk file: a version plus one row per calibrated input.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct CalibrationFile {
+    #[serde(default = "current_reference_version")]
+    pub version: u32,
+    #[serde(default)]
+    pub inputs: Vec<CalibrationEntry>,
+}
+
+fn current_reference_version() -> u32 {
+    REFERENCE_VERSION
+}
+
+/// `~/.config/rusty-riff/input-calibration.toml`.
+pub fn calibration_path() -> Option<PathBuf> {
+    dirs::home_dir().map(|h| h.join(".config/rusty-riff/input-calibration.toml"))
+}
+
+fn read_file(path: &Path) -> CalibrationFile {
+    std::fs::read_to_string(path)
+        .ok()
+        .and_then(|text| toml::from_str::<CalibrationFile>(&text).ok())
+        .unwrap_or_else(|| CalibrationFile {
+            version: REFERENCE_VERSION,
+            inputs: Vec::new(),
+        })
+}
+
+fn write_file(path: &Path, file: &CalibrationFile) -> std::io::Result<()> {
+    if let Some(parent) = path.parent() {
+        std::fs::create_dir_all(parent)?;
+    }
+    let text = toml::to_string_pretty(file)
+        .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e))?;
+    // Write a sibling temp file and rename, so a failed write never corrupts the
+    // existing calibration.
+    let tmp = path.with_extension("toml.tmp");
+    std::fs::write(&tmp, text)?;
+    std::fs::rename(&tmp, path)
+}
+
+/// Load the saved calibration for `identity`, if any. Malformed files are treated
+/// as absent (best-effort, never blocks startup).
+pub fn load_calibration(identity: &InputIdentity) -> Option<CalibrationEntry> {
+    calibration_path().and_then(|path| load_calibration_at(&path, identity))
+}
+
+/// Load at an explicit path (test seam).
+pub fn load_calibration_at(path: &Path, identity: &InputIdentity) -> Option<CalibrationEntry> {
+    read_file(path)
+        .inputs
+        .into_iter()
+        .find(|e| e.matches(identity))
+}
+
+/// Save/replace the entry for the same identity, keeping every other entry.
+pub fn save_calibration(entry: &CalibrationEntry) -> std::io::Result<()> {
+    match calibration_path() {
+        Some(path) => save_calibration_at(&path, entry),
+        None => Ok(()),
+    }
+}
+
+/// Save at an explicit path (test seam).
+pub fn save_calibration_at(path: &Path, entry: &CalibrationEntry) -> std::io::Result<()> {
+    let mut file = read_file(path);
+    file.version = REFERENCE_VERSION;
+    let identity = entry.identity();
+    file.inputs.retain(|e| !e.matches(&identity));
+    file.inputs.push(entry.clone());
+    write_file(path, &file)
+}
+
+/// Remove the entry for `identity`, keeping every other entry.
+pub fn remove_calibration(identity: &InputIdentity) -> std::io::Result<()> {
+    match calibration_path() {
+        Some(path) => remove_calibration_at(&path, identity),
+        None => Ok(()),
+    }
+}
+
+/// Remove at an explicit path (test seam).
+pub fn remove_calibration_at(path: &Path, identity: &InputIdentity) -> std::io::Result<()> {
+    let mut file = read_file(path);
+    file.inputs.retain(|e| !e.matches(identity));
+    write_file(path, &file)
 }
 
 #[cfg(test)]
@@ -222,5 +384,90 @@ mod tests {
         let mut buf = vec![0.1f32; 960];
         let flags = condition_block(&mut buf, &mut st, &mut win, 480, 1.0, true, |_| false);
         assert!(flags.overflow && !flags.clipped);
+    }
+
+    fn scratch(tag: &str) -> PathBuf {
+        std::env::temp_dir().join(format!("rusty-riff-cal-test-{tag}-{}", std::process::id()))
+    }
+
+    fn identity(device: &str, channels: u16, channel: u16) -> InputIdentity {
+        InputIdentity {
+            device: device.to_string(),
+            channels,
+            channel,
+        }
+    }
+
+    fn entry(device: &str, channels: u16, channel: u16, trim: f32) -> CalibrationEntry {
+        CalibrationEntry {
+            device: device.to_string(),
+            channels,
+            channel,
+            trim_db: trim,
+            pickup: PickupClass::Humbucker,
+            measured_peak_dbfs: -10.5,
+            target_peak_dbfs: target_peak_dbfs(PickupClass::Humbucker),
+            reference_version: REFERENCE_VERSION,
+            calibrated_unix: 1_790_000_000,
+            note: String::new(),
+        }
+    }
+
+    #[test]
+    fn calibration_round_trips_two_identities() {
+        let path = scratch("two").join("input-calibration.toml");
+        save_calibration_at(&path, &entry("Scarlett 2i2", 2, 0, 7.5)).unwrap();
+        save_calibration_at(&path, &entry("Scarlett 2i2", 2, 1, -2.0)).unwrap();
+        let a = load_calibration_at(&path, &identity("Scarlett 2i2", 2, 0)).unwrap();
+        let b = load_calibration_at(&path, &identity("Scarlett 2i2", 2, 1)).unwrap();
+        assert_eq!(a.trim_db, 7.5);
+        assert_eq!(b.trim_db, -2.0);
+        assert_eq!(a.pickup, PickupClass::Humbucker);
+        assert_eq!(a.reference_version, REFERENCE_VERSION);
+        let _ = std::fs::remove_dir_all(path.parent().unwrap());
+    }
+
+    #[test]
+    fn replacing_one_entry_keeps_the_other() {
+        let path = scratch("replace").join("input-calibration.toml");
+        save_calibration_at(&path, &entry("Scarlett 2i2", 2, 0, 7.5)).unwrap();
+        save_calibration_at(&path, &entry("Scarlett 2i2", 2, 1, -2.0)).unwrap();
+        save_calibration_at(&path, &entry("Scarlett 2i2", 2, 0, 3.0)).unwrap();
+        assert_eq!(
+            load_calibration_at(&path, &identity("Scarlett 2i2", 2, 0))
+                .unwrap()
+                .trim_db,
+            3.0
+        );
+        assert_eq!(
+            load_calibration_at(&path, &identity("Scarlett 2i2", 2, 1))
+                .unwrap()
+                .trim_db,
+            -2.0
+        );
+        let _ = std::fs::remove_dir_all(path.parent().unwrap());
+    }
+
+    #[test]
+    fn remove_drops_only_that_entry() {
+        let path = scratch("remove").join("input-calibration.toml");
+        save_calibration_at(&path, &entry("Dev", 1, 0, 5.0)).unwrap();
+        save_calibration_at(&path, &entry("Dev", 2, 0, 6.0)).unwrap();
+        remove_calibration_at(&path, &identity("Dev", 1, 0)).unwrap();
+        assert!(load_calibration_at(&path, &identity("Dev", 1, 0)).is_none());
+        assert!(load_calibration_at(&path, &identity("Dev", 2, 0)).is_some());
+        let _ = std::fs::remove_dir_all(path.parent().unwrap());
+    }
+
+    #[test]
+    fn malformed_file_is_treated_as_absent() {
+        let path = scratch("bad").join("input-calibration.toml");
+        std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+        std::fs::write(&path, "this is [ not toml").unwrap();
+        assert!(load_calibration_at(&path, &identity("Dev", 1, 0)).is_none());
+        // A later save overwrites the malformed file.
+        save_calibration_at(&path, &entry("Dev", 1, 0, 1.0)).unwrap();
+        assert!(load_calibration_at(&path, &identity("Dev", 1, 0)).is_some());
+        let _ = std::fs::remove_dir_all(path.parent().unwrap());
     }
 }
