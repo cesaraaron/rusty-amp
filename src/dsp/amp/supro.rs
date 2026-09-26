@@ -120,7 +120,7 @@ impl Supro {
         self.envelope += coeff * (abs_x - self.envelope);
         let sag = 1.0 / (1.0 + self.envelope * 0.9);
         let supply = self.ripple.gain(sag, self.envelope);
-        tube_clip_asym(x * supply * 1.4) * 0.70
+        tube_clip_asym(x * supply * 1.8) * 0.66
     }
 }
 
@@ -138,9 +138,11 @@ impl Amplifier for Supro {
         // Bright cap across the Volume pot (strongest at low gain).
         let x = self.bright.process(x, gain);
 
-        // Moderate preamp gain, split across the two stages so neither is fully
-        // pinned — the early breakup comes from the low-headroom power section.
-        let pregain = 1.0 + gain * 12.0;
+        // Pushed preamp gain, split across the two stages so neither is fully
+        // pinned — the early breakup comes from the low-headroom power section, but
+        // the Volume knob has to reach it: at ~22× max the stages saturate into the
+        // thick, vocal edge-of-breakup a cranked small combo lives in.
+        let pregain = 1.0 + gain * 22.0;
         let bias = self.bloom.follow(x) * 0.11;
         let g1 = pregain.powf(0.6) * 1.2;
         let g2 = (pregain / pregain.powf(0.6)) * 1.3;
@@ -167,7 +169,7 @@ impl Amplifier for Supro {
 
         // Fixed output trim (no master) — level-matches the small combo to the
         // other models so switching amps doesn't jump the volume.
-        x * 5.0
+        x * 4.6
     }
 }
 

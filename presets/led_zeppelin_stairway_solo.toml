@@ -22,7 +22,7 @@ level = 0.66
 # compressed small-amp voice.
 [amp]
 model  = "supro"
-gain   = 0.78
+gain   = 0.88
 treble = 0.60
 
 # ── Cabinet ───────────────────────────────────────────────────────────────────
