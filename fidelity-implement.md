@@ -354,8 +354,28 @@ Gate met:
   covers all 15 presets cheaply; fresh-vs-hostile audio is compared through a real
   `DspChain` for a representative subset (A3).
 
-Review findings: R1–R7 resolved (R5 in the earlier doc reorganization); R8 is a
-deferred per-preset decision; R9 and R10 are Workstream B.
+Review findings: R1–R10 resolved (R5 in the earlier doc reorganization; R9–R10
+in Workstream B); R8 is a deferred per-preset decision.
+
+### Workstream B close-out
+
+Code and docs met the gate:
+
+- **0 dB is bit-identical.** The trim defaults to 0 dB and `zero_db_is_bit_identical`
+  pins `x * 1.0 == x`; the signal only changes once calibrated.
+- **The harness is deterministic** and `--check` passes against the committed
+  `docs/fidelity/baseline-synth-48k.toml`.
+- **The callback gained no allocation, lock, or unbounded loop.** Calibration is
+  an `rtrb` ring plus atomics (B3); A1/A5 already bound the order read and chunk
+  oversized callbacks.
+- **Calibrated takes record their trim** (B6), so a take re-amps/exports
+  identically and the level is auditable.
+
+**B8 remains (human):** on the interface, gain setting, and guitar the bundled
+presets were tuned with, run `N` for each available pickup class. If the measured
+P99 peaks differ from the provisional targets by more than ~1 dB, set
+`target_peak_dbfs` to the measured values, bump `REFERENCE_VERSION` to 2,
+regenerate the baseline, and record the rig here — all in one commit.
 
 ---
 
