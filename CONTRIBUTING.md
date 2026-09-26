@@ -274,7 +274,7 @@ cargo run --release --example fidelity_render -- --presets all
 
 # A subset, a fixed output dir, and the neutral master width
 cargo run --release --example fidelity_render -- \
-    --presets van_halen_brown_sound,acdc_back_in_black --out /tmp/fid --width 1.0
+    --presets acdc_back_in_black,led_zeppelin_whole_lotta_love --out /tmp/fid --width 1.0
 
 # A user DI corpus: <dir>/manifest.toml lists the WAVs (see below)
 cargo run --release --example fidelity_render -- --di ~/.config/rusty-riff/fidelity/di
@@ -283,7 +283,7 @@ cargo run --release --example fidelity_render -- --di ~/.config/rusty-riff/fidel
 cargo run --release --example fidelity_render -- --ref /path/to/refs
 
 # Level-matched blind A/B/X files + key + listening-notes template
-cargo run --release --example fidelity_render -- --abx van_halen_brown_sound:acdc_back_in_black
+cargo run --release --example fidelity_render -- --abx acdc_back_in_black:led_zeppelin_whole_lotta_love
 
 # CPU: realtime factor per preset at 44.1/48/96 kHz (warn above rtf 0.5)
 cargo run --release --example fidelity_render -- --bench

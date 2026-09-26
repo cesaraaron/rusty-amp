@@ -1,0 +1,71 @@
+name        = "Pink Floyd — Mother (Solo)"
+description = "Inspired by the electric solo on 'Mother' (The Wall, 1979): a Hiwatt DR103 through a Fane-loaded WEM 4×12, mid-forward and vocal, with a light echo. Inspired by, not a verified session rig."
+
+# ── Noise Gate ────────────────────────────────────────────────────────────────
+[noise_gate]
+enabled   = true
+threshold = 0.14
+release   = 0.34
+
+# ── Compressor ────────────────────────────────────────────────────────────────
+[compressor]
+enabled = true
+sustain = 0.40
+attack  = 0.30
+level   = 0.52
+
+# TS off — the Hiwatt's front end is driven by the guitar, not a pedal.
+[tube_screamer]
+enabled = false
+drive = 0.30
+tone  = 0.55
+level = 0.70
+
+# ── Pre-amp EQ ────────────────────────────────────────────────────────────────
+[preamp_eq]
+enabled = true
+low  = 0.44
+mid  = 0.60
+high = 0.56
+
+# ── Amp ───────────────────────────────────────────────────────────────────────
+# Hiwatt DR103 — clean, tight and bright, the classic Floyd front end.
+[amp]
+model    = "hiwatt"
+gain     = 0.48
+bass     = 0.42
+mid      = 0.60
+treble   = 0.60
+presence = 0.56
+master   = 0.55
+
+# ── Cabinet ───────────────────────────────────────────────────────────────────
+# WEM 4×12 with Fane Crescendos — bright and open.
+[cabinet]
+model     = "wem"
+mic_pos   = 0.54
+mic_blend = 0.22
+mic_room  = 0.24
+
+# ── Parametric EQ ─────────────────────────────────────────────────────────────
+[eq]
+enabled = true
+low  = 0.44
+mid  = 0.56
+high = 0.56
+
+# ── Delay ─────────────────────────────────────────────────────────────────────
+# A tasteful tape echo, present but not washy.
+[delay]
+type     = 1.0
+enabled  = true
+time     = 0.55
+feedback = 0.30
+mix      = 0.22
+
+# ── Reverb ────────────────────────────────────────────────────────────────────
+[reverb]
+enabled = true
+room = 0.48
+damp = 0.48
+mix  = 0.16

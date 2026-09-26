@@ -55,7 +55,7 @@ model; a "Echorec" description currently selects the tape approximation. The
 
 ## 1. Code-derived inventory
 
-All 15 bundled presets use the **shipped default chain order** (none set
+All 17 bundled presets use the **shipped default chain order** (none set
 `[chain]`): gate → whammy → wah → comp → fuzz → ts → ds → metal → preeq → vibe →
 **amp** → **cab** → geq → eq → flanger → chorus → phaser → trem → delay →
 reverb. Only the enabled devices are listed below. Noise gate and cabinet are
@@ -68,17 +68,19 @@ everywhere.
 | `acdc_highway_to_hell` | plexi | marshall | gate, preeq, eq, reverb | off | off |
 | `eagles_hotel_california_clean` | fender | fender | gate, comp, eq, chorus, delay, reverb | digital, 0.42 | off |
 | `eagles_hotel_california_solo` | plexi | marshall | gate, comp, ts, preeq, eq, delay, reverb | digital (default), 0.40 | off |
+| `guns_n_roses_november_rain_solo` | marshall | marshall | gate, delay, reverb | tape, 0.40 | off |
 | `led_zeppelin_stairway_solo` | plexi | marshall | gate, comp, ts, preeq, eq, delay, reverb | digital (default), 0.26 | off |
 | `led_zeppelin_whole_lotta_love` | plexi | marshall | gate, fuzz, preeq, eq, delay, reverb | tape, 0.30 | Tone Bender MkII |
 | `pink_floyd_another_brick_pt2` | hiwatt | wem | gate, comp, fuzz, preeq, eq, phaser, delay, reverb | tape, 0.60 | Big Muff |
 | `pink_floyd_comfortably_numb_solo_1` | hiwatt | wem | gate, comp, fuzz, preeq, eq, flanger, delay, reverb | tape, 0.88 | Big Muff |
 | `pink_floyd_comfortably_numb_solo_2` | hiwatt | wem | gate, comp, fuzz, preeq, eq, flanger, delay, reverb | tape, 0.90 | Big Muff |
+| `pink_floyd_have_a_cigar_solo` | hiwatt | wem | gate, comp, preeq, eq, delay, reverb | tape, 0.50 | off |
 | `pink_floyd_money` | hiwatt | wem | gate, wah, fuzz, eq, delay, reverb | tape, 0.58 | Fuzz Face |
+| `pink_floyd_mother_solo` | hiwatt | wem | gate, comp, preeq, eq, delay, reverb | tape, 0.55 | off |
 | `pink_floyd_shine_on_crazy_diamond` | hiwatt | wem | gate, comp, fuzz, ts, preeq, vibe, eq, delay, reverb | tape, 0.66 | Big Muff |
 | `pink_floyd_time_chorus` | hiwatt | wem | gate, preeq, vibe, eq, delay, reverb | tape, 0.75 | off |
 | `pink_floyd_time_solo` | hiwatt | wem | gate, comp, fuzz, preeq, vibe, eq, delay, reverb | tape, 0.62 | Fuzz Face |
-| `van_halen_aint_talkin_bout_love` | plexi | marshall | gate, ts, preeq, eq, flanger, phaser, delay, reverb | tape, 0.26 | off |
-| `van_halen_brown_sound` | plexi | marshall | gate, ts, preeq, eq, phaser, delay, reverb | tape, 0.24 | off |
+| `van_halen_beat_it_solo` | plexi | marshall | gate, phaser, delay, reverb | tape, 0.22 | off |
 
 ### Description-vs-path flags
 
@@ -94,7 +96,6 @@ both reproduced so the flag is auditable.
 | `pink_floyd_*` (Echorec) | "Echorec repeat/delay" | generic EP-3-style **tape** delay, no Binson model | Named hardware is an approximation. |
 | `pink_floyd_another_brick_pt2` | "slow Phase 90 sweep" | generic 4-stage stereo phaser | Named hardware is an approximation. |
 | `pink_floyd_comfortably_numb_*` | "Electric Mistress" | generic stereo flanger | Named hardware is an approximation. |
-| `van_halen_*` | dimed Plexi + Phase/flange/echo | additionally enables **TS-808**, pre-EQ and parametric EQ | Unmentioned enabled drive/EQ. |
 
 ---
 
@@ -126,19 +127,28 @@ confidence. Leave blank until sourced.
 - Tone Bender use and version; TS/slap delay/compression presence.
 - Sources:
 
-### `pink_floyd_*` (7 files)
+### `pink_floyd_*` (9 files)
 
 - Per-song/session fuzz (Muff version vs Fuzz Face), boost, wah, Uni-Vibe,
   Electric Mistress/phase, and echo device (Binson/Echoplex) **and position**.
 - Was any claimed wah manually rocked (the DSP `wah` is an envelope auto-wah)?
 - Studio EQ/compression vs the amp/cab chain; is the two-EQ stack compensating?
+- `mother_solo` (The Wall, 1979) and `have_a_cigar_solo` (Wish You Were Here,
+  1975): which amp/cab and pedals, and is the sparse preset here close enough?
 - Sources:
 
-### `van_halen_aint_talkin_bout_love.toml` / `_brown_sound.toml`
+### `guns_n_roses_november_rain_solo.toml`
 
-- First-album Plexi revision/power supply, speaker/mic, Phase 90 / MXR flanger
-  placement, tape echo, and recording-chain contribution.
-- Are the enabled TS-808/pre-EQ/post-EQ compensating for model voicing?
+- Slash's lead: Les Paul + which Marshall (JCM800 / Silver Jubilee / Plexi) and
+  cab; was any pedal (wah, boost) in use for the solos?
+- Is the wide delay/reverb ours, or the record's mix processing?
+- Sources:
+
+### `van_halen_beat_it_solo.toml`
+
+- EVH's guest solo on Michael Jackson's "Beat It" (1982): which amp (his Plexi?),
+  cab, and effects; was a phaser/echo in use, and is the solo double-tracked?
+- The rhythm on the record is not EVH — out of scope for this preset.
 - Sources:
 
 ---

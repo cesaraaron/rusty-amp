@@ -13,7 +13,7 @@ A bundled preset is a read-only `.toml` tone shipped with the repo in `presets/`
 
 Create `presets/<name>.toml`. Use a short, lowercase, filesystem-safe file name (e.g. `pantera_floods.toml`); the file stem is what appears in the preset browser list.
 
-- Study an existing preset in `presets/` (e.g. `presets/van_halen_brown_sound.toml`) as a template — match its structure and its habit of a one-line `#` comment above each section explaining *why* the values are what they are.
+- Study an existing preset in `presets/` (e.g. `presets/acdc_back_in_black.toml`) as a template — match its structure and its habit of a one-line `#` comment above each section explaining *why* the values are what they are.
 - **Required:** `name`, `[tube_screamer]`, `[amp]`, and `[reverb]`.
 - All other sections are optional. An omitted optional effect section turns that effect **off** on apply (knob values are retained but bypassed). Two sections are exceptions that retain their current state when omitted: `[noise_gate]` and `[cabinet]`. An omitted `[chain]` resets the order to the shipped default.
 - All knob values are normalised `0.0`–`1.0`.

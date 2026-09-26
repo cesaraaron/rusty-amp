@@ -1200,8 +1200,8 @@ mod tests {
         const RENDER_SUBSET: &[&str] = &[
             // comp, fuzz, TS, pre-EQ, vibe, EQ, delay, reverb
             "pink_floyd_shine_on_crazy_diamond.toml",
-            // TS, pre-EQ, EQ, flanger, phaser, delay, reverb
-            "van_halen_aint_talkin_bout_love.toml",
+            // comp, fuzz, pre-EQ, EQ, phaser, delay, reverb
+            "pink_floyd_another_brick_pt2.toml",
             // comp, EQ, chorus, delay, reverb
             "eagles_hotel_california_clean.toml",
         ];
