@@ -241,6 +241,12 @@ amp effects loop (preamp → loop send/return → power amp) is Phase 2 item 5 a
 remains unimplemented. Effects between `Amp` and `Cab` model a *virtual
 load-box / post-power-amp line-level* path, not the amp's internal loop.
 
+### No crossfade on the built-in ↔ AU toggle
+
+A2 guarantees the built-in/AU switch lands on a **block boundary** (one coherent
+`BlockRoute` per block), but it does not crossfade: a mid-block toggle is simply
+deferred to the next block. A clickless crossfade remains out of scope.
+
 ---
 
 ## Review 2026-09-25
@@ -254,9 +260,9 @@ finding **resolved** here, with the commit, when its item ships.
 | # | Severity | Finding | Evidence | Resolved by | Status |
 | --- | --- | --- | --- | --- | --- |
 | R1 | **High** | The chain-order seqlock reader spins without bound on the audio thread while a writer holds the sequence odd; a preempted UI writer stalls the callback. Single-writer is assumed, not enforced. | `Params::chain_slots` / `set_chain_order`, `src/dsp/mod.rs` ~1110–1140; called from `process` / `process_block` | A1 | **resolved** (A1) |
-| R2 | Medium | Routing state is read at inconsistent rates: `use_ext_amp` per block, but the Cab stage's `ext_amp_supplies_cab()` per sample. A mid-block AU toggle can run the built-in amp with no cab for the rest of the block. `process()` never runs the AU yet skips the cab when a full-rig AU is flagged active. | `process_block` ~1697 vs `run_ordered_stage` ~1605; `ext_amp_supplies_cab` ~1379 | A2 | open |
+| R2 | Medium | Routing state is read at inconsistent rates: `use_ext_amp` per block, but the Cab stage's `ext_amp_supplies_cab()` per sample. A mid-block AU toggle can run the built-in amp with no cab for the rest of the block. `process()` never runs the AU yet skips the cab when a full-rig AU is flagged active. | `process_block` ~1697 vs `run_ordered_stage` ~1605; `ext_amp_supplies_cab` ~1379 | A2 | **resolved** (A2) |
 | R3 | Low | With a **full-rig** AU, stages placed between AMP and CAB process the AU's already-miked output, not a line-level signal; the docs describe that region only as "virtual load box". | `run_ordered_stage` Cab arm; README and in-app `K` help | A4 | open |
-| R4 | Low | `amp_stage` doc says it is bypassed when an external amp is active (only `process_block` does that); comments still say "19 byte stores" although `CHAIN_LEN = 20`. | `src/dsp/mod.rs` ~1107, ~1386 | A1, A2 | open |
+| R4 | Low | `amp_stage` doc says it is bypassed when an external amp is active (only `process_block` does that); comments still say "19 byte stores" although `CHAIN_LEN = 20`. | `src/dsp/mod.rs` ~1107, ~1386 | A1, A2 | **resolved** (A1, A2) |
 | R5 | Low | Relative links in `docs/fidelity-references.md` pointed at `plan.md` / `IMPLEMENTATION-NOTES.md` inside `docs/` (files that do not exist there). | `docs/fidelity-references.md` lines 3, 27, 86, 164 | Doc reorganization (this commit) | **resolved** |
 | R6 | Low | The determinism test fingerprint omits amp knobs, fuzz/delay `type`, and knob values of enabled stages, so it would not catch a regression there (loading is currently correct: `apply` resets amp knobs to model defaults and serde defaults the types). | `rig_fingerprint`, `src/preset.rs` ~967 | A3 | open |
 | R7 | Low | `on_input` resizes/extends buffers when a callback exceeds `MAX_BLOCK = 4096` frames — an allocation on the audio thread (rare). | `src/audio/mod.rs` ~835–849, `MAX_BLOCK` line 80 | A5 | open |
@@ -322,6 +328,7 @@ Append one row per commit from Workstreams A/B onward.
 | `3a13c5f` | docs | Updated and renamed `Agents.md` → `AGENTS.md`; dropped the docs-site section and old config paths. | n/a | — |
 | `52d3195` | docs | Rewrote `.claude/skills/add-*` without the docs-site steps or PR flow. | n/a | — |
 | A1 | routing | Bounded audio-thread chain-order read: `try_chain_slots` (≤`CHAIN_READ_ATTEMPTS` tries) plus an audio-owned `last_order` fallback; a writer-only mutex serializes `set_chain_order`; `chain_slots()` is now control-thread-only. `process`/`process_block` use `snapshot_order`. R1 resolved. | `audio_read_never_waits_for_a_stalled_writer`, `concurrent_writers_never_tear_the_order`; existing torn/rapid order tests | `debug_assert` checks a pure permutation, not `sanitize_chain_order(order) == *order`: amp-before-cab is a UI-level constraint and `rapid_reorder` legitimately swaps across that boundary |
+| A2 | routing | One `BlockRoute` snapshot (order, `use_ext_amp`, `skip_cab`, `width`) taken per block/call and threaded through `process_core`/`run_full`/`run_range`/`run_ordered_stage`; the Cab decision is no longer re-read per sample, and `process()` never runs an AU or skips the cab. Deleted `ext_amp_supplies_cab`; fixed the `amp_stage` doc. R2 and R4 resolved. | `route_truth_table`, `per_sample_process_keeps_the_cab_with_a_full_rig_au_flagged`; existing `process_block_matches_per_sample` and AU full-rig/amp-only tests | built-in↔AU switch lands on a block boundary only (no crossfade; documented under "Findings not yet actioned") |
 
 ---
 

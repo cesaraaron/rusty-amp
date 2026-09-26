@@ -1283,6 +1283,23 @@ impl Sig {
     }
 }
 
+/// Everything routing-related, read **once** per block (or per `process` call)
+/// so a toggle landing mid-block cannot change the topology partway through.
+///
+/// In particular the [`ChainStage::Cab`] decision is baked into `skip_cab` here,
+/// instead of re-reading the AU flags per sample (the R2 defect).
+#[derive(Clone, Copy)]
+struct BlockRoute {
+    /// The coherent chain order for this block.
+    order: [u8; CHAIN_LEN],
+    /// The hosted AU replaces the built-in amp for this block.
+    use_ext_amp: bool,
+    /// The separate Cab stage is skipped (a live full-rig AU supplies it).
+    skip_cab: bool,
+    /// Master-bus width for this block.
+    width: f32,
+}
+
 pub struct DspChain {
     ng: NoiseGate,
     pitch: Pitch,
@@ -1424,24 +1441,33 @@ impl DspChain {
     /// `order` is snapshotted by the caller so the whole chain is read once per
     /// block, not once per sample.
     #[inline]
-    fn process_core(&mut self, sample: f32, order: &[u8; CHAIN_LEN]) -> (f32, f32) {
-        self.run_full(sample, order)
+    fn process_core(&mut self, sample: f32, route: &BlockRoute) -> (f32, f32) {
+        self.run_full(sample, route)
     }
 
-    /// True when a live full-rig external amp is supplying its own cabinet/mic,
-    /// in which case the separate [`ChainStage::Cab`] stage is intentionally
-    /// skipped. An amp-only AU returns `false`, so the built-in cab (or active
-    /// external IR) still runs on the AU's output.
+    /// Snapshot everything routing-related for one block/call. `allow_ext_amp` is
+    /// `false` for the per-sample [`process`](Self::process) path, which never runs
+    /// a hosted AU and therefore always keeps the built-in cab.
     #[inline]
-    fn ext_amp_supplies_cab(&self) -> bool {
+    fn route_for_block(&mut self, allow_ext_amp: bool) -> BlockRoute {
+        let order = self.snapshot_order();
         let p = &self.params;
-        self.ext_amp.is_some()
-            && p.amp_external_active.load(Relaxed)
-            && !p.amp_external_amp_only.load(Relaxed)
+        let active = p.amp_external_active.load(Relaxed);
+        let amp_only = p.amp_external_amp_only.load(Relaxed);
+        let use_ext_amp = allow_ext_amp && self.ext_amp.is_some() && active;
+        BlockRoute {
+            order,
+            use_ext_amp,
+            // A live full-rig AU supplies its own cab/mic, so the separate Cab
+            // stage is skipped; an amp-only AU still feeds the built-in cab.
+            skip_cab: use_ext_amp && !amp_only,
+            width: p.master_width.load(Relaxed),
+        }
     }
 
-    /// The built-in amp gain/tone stage (mono → mono). Bypassed when an external amp is
-    /// active (that path runs the hosted AU instead).
+    /// The built-in amp gain/tone stage (mono → mono). The dispatch swaps in a
+    /// hosted AU instead of calling this, but only in `process_block`; the
+    /// per-sample [`process`](Self::process) path always runs this.
     #[inline]
     fn amp_stage(&mut self, x: f32) -> f32 {
         let p = &self.params;
@@ -1655,11 +1681,11 @@ impl DspChain {
     /// stereo pedal on mono must not promote it). Only a *live* domain-crossing
     /// effect bridges domains.
     #[inline]
-    fn run_ordered_stage(&mut self, sig: Sig, stage: ChainStage) -> Sig {
+    fn run_ordered_stage(&mut self, sig: Sig, stage: ChainStage, route: &BlockRoute) -> Sig {
         match stage {
             ChainStage::Amp => return Sig::Mono(self.amp_stage(sig.into_mono())),
             ChainStage::Cab => {
-                return if self.ext_amp_supplies_cab() {
+                return if route.skip_cab {
                     sig
                 } else {
                     let (l, r) = self.cab_stage(sig.into_mono());
@@ -1693,12 +1719,13 @@ impl DspChain {
         }
     }
 
-    /// Walk a slice of the order, applying each stage's domain rules.
+    /// Walk a slice of the order, applying each stage's domain rules. `route`
+    /// carries the per-block Amp/Cab decisions so they are not re-read per sample.
     #[inline]
-    fn run_range(&mut self, mut sig: Sig, order: &[u8]) -> Sig {
+    fn run_range(&mut self, mut sig: Sig, order: &[u8], route: &BlockRoute) -> Sig {
         for &raw in order {
             if let Some(stage) = ChainStage::from_u8(raw) {
-                sig = self.run_ordered_stage(sig, stage);
+                sig = self.run_ordered_stage(sig, stage, route);
             }
         }
         sig
@@ -1706,8 +1733,9 @@ impl DspChain {
 
     /// Full ordered chain, mono in → stereo out.
     #[inline]
-    fn run_full(&mut self, sample: f32, order: &[u8; CHAIN_LEN]) -> (f32, f32) {
-        self.run_range(Sig::Mono(sample), order).into_stereo()
+    fn run_full(&mut self, sample: f32, route: &BlockRoute) -> (f32, f32) {
+        self.run_range(Sig::Mono(sample), &route.order, route)
+            .into_stereo()
     }
 
     /// The chain order for this call: a bounded, non-blocking read that falls
@@ -1725,13 +1753,14 @@ impl DspChain {
     ///
     /// The plugin-free path: the ordered core chain followed by the
     /// master bus. The live engine uses [`process_block`] instead, which also runs
-    /// the optional plugin insert between the two.
+    /// the optional plugin insert between the two. This path **always renders the
+    /// built-in rig**, never a hosted AU, so it never skips the cab (unlike a
+    /// full-rig AU block).
     #[inline]
     pub fn process(&mut self, sample: f32) -> (f32, f32) {
-        let order = self.snapshot_order();
-        let width = self.params.master_width.load(Relaxed);
-        let (l, r) = self.process_core(sample, &order);
-        master_bus(l, r, width)
+        let route = self.route_for_block(false);
+        let (l, r) = self.process_core(sample, &route);
+        master_bus(l, r, route.width)
     }
 
     /// Process a block of mono input samples into stereo output buffers.
@@ -1760,17 +1789,17 @@ impl DspChain {
         let out_l = &mut out_l[..n];
         let out_r = &mut out_r[..n];
 
-        // One bounded, coherent snapshot of the whole order for the entire block.
-        let order = self.snapshot_order();
-        let p = &self.params;
         let amp_loaded = self.ext_amp.is_some();
-        let use_ext_amp = amp_loaded && p.amp_external_active.load(Relaxed);
-        if use_ext_amp {
-            let amp_idx = Self::stage_index(&order, ChainStage::Amp, 10);
+        // One bounded, coherent routing snapshot for the entire block.
+        let route = self.route_for_block(true);
+        if route.use_ext_amp {
+            let amp_idx = Self::stage_index(&route.order, ChainStage::Amp, 10);
             // Ordered stages before the amp (mono), duplicated to stereo for the
             // block-based plugin.
             for ((&x, l), r) in input.iter().zip(out_l.iter_mut()).zip(out_r.iter_mut()) {
-                let pre = self.run_range(Sig::Mono(x), &order[..amp_idx]).into_mono();
+                let pre = self
+                    .run_range(Sig::Mono(x), &route.order[..amp_idx], &route)
+                    .into_mono();
                 *l = pre;
                 *r = pre;
             }
@@ -1781,7 +1810,7 @@ impl DspChain {
             // and any line-level effects placed between amp and cab or after.
             for (l, r) in out_l.iter_mut().zip(out_r.iter_mut()) {
                 let (lv, rv) = self
-                    .run_range(Sig::Stereo(*l, *r), &order[amp_idx + 1..])
+                    .run_range(Sig::Stereo(*l, *r), &route.order[amp_idx + 1..], &route)
                     .into_stereo();
                 *l = lv;
                 *r = rv;
@@ -1789,7 +1818,7 @@ impl DspChain {
         } else {
             // Normal path: the full built-in core chain, per sample.
             for ((&x, l), r) in input.iter().zip(out_l.iter_mut()).zip(out_r.iter_mut()) {
-                let (lv, rv) = self.process_core(x, &order);
+                let (lv, rv) = self.process_core(x, &route);
                 *l = lv;
                 *r = rv;
             }
@@ -1810,10 +1839,9 @@ impl DspChain {
             insert.process_block(out_l, out_r);
         }
 
-        // Master bus, per sample (width read once per block).
-        let width = self.params.master_width.load(Relaxed);
+        // Master bus, per sample (width read once per block, in the route).
         for (l, r) in out_l.iter_mut().zip(out_r.iter_mut()) {
-            let (wl, wr) = master_bus(*l, *r, width);
+            let (wl, wr) = master_bus(*l, *r, route.width);
             *l = wl;
             *r = wr;
         }
@@ -2017,7 +2045,8 @@ mod tests {
     fn bypassed_mono_stage_preserves_stereo() {
         // Wah is bypassed by default; it is a mono pre pedal.
         let mut chain = DspChain::new(48_000.0, Arc::new(Params::new()));
-        let out = chain.run_ordered_stage(Sig::Stereo(0.7, -0.3), ChainStage::Wah);
+        let route = chain.route_for_block(false);
+        let out = chain.run_ordered_stage(Sig::Stereo(0.7, -0.3), ChainStage::Wah, &route);
         match out {
             Sig::Stereo(l, r) => {
                 assert_eq!(l, 0.7, "left channel was altered/collapsed");
@@ -2033,7 +2062,8 @@ mod tests {
     fn bypassed_stereo_stage_preserves_mono() {
         // Chorus is bypassed by default; it is a stereo rack pedal.
         let mut chain = DspChain::new(48_000.0, Arc::new(Params::new()));
-        let out = chain.run_ordered_stage(Sig::Mono(0.5), ChainStage::Chorus);
+        let route = chain.route_for_block(false);
+        let out = chain.run_ordered_stage(Sig::Mono(0.5), ChainStage::Chorus, &route);
         match out {
             Sig::Mono(x) => assert_eq!(x, 0.5, "mono sample was altered"),
             Sig::Stereo(..) => panic!("bypassed stereo stage promoted mono to stereo"),
@@ -2109,7 +2139,8 @@ mod tests {
         params.wah_enabled.store(true, Relaxed); // live mono effect
         let mut chain = DspChain::new(48_000.0, params);
 
-        let out = chain.run_ordered_stage(Sig::Stereo(0.4, -0.2), ChainStage::Wah);
+        let route = chain.route_for_block(false);
+        let out = chain.run_ordered_stage(Sig::Stereo(0.4, -0.2), ChainStage::Wah, &route);
         match out {
             Sig::Stereo(l, r) => assert_eq!(
                 l, r,
@@ -2490,6 +2521,74 @@ mod tests {
                 || fr.iter().zip(&or).any(|(a, b)| (a - b).abs() > 1e-6),
             "amp-only mode did not route the AU output through the built-in cab"
         );
+    }
+
+    /// `route_for_block` is the single source of truth for routing: one read per
+    /// block decides Amp/Cab, regardless of which call path asked.
+    #[test]
+    fn route_truth_table() {
+        struct Noop;
+        impl StereoInsert for Noop {
+            fn process_block(&mut self, _l: &mut [f32], _r: &mut [f32]) {}
+        }
+
+        fn route(loaded: bool, active: bool, amp_only: bool, allow_ext_amp: bool) -> (bool, bool) {
+            let params = Arc::new(Params::new());
+            params.amp_external_active.store(active, Relaxed);
+            params.amp_external_amp_only.store(amp_only, Relaxed);
+            let mut chain = DspChain::new(48_000.0, params);
+            if loaded {
+                chain.set_ext_amp(Some(Box::new(Noop)));
+            }
+            let r = chain.route_for_block(allow_ext_amp);
+            (r.use_ext_amp, r.skip_cab)
+        }
+
+        for &loaded in &[false, true] {
+            for &active in &[false, true] {
+                for &amp_only in &[false, true] {
+                    // The per-sample path never runs an AU, so it never skips the cab.
+                    assert_eq!(
+                        route(loaded, active, amp_only, false),
+                        (false, false),
+                        "per-sample route must keep the built-in cab"
+                    );
+                    let want_ext = loaded && active;
+                    let want_skip = want_ext && !amp_only;
+                    assert_eq!(
+                        route(loaded, active, amp_only, true),
+                        (want_ext, want_skip),
+                        "block route mismatch: loaded={loaded} active={active} amp_only={amp_only}"
+                    );
+                }
+            }
+        }
+    }
+
+    /// `process()` always renders the built-in rig: a flagged full-rig AU must not
+    /// make the per-sample path silently drop the cab (the old R2 bug).
+    #[test]
+    fn per_sample_process_keeps_the_cab_with_a_full_rig_au_flagged() {
+        struct Noop;
+        impl StereoInsert for Noop {
+            fn process_block(&mut self, _l: &mut [f32], _r: &mut [f32]) {}
+        }
+
+        let sr = 48_000.0;
+        let params = Arc::new(Params::new());
+        params.amp_external_active.store(true, Relaxed); // full-rig flagged
+        let mut flagged = DspChain::new(sr, params);
+        flagged.set_ext_amp(Some(Box::new(Noop)));
+
+        let mut plain = DspChain::new(sr, Arc::new(Params::new()));
+
+        for n in 0..4000 {
+            let x = (2.0 * PI * 110.0 * n as f32 / sr).sin() * 0.6;
+            let (fl, fr) = flagged.process(x);
+            let (pl, pr) = plain.process(x);
+            assert_eq!(fl, pl, "flagged L diverged at sample {n}");
+            assert_eq!(fr, pr, "flagged R diverged at sample {n}");
+        }
     }
 
     /// With an AU loaded, the built-in path must be delayed by the AU's reported latency
