@@ -58,7 +58,6 @@ src/
     styles.rs       — colour palette and styles
 presets/            — bundled read-only presets (TOML)
 examples/           — standalone DSP analysis utilities
-assets/             — README images
 docs/               — fidelity reference matrix
 ```
 
