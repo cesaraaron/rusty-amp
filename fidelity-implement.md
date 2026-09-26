@@ -345,6 +345,7 @@ Append one row per commit from Workstreams A/B onward.
 | B7 | docs | README gains an "Input level" section and the `N` key; `CONTRIBUTING.md` gains a "Fidelity harness" section (commands, DI manifest, DI recording, baseline check); `AGENTS.md` lists `src/analysis/`, `src/audio/calibration.rs`, and `examples/fidelity_render.rs`; `docs/fidelity-references.md`'s source-log `Listen/measure` field cites a harness `report.toml`. The `K` help `N` row shipped in B4. | n/a | the README is kept to a quickstart, so the harness details live in `CONTRIBUTING.md` rather than the README |
 | bundle | presets | Removed `van_halen_brown_sound`/`van_halen_aint_talkin_bout_love`; added `van_halen_beat_it_solo`, `guns_n_roses_november_rain_solo`, `pink_floyd_mother_solo`, `pink_floyd_have_a_cigar_solo` (inspired-by, uncited; Phase 0 will source them). Updated `RENDER_SUBSET`, test samples, harness examples, the inventories (15 → 17), and regenerated the baseline. | `all_bundled_presets_parse`, `bundled_presets_load_deterministically`; baseline `--check` (17) | the four new presets are inspired-by pending Phase 0; `[master] width` stays at the default pending the period-preset width pass |
 | phase0 | docs | `docs/fidelity-references.md` §2 now carries the recording dates/studios/producers/credits per preset group, cited to Wikipedia (secondary) and marked `documented`, plus the Phase-5 contradiction list. Gear remains unsourced (`plausible`/`unknown`, `Source: _TBD_`). | n/a | only secondary sources so far; gear needs primary sourcing |
+| phase0-gear | docs | Gear link pass: added **verified secondary** gear sources (gilmourish for Floyd; Guitar World for Eagles/Zeppelin; MusicRadar/Mixdown for Slash; musicradar/Guitar World for Page/EVH) and marked each `plausible`; unverified rows stay `TBD`. **Phase 0 closed (evidence-as-available)** — all presets are *inspired by*. Also recorded **Phase 3 component references** (Marshall 1959 silicon bridge; Hiwatt BYX94 + passive TMB; Twin solid-state + Jensen C12N; Greenback G12M specs) in the Phase 3 section. | n/a | full session-gear sourcing is out of scope; the amp/cab work will rely on component refs + the harness, not session history |
 
 ### Reference rig (B8)
 
@@ -409,26 +410,43 @@ material that cannot be invented from code:
 
 ### Phase 0 — reference matrix
 
-Partially filled. [`docs/fidelity-references.md`](docs/fidelity-references.md)
-now records **recording dates, studios, producers and guitar credits** for every
-preset group, cited to Wikipedia (secondary) and marked `documented`, plus the
-per-preset contradictions to action in Phase 5. **Gear claims are still unsourced**
-(all `plausible`/`unknown`, `Source: _TBD_`): a human or following agent must log
-primary sources for amp revision, cab/speakers, effects **with order**, mic/room
-and studio processing before any preset is called an exact rig. Note the new
-presets added after the original scaffold (`van_halen_beat_it_solo`,
-`guns_n_roses_november_rain_solo`, `pink_floyd_mother_solo`,
-`pink_floyd_have_a_cigar_solo`) are covered by the same matrix.
+**Closed (evidence-as-available).**
+[`docs/fidelity-references.md`](docs/fidelity-references.md) records **recording
+dates, studios, producers and guitar credits** for every preset group (Wikipedia,
+secondary, marked `documented`) **plus verified secondary gear sources where
+found** (gilmourish for Floyd; Guitar World for Eagles/Zeppelin; MusicRadar/
+Mixdown for Slash; musicradar/Guitar World for Page and EVH). Sourcing every
+session gear detail is explicitly **out of scope**, so all presets are *inspired
+by*, not exact rigs. The per-preset contradiction list is the Phase 5 worklist.
+Unverified gear rows stay `Source: _TBD_`.
 
-### Phase 3 — amp/cab fidelity
+### Phase 3 — component references
 
 Priority order from shipped presets: Hiwatt DR103 + WEM/Fane, Marshall
-Super Lead/Plexi + Greenback 4×12, Fender Twin + Jensen 2×12. Needs:
-schematic/revision for each amp, measured re-amp captures at matched DI level,
-and compatible speaker/cab/mic IRs for magnitude/phase/decay comparison.
-Specifically flagged in `fidelity-plan.md`: the Plexi model's tube-rectifier assumption
-(`src/dsp/amp/plexi.rs`) must be checked against the chosen 1959 revision before
-the sag/ripple tuning is trusted.
+Super Lead/Plexi + Greenback 4×12, Fender Twin + Jensen 2×12. Verified references
+gathered for the models (secondary; sufficient for a revision/rectifier check, not
+for a measured-IR match):
+
+- **Marshall 1959 Super Lead — silicon rectifier.** Unicord 1970 schematic shows a
+  solid-state bridge (`4 X DIODE`), and drtube states the GZ34 was phased out
+  (~1966) in favour of solid-state rectifiers. So the Plexi model's tube-rectifier
+  sag is **not historically right** for late-60s/70s Super Leads.
+  <https://www.drtube.com/schematics/marshall/1959u.gif>,
+  <https://www.drtube.com/marshall.htm>
+- **Hiwatt DR103 — silicon rectifier + passive TMB.** PSU shows a `4 BYX94`
+  silicon bridge (`http://hiwatt.org/tech.html`: "meant for a full wave bridge");
+  the tone stack is a passive TMB ("TONE CONTROLS TREBLE MIDDLE BASS PRESENCE"),
+  **not** an active Baxandall. <https://www.drtube.com/schematics/hiwatt/hwpsu1.gif>,
+  <http://hiwatt.org/tech2.html>
+- **Fender Twin Reverb — silicon rectifier + Jensen.** AA769 schematic; Wikipedia:
+  "All Twin Reverbs feature a solid-state rectifier"; stock speakers include
+  **Jensen C12N** (reissue uses C-12K).
+  <https://schematicheaven.net/fenderamps/twin_reverb_aa769_schem.pdf>,
+  <https://en.wikipedia.org/wiki/Fender_Twin>, <https://www.jensentone.com/vintage-ceramic/c12k>
+- **Celestion Greenback G12M:** 25 W, ceramic, 35 oz magnet, 98 dB, 75–5000 Hz,
+  Fs 75 Hz. <https://celestion.com/product/g12m-greenback/>
+
+Still needed for a measured match: re-amp captures and compatible mic/IR captures.
 
 ### Phase 4 — named pedal/echo/reverb circuits
 

@@ -61,6 +61,14 @@ Status: implementation plan, not a claim that the existing presets reproduce the
 
 **Gate:** there is a credible, cited reference for each firm gear claim; where reference material is unavailable, the preset is labeled *inspired by* rather than advertised as an exact session rig. No arbitrary "90% faithful" number.
 
+**Closure (2026-09-25).** Phase 0 is closed **evidence-as-available**:
+`docs/fidelity-references.md` cites recording dates/credits (Wikipedia) and the
+secondary gear sources that could be verified, and marks everything else
+`unknown`/`Source: TBD`. Sourcing every session-gear detail is explicitly out of
+scope, so **all presets are *inspired by*** and none is advertised as an exact
+rig. Component references for Phase 3 (schematics/specs) are recorded in
+`fidelity-implement.md`.
+
 ### Phase 1 — make routing and bypass trustworthy
 
 1. In `src/dsp/mod.rs`, change ordered dispatch so a bypassed mono/stereo stage passes the existing `Sig` through untouched. Verify the amp/cab stage still runs once; prevent duplicate/missing stages during UI changes. If a bypassed effect's tails should continue on re-enable, specify that independently of audible passthrough.
