@@ -151,7 +151,7 @@ pub struct MlSection {
 
 #[derive(Debug, Deserialize, Serialize)]
 pub struct AmpSection {
-    /// "marshall" | "mesa" | "randall" | "vox" | "hiwatt" | "plexi" | "fender"
+    /// "marshall" | "mesa" | "randall" | "vox" | "hiwatt" | "plexi" | "fender" | "supro"
     pub model: Option<String>,
     /// Model-specific front-panel knob positions, keyed by the control's stable
     /// slug (e.g. `gain`, `presence`, `cut`, `normal`). This is the canonical
@@ -379,6 +379,7 @@ impl Preset {
             AmpModel::Hiwatt => "hiwatt",
             AmpModel::Plexi => "plexi",
             AmpModel::Fender => "fender",
+            AmpModel::Supro => "supro",
         };
         let cab_model = CabModel::from_u8(params.cab_model.load(Relaxed));
         let cab_model_str = match cab_model {
@@ -673,6 +674,7 @@ impl Preset {
             Some("hiwatt") => AmpModel::Hiwatt,
             Some("plexi") => AmpModel::Plexi,
             Some("fender") => AmpModel::Fender,
+            Some("supro") => AmpModel::Supro,
             _ => AmpModel::Marshall,
         };
         params.amp_model.store(model as u8, Relaxed);

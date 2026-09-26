@@ -38,6 +38,7 @@ pub enum AmpModel {
     Hiwatt = 4,
     Plexi = 5,
     Fender = 6,
+    Supro = 7,
 }
 
 impl AmpModel {
@@ -49,6 +50,7 @@ impl AmpModel {
             4 => Self::Hiwatt,
             5 => Self::Plexi,
             6 => Self::Fender,
+            7 => Self::Supro,
             _ => Self::Marshall,
         }
     }
@@ -62,6 +64,7 @@ impl AmpModel {
             Self::Hiwatt => "Hiwatt DR103",
             Self::Plexi => "Marshall Plexi",
             Self::Fender => "Fender Twin Reverb",
+            Self::Supro => "Supro Combo",
         }
     }
 
@@ -74,6 +77,7 @@ impl AmpModel {
             Self::Hiwatt => "DR103",
             Self::Plexi => "PLEXI",
             Self::Fender => "TWIN",
+            Self::Supro => "SUPRO",
         }
     }
 
@@ -85,25 +89,27 @@ impl AmpModel {
             Self::Vox => Self::Hiwatt,
             Self::Hiwatt => Self::Plexi,
             Self::Plexi => Self::Fender,
-            Self::Fender => Self::Marshall,
+            Self::Fender => Self::Supro,
+            Self::Supro => Self::Marshall,
         }
     }
 
     pub fn prev(self) -> Self {
         match self {
-            Self::Marshall => Self::Fender,
+            Self::Marshall => Self::Supro,
             Self::Mesa => Self::Marshall,
             Self::Randall => Self::Mesa,
             Self::Vox => Self::Randall,
             Self::Hiwatt => Self::Vox,
             Self::Plexi => Self::Hiwatt,
             Self::Fender => Self::Plexi,
+            Self::Supro => Self::Fender,
         }
     }
 
     /// All models in picker order — the single source for the amp modal,
     /// cursor init, and tests.
-    pub const ALL: [Self; 7] = [
+    pub const ALL: [Self; 8] = [
         Self::Marshall,
         Self::Mesa,
         Self::Randall,
@@ -111,6 +117,7 @@ impl AmpModel {
         Self::Hiwatt,
         Self::Plexi,
         Self::Fender,
+        Self::Supro,
     ];
 
     /// The model's front-panel controls, in the order its DSP decodes them.
@@ -123,6 +130,7 @@ impl AmpModel {
             Self::Hiwatt => amp::hiwatt::KNOBS,
             Self::Plexi => amp::plexi::KNOBS,
             Self::Fender => amp::fender::KNOBS,
+            Self::Supro => amp::supro::KNOBS,
         }
     }
 

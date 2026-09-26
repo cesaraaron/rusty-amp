@@ -4,6 +4,7 @@ pub mod marshall;
 pub mod mesa;
 pub mod plexi;
 pub mod randall;
+pub mod supro;
 pub mod vox;
 
 use crate::dsp::AmpModel;
@@ -15,6 +16,7 @@ pub use marshall::Marshall;
 pub use mesa::Mesa;
 pub use plexi::Plexi;
 pub use randall::Randall;
+pub use supro::Supro;
 pub use vox::Vox;
 
 /// Maximum number of front-panel knobs any single amp model exposes. Each model's
@@ -543,6 +545,7 @@ pub struct AmpBank {
     hiwatt: Hiwatt,
     plexi: Plexi,
     fender: Fender,
+    supro: Supro,
 }
 
 impl AmpBank {
@@ -555,6 +558,7 @@ impl AmpBank {
             hiwatt: Hiwatt::new(sr),
             plexi: Plexi::new(sr),
             fender: Fender::new(sr),
+            supro: Supro::new(sr),
         }
     }
 
@@ -568,6 +572,7 @@ impl AmpBank {
             AmpModel::Hiwatt => self.hiwatt.process(sample, knobs),
             AmpModel::Plexi => self.plexi.process(sample, knobs),
             AmpModel::Fender => self.fender.process(sample, knobs),
+            AmpModel::Supro => self.supro.process(sample, knobs),
         }
     }
 }
@@ -595,6 +600,7 @@ mod tests {
             ("Hiwatt", AmpModel::Hiwatt, Box::new(Hiwatt::new(SR))),
             ("Plexi", AmpModel::Plexi, Box::new(Plexi::new(SR))),
             ("Fender", AmpModel::Fender, Box::new(Fender::new(SR))),
+            ("Supro", AmpModel::Supro, Box::new(Supro::new(SR))),
         ]
     }
 
@@ -779,14 +785,18 @@ mod tests {
         };
         for (name, model, mut amp) in each_amp() {
             let a = &mut *amp;
-            assert!(
-                band(model, a, 100.0, 0.9, 0.65, 0.5) > band(model, a, 100.0, 0.1, 0.65, 0.5),
-                "{name} bass control dead/inverted at 100 Hz"
-            );
-            assert!(
-                band(model, a, 4000.0, 0.5, 0.9, 0.5) > band(model, a, 4000.0, 0.5, 0.1, 0.5),
-                "{name} treble control dead/inverted at 4 kHz"
-            );
+            if model.knob_slot("bass").is_some() {
+                assert!(
+                    band(model, a, 100.0, 0.9, 0.65, 0.5) > band(model, a, 100.0, 0.1, 0.65, 0.5),
+                    "{name} bass control dead/inverted at 100 Hz"
+                );
+            }
+            if model.knob_slot("treble").is_some() {
+                assert!(
+                    band(model, a, 4000.0, 0.5, 0.9, 0.5) > band(model, a, 4000.0, 0.5, 0.1, 0.5),
+                    "{name} treble control dead/inverted at 4 kHz"
+                );
+            }
             if model.knob_slot("presence").is_some() {
                 assert!(
                     band(model, a, 5000.0, 0.5, 0.65, 0.95)
@@ -1185,6 +1195,7 @@ mod tests {
             ("Hiwatt", AmpModel::Hiwatt, Box::new(Hiwatt::new(SR))),
             ("Plexi", AmpModel::Plexi, Box::new(Plexi::new(SR))),
             ("Fender", AmpModel::Fender, Box::new(Fender::new(SR))),
+            ("Supro", AmpModel::Supro, Box::new(Supro::new(SR))),
         ]
     }
 
