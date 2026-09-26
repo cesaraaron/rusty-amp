@@ -257,7 +257,7 @@ impl CalibrationUi {
         match self.step {
             Step::Intro => vec![
                 text("Match the engine input level to a fixed reference."),
-                dim("Set the interface gain as low as practical and note it."),
+                dim("Set the interface gain so hard strums don't clip, and note it."),
                 dim("Guitar volume 10, bridge pickup."),
                 Line::from(""),
                 Line::from(vec![

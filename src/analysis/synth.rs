@@ -1,11 +1,18 @@
 //! Deterministic synthetic guitar DI performances (Karplus-Strong).
 //!
-//! Offline only. Every phrase is peak-normalized to the humbucker reference
-//! level ([`HUMBUCKER_PEAK`], −3 dBFS) so the synthetic corpus is "calibrated"
-//! by construction and reproducible across machines.
+//! Offline only. Every phrase is peak-normalized to the humbucker engine
+//! reference ([`humbucker_peak`], derived from `target_peak_dbfs`) so the
+//! synthetic corpus is "calibrated" by construction and reproducible across
+//! machines.
 
-/// Reference peak for a humbucker-class DI: −3 dBFS.
-pub const HUMBUCKER_PEAK: f32 = 0.7079458;
+use crate::audio::calibration::{PickupClass, target_peak_dbfs};
+use crate::dsp::effects::db_to_lin;
+
+/// Reference peak for a humbucker-class DI, derived from the calibration target
+/// so the corpus and the engine reference can never drift apart.
+pub fn humbucker_peak() -> f32 {
+    db_to_lin(target_peak_dbfs(PickupClass::Humbucker))
+}
 
 const E2: f32 = 82.41;
 const A2: f32 = 110.0;
@@ -106,7 +113,7 @@ fn normalize_peak(v: &mut [f32], target: f32) {
     }
 }
 
-/// Synthesize one phrase at `sr`, peak-normalized to [`HUMBUCKER_PEAK`].
+/// Synthesize one phrase at `sr`, peak-normalized to [`humbucker_peak`].
 pub fn phrase(kind: Phrase, sr: f32) -> Vec<f32> {
     let mut out = match kind {
         Phrase::Chugs => {
@@ -186,7 +193,7 @@ pub fn phrase(kind: Phrase, sr: f32) -> Vec<f32> {
             v
         }
     };
-    normalize_peak(&mut out, HUMBUCKER_PEAK);
+    normalize_peak(&mut out, humbucker_peak());
     out
 }
 
@@ -216,7 +223,7 @@ mod tests {
             );
             let peak = a.iter().fold(0.0f32, |m, &x| m.max(x.abs()));
             assert!(
-                (peak - HUMBUCKER_PEAK).abs() < 1e-4,
+                (peak - humbucker_peak()).abs() < 1e-4,
                 "{} peak {peak} != humbucker reference",
                 kind.name()
             );

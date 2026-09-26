@@ -41,9 +41,9 @@ Amp breakup depends on how hot your interface drives the input, so calibrate
 once per guitar/interface. Press `N`, set the interface gain as low as
 practical, pick the pickup class, and follow the prompts. The header shows
 `IN uncal` until you calibrate and the applied trim after (e.g. `IN +7.5`).
-Recalibrate with `N` if you change the interface gain. The trim is applied to
-the dry input before the noise gate, so the tuner, meters, recordings, and every
-effect see the calibrated signal.
+Recalibrate with `N` if you change the interface gain, guitar, or pickups. The
+trim is applied to the dry input before the noise gate, so the tuner, meters,
+recordings, and every effect see the calibrated signal.
 
 ## Where things live
 

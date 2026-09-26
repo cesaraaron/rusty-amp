@@ -120,9 +120,10 @@ pub fn condition_block(
 
 // ── Reference targets and persistence ─────────────────────────────────────────
 
-/// Bumped when the provisional targets change; recorded with each saved entry so
-/// the UI can warn about a stale calibration.
-pub const REFERENCE_VERSION: u32 = 1;
+/// Bumped when the reference targets change; recorded with each saved entry so
+/// the UI can warn about a stale calibration. Version 2 = targets measured on the
+/// reference rig (see `fidelity-implement.md` → B8).
+pub const REFERENCE_VERSION: u32 = 2;
 
 /// The pickup class a calibration was measured with.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
@@ -134,13 +135,17 @@ pub enum PickupClass {
     Humbucker,
 }
 
-/// Provisional engine-reference targets: the 99th-percentile 10 ms window peak
-/// a defined performance should read, per pickup class.
+/// Engine-reference targets: the 99th-percentile 10 ms window peak a defined
+/// performance should read, per pickup class.
+///
+/// Verified for humbucker and single-coil against the reference rig (Scarlett
+/// Solo Gen 4, INST on, gain 9 o'clock; Donner DST-152 bridge HB / neck SC) in
+/// B8; P90 remains provisional (no P90 guitar was available to measure).
 pub fn target_peak_dbfs(p: PickupClass) -> f32 {
     match p {
-        PickupClass::SingleCoil => -9.0,
+        PickupClass::SingleCoil => -24.6,
         PickupClass::P90 => -4.5,
-        PickupClass::Humbucker => -3.0,
+        PickupClass::Humbucker => -19.7,
     }
 }
 
@@ -606,12 +611,13 @@ mod tests {
 
     #[test]
     fn nominal_humbucker_calibration() {
-        // −15 dBFS peak with a −3 dB target → +12 dB.
-        let play = windows(db_to_lin(-15.0), 250);
-        let noise = windows(db_to_lin(-80.0), 200);
+        // A measured P99 exactly 12 dB below the humbucker target → +12 dB trim.
+        let measured_db = target_peak_dbfs(PickupClass::Humbucker) - 12.0;
+        let play = windows(db_to_lin(measured_db), 250);
+        let noise = windows(db_to_lin(measured_db - 60.0), 200);
         let r = compute_calibration(&play, &noise, PickupClass::Humbucker, false, false).unwrap();
         assert!(
-            (r.measured_peak_dbfs + 15.0).abs() < 0.1,
+            (r.measured_peak_dbfs - measured_db).abs() < 0.1,
             "{}",
             r.measured_peak_dbfs
         );
@@ -621,12 +627,22 @@ mod tests {
 
     #[test]
     fn pickup_targets_shift_the_trim() {
-        let play = windows(db_to_lin(-15.0), 250);
+        let measured_db = -15.0f32;
+        let play = windows(db_to_lin(measured_db), 250);
         let noise = windows(db_to_lin(-80.0), 200);
-        let sc = compute_calibration(&play, &noise, PickupClass::SingleCoil, false, false).unwrap();
-        let p90 = compute_calibration(&play, &noise, PickupClass::P90, false, false).unwrap();
-        assert!((sc.trim_db - 6.0).abs() < 0.1, "{}", sc.trim_db);
-        assert!((p90.trim_db - 10.5).abs() < 0.1, "{}", p90.trim_db);
+        for class in [
+            PickupClass::SingleCoil,
+            PickupClass::P90,
+            PickupClass::Humbucker,
+        ] {
+            let r = compute_calibration(&play, &noise, class, false, false).unwrap();
+            let want = target_peak_dbfs(class) - measured_db;
+            assert!(
+                (r.trim_db - want).abs() < 0.1,
+                "{class:?}: {} vs {want}",
+                r.trim_db
+            );
+        }
     }
 
     #[test]
@@ -655,9 +671,10 @@ mod tests {
 
     #[test]
     fn clamping_and_low_snr_warn() {
-        // −30 dBFS peak with a −3 dB target → raw +27 dB, clamped to +24.
-        let play = windows(db_to_lin(-30.0), 250);
-        let clean_noise = windows(db_to_lin(-72.0), 200);
+        // A measured P99 25 dB below the target → raw +25 dB, clamped to +24.
+        let measured_db = target_peak_dbfs(PickupClass::Humbucker) - 25.0;
+        let play = windows(db_to_lin(measured_db), 250);
+        let clean_noise = windows(db_to_lin(measured_db - 60.0), 200);
         let r =
             compute_calibration(&play, &clean_noise, PickupClass::Humbucker, false, false).unwrap();
         assert_eq!(r.trim_db, 24.0);

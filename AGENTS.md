@@ -97,6 +97,11 @@ design/as-built notes live at the repository root (`fidelity-plan.md`,
 - `fidelity-plan.md` is the design/acceptance document; `fidelity-implement.md`
   is the as-built record. Log every routed/topology commit in its increment log.
 - `docs/fidelity-references.md` is the evidence matrix for historical gear claims.
+- Reference input calibration (the `target_peak_dbfs` values, `REFERENCE_VERSION`,
+  and the harness baseline) is a maintainer task with its own runbook in
+  `CONTRIBUTING.md` → "Reference calibration (maintainers)"; the measured rig is
+  recorded in `fidelity-implement.md`. Don't change those targets without
+  following that procedure.
 - There is no docs-parity rule for a website; user-facing behavior is documented in
   the README and the in-app `K` reference.
 

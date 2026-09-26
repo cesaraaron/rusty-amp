@@ -25,7 +25,7 @@ before reviewing or continuing. (This file was formerly
 | Phase 0 — reference matrix | **Scaffold only**: no sources logged | `docs/fidelity-references.md` |
 | Phase 0 — offline harness, CPU/latency capture | **Done** (B1, B2) | plan "Next increments" |
 | Workstream A — routing hardening (review findings) | **Done** (A1–A5) | increment log |
-| Workstream B — input calibration + harness | **Done** (B1–B7; B8 is the human retune step) | increment log |
+| Workstream B — input calibration + harness | **Done** (B1–B8) | increment log |
 | Phases 3–5 — amp/cab fidelity, named pedals, preset rebuild | Not started | plan Phases 3–5 |
 
 The work below changed routing, topology, and documentation only. **No voicing
@@ -338,6 +338,24 @@ Append one row per commit from Workstreams A/B onward.
 | B4 | ui | New `src/ui/calibration.rs`: the `N` wizard (Intro → Noise 2 s → Capture 8 s → Result/Error), pickup selection, live meter + clip lamp, and Save/Retry/Reset/A-B/Cancel. The pure core (`compute_calibration`, `CalResult`, `CalError`, `CalWarning`) plus `PickupClass::{next,prev,label}` live in `src/audio/calibration.rs`. The header now reads `IN +x.x dB` / `IN uncal`, and the `K` help lists `N`. | `calibration_errors_cover_each_branch`, `nominal_humbucker_calibration`, `pickup_targets_shift_the_trim`, `clamping_and_low_snr_warn`; UI snapshots re-blessed | the pure compute lives in the calibration domain module rather than the UI module; the header shows the calibrated trim but not an auto-clearing live `CLIP` lamp (the wizard shows `CLIP`); `N` is refused with a toast while a take is recording |
 | B6 | session | Raw takes now record the calibration they were captured under: `session::Track` and `project::TrackSection` gain `input_trim_db`/`calibration_ref` (serde default + `skip_serializing_if`), set in `poll_capture`, written by `save_session`, and restored by `Manifest::into_session`. The timeline shows a dim `uncal` tag on raw takes with no trim. | `track_trim_metadata_round_trips_and_old_manifests_load`; existing `manifest_round_trips_through_a_project_folder` | recovery takes still carry no metadata (left `None`, as designed); "uncalibrated" is detected as `|trim| < 1e-3` because `poll_capture` has no device identity |
 | B2 | harness | New `examples/fidelity_render.rs` (hand-rolled CLI: `--presets`, `--synth`/`--di`, `--sr`, `--out`, `--width`, `--ref`, `--abx`, `--bench`, `--write-baseline`, `--check`): renders presets over the synthetic corpus or a DI manifest, writes per-preset WAVs plus `report.toml`/`summary.csv`, does LUFS-matched reference comparisons, ABX files (seeded X + key + notes), a realtime-factor bench, and baseline drift checks. `tests/fidelity_harness.rs` covers the render path. Committed `docs/fidelity/baseline-synth-48k.toml` (15 presets, chugs). | `harness_render_is_deterministic_finite_and_loud`; baseline `--check` OK (15 presets); bench rtf ≈ 0.15–0.18 | the baseline covers the `chugs` phrase only; `--check` tolerances are lufs_i ±0.1, crest ±0.2, correlation ±0.02, centroid ±1 %, each LTAS band ±0.25 dB |
+| B8 | calibration | Measured the reference rig and set the engine targets to the measured P99 peaks: **humbucker −19.7 dBFS**, **single-coil −24.6 dBFS**; P90 stays provisional at −4.5 (no P90 guitar). `REFERENCE_VERSION` 1 → 2; `analysis::synth::humbucker_peak()` now derives the corpus peak from `target_peak_dbfs(Humbucker)`; calibration tests derive their expectations from the targets. Baseline regenerated and `--check` passes. Added a maintainer runbook to `CONTRIBUTING.md` ("Reference calibration"). | calibration tests (13); `--check` OK (15 presets); `tests/fidelity_harness.rs` passes at the new level | full re-measure only needed if the **reference rig** changes (new interface/normal gain/re-voicing); a new guitar of an already-measured class just needs `N`; a new pickup class needs `N` and possibly a target bump (documented in the runbook) |
+
+### Reference rig (B8)
+
+- **Interface:** Focusrite Scarlett Solo, 4th gen — **INST on** (correct high-Z
+  instrument input for a passive guitar).
+- **Gain position:** 9 o'clock.
+- **Guitar:** Donner DST-152.
+  - Humbucker: bridge, coil-split **off** → measured P99 **−19.7 dBFS** (noise
+    floor −88.4, SNR ≈ 69 dB).
+  - Single-coil: **neck** (the guitar has no bridge single-coil) → measured P99
+    **−24.6 dBFS** (noise floor −77.9, SNR ≈ 53 dB).
+- No P90 guitar was available, so the P90 target stays provisional.
+
+Because the presets were voiced uncalibrated on this rig, their effective input
+level is ≈ −20 dBFS; the trim on this rig is therefore ≈ 0 dB and other
+interfaces normalize to it. (This is why several presets carry a lot of
+gain/boost — a Phase 5 cleanup target.)
 | B7 | docs | README gains an "Input level" section and the `N` key; `CONTRIBUTING.md` gains a "Fidelity harness" section (commands, DI manifest, DI recording, baseline check); `AGENTS.md` lists `src/analysis/`, `src/audio/calibration.rs`, and `examples/fidelity_render.rs`; `docs/fidelity-references.md`'s source-log `Listen/measure` field cites a harness `report.toml`. The `K` help `N` row shipped in B4. | n/a | the README is kept to a quickstart, so the harness details live in `CONTRIBUTING.md` rather than the README |
 
 ### Workstream A close-out
@@ -371,11 +389,11 @@ Code and docs met the gate:
 - **Calibrated takes record their trim** (B6), so a take re-amps/exports
   identically and the level is auditable.
 
-**B8 remains (human):** on the interface, gain setting, and guitar the bundled
-presets were tuned with, run `N` for each available pickup class. If the measured
-P99 peaks differ from the provisional targets by more than ~1 dB, set
-`target_peak_dbfs` to the measured values, bump `REFERENCE_VERSION` to 2,
-regenerate the baseline, and record the rig here — all in one commit.
+**B8 done (human):** the reference rig was measured and the targets were set to
+the measured values (humbucker −19.7, single-coil −24.6; P90 provisional),
+`REFERENCE_VERSION` bumped to 2, and the baseline regenerated. See the B8
+increment row and "Reference rig (B8)" above; the maintainer runbook is
+`CONTRIBUTING.md` → "Reference calibration (maintainers)".
 
 ---
 

@@ -380,17 +380,19 @@ no Phase 3–5 change can be measured.
   guitar volume on 10*, measured as the **99th percentile of 10 ms window peaks**
   over the capture (robust to a single spike). Per pickup class:
 
-  | `PickupClass` | Provisional target (P99 window peak) |
+  | `PickupClass` | Target (P99 window peak) |
   | --- | --- |
-  | `Humbucker` | −3.0 dBFS |
-  | `P90` | −4.5 dBFS |
-  | `SingleCoil` | −9.0 dBFS |
+  | `Humbucker` | −19.7 dBFS (measured, B8) |
+  | `P90` | −4.5 dBFS (provisional) |
+  | `SingleCoil` | −24.6 dBFS (measured, B8) |
 
-  Rationale: `examples/di_compare.rs` normalizes its tuning DI to a 0.7 peak
-  (≈ −3.1 dBFS), i.e. the level the repository's own analysis tools assume; the
-  single-coil offset (≈ 6 dB below a humbucker) keeps the output difference
-  between guitars instead of normalizing it away. These are **provisional**
-  (`REFERENCE_VERSION = 1`) until B8.
+  Rationale: the targets are measured on the **reference rig the bundled presets
+  were voiced on** (see B8 and `fidelity-implement.md`) so calibration preserves
+  the existing preset sound (trim ≈ 0 there) and normalizes other interfaces and
+  guitars to the same engine level; the single-coil offset keeps the output
+  difference between pickup classes instead of normalizing it away. Verified at
+  `REFERENCE_VERSION = 2`; P90 keeps its provisional value until a P90 guitar is
+  measured.
 - **Trim.** `trim_db = target − measured`, clamped to `[−24, +24]` dB, applied
   as a linear gain to the guitar input before anything else.
 - **Uncalibrated.** `trim_db = 0.0` — bit-identical to today.

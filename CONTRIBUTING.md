@@ -314,6 +314,47 @@ The baseline covers the `chugs` phrase; `--check` tolerates
 lufs_i ±0.1, crest ±0.2 dB, correlation ±0.02, centroid ±1 %, and ±0.25 dB per
 LTAS band. Regenerate it in the same commit as any intended voicing change.
 
+## Reference calibration (maintainers)
+
+There are two different "calibrations" — don't conflate them:
+
+- **User calibration** (`N`) is a per-device **trim** stored in
+  `~/.config/rusty-riff/input-calibration.toml`. Any user, any guitar; run `N` and
+  save. It makes whatever they plug in hit the fixed engine reference.
+- **Engine reference** is the project-wide set of `target_peak_dbfs` values in
+  `src/audio/calibration.rs` plus `REFERENCE_VERSION` and the harness baseline.
+  It only changes when the *reference rig itself* changes.
+
+### When to re-measure
+
+| Situation | Action |
+| --- | --- |
+| New guitar, already-measured class (humbucker / single-coil) | Just `N` + save. No code change. |
+| New guitar, a class never measured (e.g. first P90) | `N` on it; if its P99 is > ~1 dB off the provisional target, set that class's target (below). |
+| Different interface or normal gain | Just `N` + save — the trim adapts to the fixed reference. |
+| Decide to re-standardize the engine level (re-voicing, Phase 5) | Full procedure below. |
+
+### The procedure
+
+1. On the **reference rig** (interface + gain position + guitar the presets are
+   voiced on), run `N` for each pickup class and write down the **Measured P99**
+   from the Result screen. Use the same interface gain for every class so the
+   numbers reflect the pickups, not the gain.
+2. For each class that differs from the current target by more than ~1 dB, set
+   `target_peak_dbfs` in `src/audio/calibration.rs` to the measured value and bump
+   `REFERENCE_VERSION` by 1. (The synthetic corpus is normalized from the
+   humbucker target automatically — `src/analysis/synth.rs::humbucker_peak()`.)
+3. Regenerate the baseline in the same commit:
+   `cargo run --release --example fidelity_render -- --presets all --write-baseline docs/fidelity/baseline-synth-48k.toml`,
+   then `--check` it.
+4. Record the rig and the measured numbers in `fidelity-implement.md`.
+5. Existing saved calibrations with an older `reference_version` will toast
+   "input calibration is from an older reference — recalibrate (N)"; re-running
+   `N` fixes them.
+
+Calibration is **hardware** state: it is never written into presets or sessions
+and is never reset by `Params::reset`.
+
 ## License
 
 rusty-riff is released under the [Apache 2.0 license](LICENSE). It is a modified
