@@ -1,5 +1,6 @@
 name        = "Led Zeppelin — Stairway to Heaven (Solo)"
-description = "Page's solo: a cranked Plexi and Greenbacks with a Tube Screamer and compressor pushing the front end — bright, mid-forward and singing, with a short delay and a touch of room. Not high gain; the pick bite and the bend are the point."
+description = "Inspired by the 'Stairway to Heaven' solo (1971), commonly reported as a Telecaster into a small Supro combo; with no Supro model yet, this approximates it with a bright, mid-forward Plexi plus a Tube Screamer. Not a verified session rig."
+year        = 1971
 
 # ── Noise Gate ────────────────────────────────────────────────────────────────
 # Light — a medium-gain crunch, and the solo's quiet pickup-roll runs must not be
@@ -104,3 +105,6 @@ enabled = true
 room = 0.38
 damp = 0.52
 mix  = 0.14
+
+[master]
+width = 1.0

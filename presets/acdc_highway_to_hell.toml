@@ -1,5 +1,6 @@
 name        = "AC/DC — Highway to Hell"
-description = "The cleaner end of the Young tone: a Plexi at edge-of-breakup with Greenbacks — jangly chords that bite when you dig in, no drive pedals in the way (just a light EQ and room)."
+description = "Inspired by the cleaner end of the Young tone (Highway to Hell, 1979): a Plexi at edge-of-breakup with Greenbacks, no drive pedals (just a light EQ and room). Not a verified session rig."
+year        = 1979
 
 [noise_gate]
 enabled   = true
@@ -104,3 +105,6 @@ enabled = true
 room = 0.32
 damp = 0.52
 mix  = 0.10
+
+[master]
+width = 1.0

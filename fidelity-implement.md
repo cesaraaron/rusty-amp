@@ -267,7 +267,7 @@ finding **resolved** here, with the commit, when its item ships.
 | R5 | Low | Relative links in `docs/fidelity-references.md` pointed at `plan.md` / `IMPLEMENTATION-NOTES.md` inside `docs/` (files that do not exist there). | `docs/fidelity-references.md` lines 3, 27, 86, 164 | Doc reorganization (this commit) | **resolved** |
 | R6 | Low | The determinism test fingerprint omits amp knobs, fuzz/delay `type`, and knob values of enabled stages, so it would not catch a regression there (loading is currently correct: `apply` resets amp knobs to model defaults and serde defaults the types). | `rig_fingerprint`, `src/preset.rs` ~967 | A3 | **resolved** (A3) |
 | R7 | Low | `on_input` resizes/extends buffers when a callback exceeds `MAX_BLOCK = 4096` frames — an allocation on the audio thread (rare). | `src/audio/mod.rs` ~835–849, `MAX_BLOCK` line 80 | A5 | **resolved** (A5) |
-| R8 | Decision | `DEFAULT_MASTER_WIDTH = 1.3` kept for compatibility. For period-accurate presets, set `[master] width = 1.0` per preset (guitar on these records is a mono track) rather than flipping the global default. | `src/dsp/mod.rs` ~475 | Preset phase (deferred) | open |
+| R8 | Decision | `DEFAULT_MASTER_WIDTH = 1.3` kept for compatibility. For period-accurate presets, set `[master] width = 1.0` per preset (guitar on these records is a mono track) rather than flipping the global default. | `src/dsp/mod.rs` ~475 | Preset phase | **resolved** (2026-09-25): all 17 bundled presets now set `[master] width = 1.0` |
 | R9 | Gap | There is **no input-level calibration** anywhere: amp breakup depends on the user's interface gain, so presets tuned on one interface are under/over-driven on another. Likely cause of the "rescue" TS + two EQs in several presets. | `rg -i "input_gain\|trim\|calibrat" src/` finds nothing relevant | B3–B5, B8 | **resolved in code** (B3–B5; B8 retunes the provisional targets) |
 | R10 | Gap | Phase 0 step 3 (offline harness) was not built. Analysis helpers (`db`, `rms`, `goertzel`, `ltas`, `envelope`, `percentile`) are duplicated across `examples/`. The timeline's raw takes + offline export (`src/export.rs`) already provide most of the rendering machinery. | `examples/di_compare.rs`, `drive_analysis.rs`, `amp_analysis.rs`, `knob_match.rs` | B1, B2 | **resolved** (B1, B2) |
 
@@ -282,12 +282,13 @@ chain each snapshot the order once per block; audio buffers are preallocated at
 Historical claims below are **commonly reported, not verified** — log sources
 in `docs/fidelity-references.md` before changing any preset on their basis.
 
-- **Anachronisms (objective, cheap to test).** The TS-808 (1979) is enabled in
-  presets for earlier recordings: `led_zeppelin_stairway_solo` (1971),
+- **Anachronisms — tooling done (Phase 5 to fix the cases).** Every bundled preset
+  now carries `year` metadata, and `no_new_device_anachronisms` fails if an enabled
+  device with a known debut (TS-808 1979, DS-1 1978, ML-2 2004) postdates the
+  recording. The three known TS-808 cases — `led_zeppelin_stairway_solo` (1971),
   `pink_floyd_shine_on_crazy_diamond` (1975), `eagles_hotel_california_solo`
-  (1976). Proposal: add `year` metadata per preset and a test that fails when an
-  enabled named device postdates the recording. (The two `van_halen_*` presets
-  that were also flagged were removed from the bundle; the added 1982/1991
+  (1976) — are listed in `KNOWN_ANACHRONISMS` for the Phase 5 rebuild to remove.
+  (The removed `van_halen_*` presets were also flagged; the added 1982/1991
   presets keep the TS off.)
 - **Stairway solo.** The cleanup changed the description *toward the code*
   (Plexi + Greenback 4×12 + TS). The commonly reported session rig is a
@@ -351,6 +352,7 @@ Append one row per commit from Workstreams A/B onward.
 | phase0-gear | docs | Gear link pass: added **verified secondary** gear sources (gilmourish for Floyd; Guitar World for Eagles/Zeppelin; MusicRadar/Mixdown for Slash; musicradar/Guitar World for Page/EVH) and marked each `plausible`; unverified rows stay `TBD`. **Phase 0 closed (evidence-as-available)** — all presets are *inspired by*. Also recorded **Phase 3 component references** (Marshall 1959 silicon bridge; Hiwatt BYX94 + passive TMB; Twin solid-state + Jensen C12N; Greenback G12M specs) in the Phase 3 section. | n/a | full session-gear sourcing is out of scope; the amp/cab work will rely on component refs + the harness, not session history |
 | plexi-rect | amp | The model 1959 Super Lead is silicon-rectified (Unicord 1970 schematic; GZ34 phased out ~1966), so `Plexi::power_amp` was retuned from valve-style sag to a stiff solid-state rail (attack 150→220/s, release 5→6.7/s, sag depth 1.8→1.3, ripple depth 0.05→0.035) and the doc comments corrected; bloom is now attributed to the output transformer/speaker. The stale "tube-rectified Marshall" note in `hiwatt.rs` was fixed. | all `dsp::amp` tests incl. `amps_are_loudness_matched`; harness before/after `--check` | only `lufs_i` moved — **+0.15–0.19 dB** on the six Plexi presets (less supply compression); crest, correlation, centroid and LTAS unchanged. `docs/fidelity/baseline-synth-48k.toml` regenerated in this commit. |
 | phase3-audit | docs | Audited Hiwatt/WEM and Twin/Jensen against the component refs: both already match (Hiwatt passive FMV-style TMB + stiff silicon supply; WEM cab = Fane Crescendo; Twin passive Fender stack + solid-state rectifier; Fender cab = Jensen-style open 2×12; Greenback cab consistent with G12M specs). Reworded the Hiwatt doc ("passive TMB", not Baxandall) and the Twin doc (solid-state rectifier in every revision). No voicing changes. Remaining Phase 3 work is measurement-bound (re-amp/mic captures). | n/a (comments/docs only) | the models are *plausible* against refs, not verified against captures |
+| cheap-pass | presets | Preset-honesty pass: added `year` metadata to all 17 bundled presets plus a `no_new_device_anachronisms` test (the three known TS-808 cases are allowlisted for Phase 5); set `[master] width = 1.0` on every preset (period guitar is a mono track — R8); hedged the over-claiming descriptions (Stairway small-amp vs Plexi, Hotel California 12-string / two harmonized players, and "the real rig" wording). Regenerated the baseline. | `no_new_device_anachronisms`, `all_bundled_presets_parse`; baseline `--check` (17) | `width = 1.0` lowers `lufs_i` ~0.3–0.7 dB and raises correlation (less side energy) across all presets; removable per preset or live via `W` |
 
 ### Reference rig (B8)
 

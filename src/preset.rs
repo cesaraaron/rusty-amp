@@ -22,6 +22,10 @@ pub enum PresetSource {
 pub struct Preset {
     pub name: String,
     pub description: Option<String>,
+    /// Recording year the tone is inspired by, for the anachronism check. `None`
+    /// for user presets and any file without a date.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub year: Option<u32>,
     #[serde(skip)]
     pub source: PresetSource,
     #[serde(skip)]
@@ -388,6 +392,7 @@ impl Preset {
         Self {
             name,
             description,
+            year: None,
             source: PresetSource::User,
             path: None,
             noise_gate: Some(NgSection {
@@ -958,6 +963,76 @@ mod tests {
             }
         }
         assert!(count > 0, "no bundled presets found to validate");
+    }
+
+    /// Intro year of a few named devices, for the anachronism check.
+    const DEVICE_YEARS: &[(&str, u32)] = &[
+        ("tube_screamer", 1979), // Ibanez TS-808
+        ("distortion", 1978),    // Boss DS-1
+        ("metal_core", 2004),    // Boss ML-2
+    ];
+
+    /// Known anachronisms accepted for now — fixed by the Phase 5 rebuild. An
+    /// enabled device outside this list whose debut postdates the preset's `year`
+    /// fails the test, so a new anachronism cannot slip in unnoticed.
+    const KNOWN_ANACHRONISMS: &[(&str, &str)] = &[
+        ("led_zeppelin_stairway_solo", "tube_screamer"),
+        ("pink_floyd_shine_on_crazy_diamond", "tube_screamer"),
+        ("eagles_hotel_california_solo", "tube_screamer"),
+    ];
+
+    /// A bundled preset must not enable a device that did not exist when the tone
+    /// was recorded, except for the documented known cases above.
+    #[test]
+    fn no_new_device_anachronisms() {
+        for entry in std::fs::read_dir("presets").expect("presets/ dir") {
+            let path = entry.unwrap().path();
+            if path.extension().is_none_or(|e| e != "toml") {
+                continue;
+            }
+            let stem = path
+                .file_stem()
+                .and_then(|s| s.to_str())
+                .unwrap_or("")
+                .to_owned();
+            let preset = Preset::load(&path, PresetSource::System)
+                .unwrap_or_else(|e| panic!("failed to parse {}: {e}", path.display()));
+            let Some(year) = preset.year else {
+                continue;
+            };
+            let mut enabled: Vec<&str> = Vec::new();
+            if preset.tube_screamer.enabled.unwrap_or(false) {
+                enabled.push("tube_screamer");
+            }
+            if preset
+                .distortion
+                .as_ref()
+                .and_then(|s| s.enabled)
+                .unwrap_or(false)
+            {
+                enabled.push("distortion");
+            }
+            if preset
+                .metal_core
+                .as_ref()
+                .and_then(|s| s.enabled)
+                .unwrap_or(false)
+            {
+                enabled.push("metal_core");
+            }
+            for dev in enabled {
+                let Some((_, debut)) = DEVICE_YEARS.iter().find(|(n, _)| *n == dev) else {
+                    continue;
+                };
+                if *debut > year {
+                    assert!(
+                        KNOWN_ANACHRONISMS.contains(&(stem.as_str(), dev)),
+                        "{stem} (year {year}) enables {dev} (debut {debut}) — \
+                         not in KNOWN_ANACHRONISMS"
+                    );
+                }
+            }
+        }
     }
 
     /// A sound-determining fingerprint: chain order, amp/cab/mic/master

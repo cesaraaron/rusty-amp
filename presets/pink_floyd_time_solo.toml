@@ -1,5 +1,6 @@
 name        = "Pink Floyd — Time (Solo)"
-description = "The Dark Side solo through the real Gilmour rig: a Fuzz Face into a Hiwatt DR103 and a Fane-loaded WEM 4×12, with the Uni-Vibe swirl and a snaking Echorec-style tape echo. Biting and vocal, not a fuzz wall."
+description = "Inspired by the 'Time' solo (The Dark Side of the Moon, 1973): a Fuzz Face into a Hiwatt DR103 and Fane-loaded WEM 4×12, with a Uni-Vibe-style swirl and a tape echo. Biting and vocal, not a fuzz wall. Not a verified session rig."
+year        = 1973
 
 # ── Noise Gate ────────────────────────────────────────────────────────────────
 # Moderate — the Time solo is articulate and choppy, so the gate closes a little
@@ -118,3 +119,6 @@ enabled = true
 room = 0.48
 damp = 0.48
 mix  = 0.16
+
+[master]
+width = 1.0

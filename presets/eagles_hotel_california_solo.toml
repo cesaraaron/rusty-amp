@@ -1,5 +1,6 @@
 name        = "Eagles — Hotel California (Solo)"
-description = "The dual-lead solo voice: a cranked Marshall pushed by a Tube Screamer and compressor — vocal mids, singing sustain, a breath of delay and hall. Neck pickup, wide vibrato."
+description = "Inspired by the harmonized 'Hotel California' outro (1976), recorded as two separate lead parts (commonly a tweed Deluxe and a small solid-state combo). This single preset approximates one lead voice. Not a verified session rig."
+year        = 1976
 
 # ── Noise Gate ────────────────────────────────────────────────────────────────
 # A driven lead hisses between phrases, so the gate works harder than a clean tone
@@ -125,3 +126,6 @@ enabled = true
 room = 0.47
 damp = 0.55
 mix  = 0.20
+
+[master]
+width = 1.0

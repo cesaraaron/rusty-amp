@@ -1,5 +1,6 @@
 name        = "Pink Floyd — Time (Intro / Verse / Chorus)"
-description = "Clean, dry Dark Side rhythm for the intro riff, verses and chorus: a clean Hiwatt DR103 and Fane WEM 4×12, a whisper of Uni-Vibe and a low dotted-eighth Echorec-style tape echo — bright, dynamic and open, with no fuzz or compression."
+description = "Inspired by clean Dark Side rhythm (1973): a clean Hiwatt DR103 and Fane WEM 4×12, a whisper of Uni-Vibe and a low tape echo. Not a verified session rig."
+year        = 1973
 
 # ── Noise Gate ────────────────────────────────────────────────────────────────
 # Light and slow: the delayed repeats and the vibe tail have to ring out.
@@ -118,3 +119,6 @@ enabled = true
 room = 0.45
 damp = 0.50
 mix  = 0.05
+
+[master]
+width = 1.0

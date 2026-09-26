@@ -1,5 +1,6 @@
 name        = "Eagles — Hotel California (Clean)"
-description = "The blackface clean intro: a Fender Twin's glassy high-headroom chime with its spring reverb, a lush chorus doubling the arpeggios, and just a little room."
+description = "Inspired by the clean side of 'Hotel California' (1976), commonly reported as a 12-string acoustic rather than a Twin: this preset is a blackface-style Twin clean with spring reverb and a little chorus/room. Not a verified match."
+year        = 1976
 
 # ── Noise Gate ────────────────────────────────────────────────────────────────
 # Very light — a clean tone is quiet between phrases, and a hard gate would clip
@@ -120,3 +121,6 @@ enabled = true
 room = 0.52
 damp = 0.46
 mix  = 0.24
+
+[master]
+width = 1.0

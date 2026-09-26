@@ -1,5 +1,6 @@
 name        = "Guns N' Roses — November Rain (Solo)"
 description = "Inspired by Slash's lead on 'November Rain' (Use Your Illusion, 1991): a Les Paul into a hot Marshall with a wide, sustained, delayed tone. Inspired by, not a verified session rig."
+year        = 1991
 
 # ── Noise Gate ────────────────────────────────────────────────────────────────
 [noise_gate]
@@ -48,3 +49,6 @@ enabled = true
 room = 0.52
 damp = 0.46
 mix  = 0.24
+
+[master]
+width = 1.0

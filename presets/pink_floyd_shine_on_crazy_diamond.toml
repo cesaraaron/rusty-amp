@@ -1,5 +1,6 @@
 name        = "Pink Floyd — Shine On You Crazy Diamond"
-description = "The Wish You Were Here lead: a Ram's-Head Big Muff into a Hiwatt and Fane 4×12, with the Uni-Vibe swirl and a long tape echo. Singing, wide and mournful."
+description = "Inspired by the 'Shine On You Crazy Diamond' lead (Wish You Were Here, 1975): a Big Muff-style fuzz into a Hiwatt and Fane 4×12, with a Uni-Vibe swirl and a long tape echo. Singing, wide and mournful. Not a verified session rig."
+year        = 1975
 
 # ── Noise Gate ────────────────────────────────────────────────────────────────
 # Light and slow — long sustained bends must never be gated.
@@ -117,3 +118,6 @@ enabled = true
 room = 0.52
 damp = 0.48
 mix  = 0.20
+
+[master]
+width = 1.0

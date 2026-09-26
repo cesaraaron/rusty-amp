@@ -1,5 +1,6 @@
 name        = "Led Zeppelin — Whole Lotta Love"
-description = "Page's riff tone: a Tone Bender MkII fuzz into a cranked Plexi and Greenbacks — thick, greasy and mid-rich, with the fuzz doing the snarling and the amp adding the chest."
+description = "Inspired by the 'Whole Lotta Love' riff tone (1969): a Tone Bender-style fuzz into a cranked Plexi and Greenbacks — thick, greasy and mid-rich. The record is reported to use a Vox Super Beatle; not a verified session rig."
+year        = 1969
 
 # ── Noise Gate ────────────────────────────────────────────────────────────────
 # Low and slow: the riff is full of stops and starts, and the fuzz's own gating
@@ -118,3 +119,6 @@ enabled = true
 room = 0.35
 damp = 0.55
 mix  = 0.12
+
+[master]
+width = 1.0

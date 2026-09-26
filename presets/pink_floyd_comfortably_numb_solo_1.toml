@@ -1,5 +1,6 @@
 name        = "Pink Floyd — Comfortably Numb (Solo 1)"
-description = "The first solo on the real rig: a mild Ram's-Head Big Muff into a Hiwatt DR103 and Fane-loaded WEM 4×12, Dyna-Comp squeeze, a hint of Electric Mistress-style flanger and a long Echorec-style tape echo. Bright and vocal, never a fuzz wall."
+description = "Inspired by the first 'Comfortably Numb' solo (The Wall, 1979): a Big Muff-style fuzz into a Hiwatt DR103 and Fane-loaded WEM 4×12, a hint of flanger and a long tape echo. Bright and vocal. Not a verified session rig."
+year        = 1979
 
 # ── Noise Gate ────────────────────────────────────────────────────────────────
 # Light and slow: the Muff's hiss is real, but a fading bend has to ring out.
@@ -120,3 +121,6 @@ enabled = true
 room = 0.45
 damp = 0.50
 mix  = 0.16
+
+[master]
+width = 1.0

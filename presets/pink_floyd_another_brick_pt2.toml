@@ -1,5 +1,6 @@
 name        = "Pink Floyd — Another Brick in the Wall, Pt. 2"
-description = "The Wall solo: a Big Muff into a Hiwatt with a slow Phase 90-style phaser sweep and a trailing tape echo — biting, nasal and spacious."
+description = "Inspired by the 'Another Brick in the Wall, Pt. 2' solo (The Wall, 1979): a Big Muff-style fuzz into a Hiwatt with a slow phaser-style sweep and a trailing tape echo. Not a verified session rig."
+year        = 1979
 
 [noise_gate]
 enabled   = true
@@ -108,3 +109,6 @@ enabled = true
 room = 0.48
 damp = 0.50
 mix  = 0.18
+
+[master]
+width = 1.0

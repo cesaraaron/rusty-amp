@@ -1,5 +1,6 @@
 name        = "AC/DC — Back in Black"
-description = "Angus's rhythm crunch: guitar straight into a cranked Plexi and Greenbacks — no drive pedals, just the amp's power-section grind plus a light pre-amp/parametric EQ and a touch of room. Tight, dry and mid-forward."
+description = "Inspired by Angus Young's rhythm crunch (Back in Black, 1980): guitar straight into a cranked Plexi and Greenbacks, no drive pedals (just a light pre-amp/parametric EQ and room). Not a verified session rig."
+year        = 1980
 
 # ── Noise Gate ────────────────────────────────────────────────────────────────
 # Light and slow — the tone is dry but the gated stops between chords must ring.
@@ -114,3 +115,6 @@ enabled = true
 room = 0.30
 damp = 0.58
 mix  = 0.10
+
+[master]
+width = 1.0

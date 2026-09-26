@@ -1,5 +1,6 @@
 name        = "Pink Floyd — Comfortably Numb (Outro Solo)"
-description = "The famous outro on the real rig: a thick Ram's-Head Big Muff into a Hiwatt DR103 and Fane-loaded WEM 4×12, an Electric Mistress-style flanger swirl, long Echorec-style tape repeats and a big hall. Huge and vocal — lows kept tight so it never turns to mud."
+description = "Inspired by the outro 'Comfortably Numb' solo (The Wall, 1979): a thick Big Muff-style fuzz into a Hiwatt DR103 and Fane-loaded WEM 4×12, an Electric Mistress-style flanger, long tape repeats and a big hall. Not a verified session rig."
+year        = 1979
 
 # ── Noise Gate ────────────────────────────────────────────────────────────────
 # Slow release so the long, held bends and their delay/reverb tails ring out.
@@ -119,3 +120,6 @@ enabled = true
 room = 0.55
 damp = 0.48
 mix  = 0.20
+
+[master]
+width = 1.0
