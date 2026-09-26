@@ -200,6 +200,7 @@ fn start_export(
     Ok(exporter::spawn(job))
 }
 
+#[allow(clippy::too_many_arguments)]
 pub fn run(
     params: Arc<Params>,
     levels: Arc<Levels>,
@@ -208,6 +209,7 @@ pub fn run(
     presets: Vec<Preset>,
     capture: Arc<CaptureState>,
     practice: Arc<Practice>,
+    calibration: Arc<crate::audio::InputCalibration>,
 ) -> Result<()> {
     enable_raw_mode()?;
     let mut stdout = std::io::stdout();
@@ -307,6 +309,7 @@ pub fn run(
             Arc::clone(&tuner),
             Arc::clone(&metronome),
             Arc::clone(&practice),
+            Arc::clone(&calibration),
         ) {
             Ok(engine) => engine,
             Err(err) => {

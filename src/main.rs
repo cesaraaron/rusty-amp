@@ -1,7 +1,7 @@
 use anyhow::Result;
 use std::sync::Arc;
 
-use rusty_riff::{dsp, practice, preset, recording, ui};
+use rusty_riff::{audio, dsp, practice, preset, recording, ui};
 
 fn main() -> Result<()> {
     rusty_riff::migrate_legacy_config_dir();
@@ -13,9 +13,19 @@ fn main() -> Result<()> {
     let presets = preset::load_all();
     let capture = Arc::new(recording::CaptureState::new());
     let practice = Arc::new(practice::Practice::new());
+    let calibration = Arc::new(audio::InputCalibration::new());
 
     // TUI starts immediately; device selection happens inside via modals.
-    ui::run(params, levels, tuner, metronome, presets, capture, practice)?;
+    ui::run(
+        params,
+        levels,
+        tuner,
+        metronome,
+        presets,
+        capture,
+        practice,
+        calibration,
+    )?;
 
     Ok(())
 }

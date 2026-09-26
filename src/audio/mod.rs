@@ -8,12 +8,18 @@ use std::sync::Arc;
 use std::sync::atomic::Ordering::Relaxed;
 
 use crate::dsp::cab::ExternalIrCab;
+use crate::dsp::effects::db_to_lin;
 use crate::dsp::metronome::{Metronome, MetronomeVoice};
 use crate::dsp::player::{PlayerTrack, PlayerVoice, TrackKind};
 use crate::dsp::tuner::{Tuner, TunerDetector};
 use crate::dsp::{DspChain, Levels, Params, StereoInsert};
 use crate::practice::Practice;
 use crate::recording::{CaptureState, capture_ring};
+
+mod calibration;
+
+use calibration::{CAL_RING_CAPACITY, CAL_WINDOW_MS, TrimState, condition_block};
+pub use calibration::{InputCalibration, WindowStat};
 
 /// A swappable plugin insert handed to the audio thread (`Some` to install, `None`
 /// to clear). Boxed so the audio thread only ever moves a pointer.
@@ -178,12 +184,22 @@ pub struct AudioEngine {
     track_ack_rx: Consumer<TrackAck>,
     /// The capture ring's consumer, handed to the writer worker by the UI.
     capture_rx: Option<Consumer<f32>>,
+    /// Receives raw calibration windows from the audio thread (control thread).
+    cal_stats_rx: Consumer<WindowStat>,
 }
 
 impl AudioEngine {
     /// The sample rate (Hz) the engine negotiated and is running at.
     pub fn sample_rate(&self) -> f32 {
         self.sample_rate
+    }
+
+    /// Drain any captured calibration windows into `out` (control thread only).
+    /// The UI calls this each tick while the calibration wizard is measuring.
+    pub fn drain_cal_stats(&mut self, out: &mut Vec<WindowStat>) {
+        while let Ok(stat) = self.cal_stats_rx.pop() {
+            out.push(stat);
+        }
     }
 
     /// Install (`Some`) or clear (`None`) the third-party plugin insert.
@@ -502,6 +518,7 @@ pub fn start(
     tuner: Arc<Tuner>,
     metronome: Arc<Metronome>,
     practice: Arc<Practice>,
+    calibration: Arc<InputCalibration>,
 ) -> Result<AudioEngine> {
     let host = cpal::default_host();
 
@@ -563,6 +580,7 @@ pub fn start(
         Arc::clone(&tuner),
         Arc::clone(&metronome),
         Arc::clone(&practice),
+        Arc::clone(&calibration),
     ) {
         Ok(engine) => Ok(engine),
         Err(err) => {
@@ -587,6 +605,7 @@ pub fn start(
                 tuner,
                 metronome,
                 practice,
+                calibration,
             )
         }
     }
@@ -741,6 +760,16 @@ struct InputState {
     tuner: Arc<Tuner>,
     metronome: Arc<Metronome>,
     practice: Arc<Practice>,
+    /// Shared input-calibration state (trim dB + measuring/clip flags).
+    cal: Arc<InputCalibration>,
+    /// Pushes raw measurement windows to the control thread while calibrating.
+    cal_tx: Producer<WindowStat>,
+    /// Trim smoother state for the guitar input.
+    trim: TrimState,
+    /// Window currently being accumulated (raw, pre-trim).
+    win: WindowStat,
+    /// Frames per calibration window at the engine rate.
+    win_len: u32,
 }
 
 impl InputState {
@@ -880,6 +909,27 @@ impl InputState {
             .extend(data.chunks(self.in_channels).map(|frame| {
                 f32::from_sample(frame.get(self.guitar_ch).copied().unwrap_or(T::EQUILIBRIUM))
             }));
+
+        // Input conditioning: apply the calibration trim to the dry guitar before
+        // anything else, and (while the wizard measures) push raw window stats to
+        // the control thread. At 0 dB settled this is bit-identical to no trim.
+        let target = db_to_lin(self.cal.trim_db.load(Relaxed));
+        let measuring = self.cal.measuring.load(Relaxed);
+        let flags = condition_block(
+            &mut self.in_buf,
+            &mut self.trim,
+            &mut self.win,
+            self.win_len,
+            target,
+            measuring,
+            |stat| self.cal_tx.push(stat).is_ok(),
+        );
+        if flags.clipped {
+            self.cal.raw_clip.store(true, Relaxed);
+        }
+        if flags.overflow {
+            self.cal.stats_overflow.store(true, Relaxed);
+        }
 
         if self.tuner.active.load(Relaxed) {
             // Bypass the whole rig: clean dry guitar to both channels, and
@@ -1100,6 +1150,7 @@ fn build_engine(
     tuner: Arc<Tuner>,
     metronome: Arc<Metronome>,
     practice: Arc<Practice>,
+    calibration: Arc<InputCalibration>,
 ) -> Result<AudioEngine> {
     capture.sample_rate.store(sr as u32, Relaxed);
 
@@ -1152,6 +1203,11 @@ fn build_engine(
     let (track_ack_tx, track_ack_rx) = RingBuffer::<TrackAck>::new(TRACK_QUEUE_CAP);
     // Dry capture: the callback pushes samples, the writer worker owns the consumer.
     let (capture_tx, capture_rx) = capture_ring(sr);
+
+    // Calibration windows: the audio thread pushes raw window stats, the UI
+    // drains them each tick while the wizard is measuring.
+    let (cal_tx, cal_rx) = RingBuffer::<WindowStat>::new(CAL_RING_CAPACITY);
+    let win_len = (sr * CAL_WINDOW_MS / 1000.0).round().max(1.0) as u32;
 
     let attack = 1.0 - (-1.0 / (0.001 * sr)).exp();
     let release = 1.0 - (-1.0 / (0.300 * sr)).exp();
@@ -1209,6 +1265,11 @@ fn build_engine(
         tuner,
         metronome,
         practice,
+        cal: Arc::clone(&calibration),
+        cal_tx,
+        trim: TrimState::new(sr, calibration.trim_db.load(Relaxed)),
+        win: WindowStat::default(),
+        win_len,
     };
 
     // Build each stream in the sample format the device actually supports. ALSA
@@ -1277,6 +1338,7 @@ fn build_engine(
         track_dropped_rx,
         track_ack_rx,
         capture_rx: Some(capture_rx),
+        cal_stats_rx: cal_rx,
     })
 }
 
