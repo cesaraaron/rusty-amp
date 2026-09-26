@@ -22,6 +22,7 @@ Guitar input
   → TS-808 Tube Screamer (DC block → 340 Hz HP → asymmetric diode soft-clip → variable tone LP)
   → DS-1 Distortion     (DC block → 80 Hz HP → silicon diode hard-clip → active tone LP/HP blend)
   → Pre-amp EQ          (low shelf 100 Hz / mid peak 650 Hz / high shelf 3 kHz — shapes what the amp clips)
+  → Clean boost         (linear Power-Boost-style front-end gain; Bass/Treble shelves, no clipping)
   → Amp model           (switchable: Marshall JCM800 | Mesa Dual Rectifier | Randall Warhead — 8× oversampled)
   → Cabinet sim         (switchable: Mesa 4×12 Vintage 30 | Marshall 4×12 Greenback | Orange PPC412 Vintage 30 — multi-mic IR)
   → Parametric EQ       (low shelf 120 Hz / mid peak 800 Hz Q 1.5 / high shelf 5 kHz)

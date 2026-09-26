@@ -40,6 +40,7 @@ pub struct Preset {
     pub metal_core: Option<MlSection>,
     pub preamp_eq: Option<PeqSection>,
     pub uni_vibe: Option<UniVibeSection>,
+    pub boost: Option<BoostSection>,
     pub amp: AmpSection,
     pub cabinet: Option<CabSection>,
     pub graphic_eq: Option<GraphicEqSection>,
@@ -147,6 +148,14 @@ pub struct MlSection {
     pub low: f32,
     pub high: f32,
     pub level: f32,
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+pub struct BoostSection {
+    pub enabled: Option<bool>,
+    pub gain: f32,
+    pub treble: f32,
+    pub bass: f32,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -459,6 +468,12 @@ impl Preset {
                 mix: params.uv_mix.load(Relaxed),
                 mode: params.uv_mode.load(Relaxed),
             }),
+            boost: Some(BoostSection {
+                enabled: Some(params.boost_enabled.load(Relaxed)),
+                gain: params.boost_gain.load(Relaxed),
+                treble: params.boost_treble.load(Relaxed),
+                bass: params.boost_bass.load(Relaxed),
+            }),
             amp: AmpSection {
                 model: Some(amp_model_str.to_string()),
                 knobs: amp_model
@@ -664,6 +679,19 @@ impl Preset {
             params.uv_mode.store(uv.mode.clamp(0.0, 1.0), Relaxed);
         } else {
             params.uv_enabled.store(false, Relaxed);
+        }
+
+        if let Some(boost) = &self.boost {
+            params
+                .boost_enabled
+                .store(boost.enabled.unwrap_or(true), Relaxed);
+            params.boost_gain.store(boost.gain.clamp(0.0, 1.0), Relaxed);
+            params
+                .boost_treble
+                .store(boost.treble.clamp(0.0, 1.0), Relaxed);
+            params.boost_bass.store(boost.bass.clamp(0.0, 1.0), Relaxed);
+        } else {
+            params.boost_enabled.store(false, Relaxed);
         }
 
         let amp = &self.amp;
@@ -972,6 +1000,7 @@ mod tests {
         ("tube_screamer", 1979), // Ibanez TS-808
         ("distortion", 1978),    // Boss DS-1
         ("metal_core", 2004),    // Boss ML-2
+        ("boost", 1972),         // Colorsound Power Boost (approx.)
     ];
 
     /// Known anachronisms accepted for now — fixed by the Phase 5 rebuild. An
@@ -1021,6 +1050,14 @@ mod tests {
             {
                 enabled.push("metal_core");
             }
+            if preset
+                .boost
+                .as_ref()
+                .and_then(|s| s.enabled)
+                .unwrap_or(false)
+            {
+                enabled.push("boost");
+            }
             for dev in enabled {
                 let Some((_, debut)) = DEVICE_YEARS.iter().find(|(n, _)| *n == dev) else {
                     continue;
@@ -1060,6 +1097,7 @@ mod tests {
             &p.ml_enabled,
             &p.peq_enabled,
             &p.uv_enabled,
+            &p.boost_enabled,
             &p.geq_enabled,
             &p.eq_enabled,
             &p.fl_enabled,
@@ -1099,6 +1137,7 @@ mod tests {
         knobs!(ml_enabled, ml_dist, ml_low, ml_high, ml_level);
         knobs!(peq_enabled, peq_low, peq_mid, peq_high);
         knobs!(uv_enabled, uv_rate, uv_depth, uv_mix, uv_mode);
+        knobs!(boost_enabled, boost_gain, boost_treble, boost_bass);
         knobs!(
             geq_enabled,
             geq_b1,
@@ -1442,8 +1481,9 @@ mod tests {
         let preset = Preset::from_params("Moved".to_string(), None, &params);
         let names = &preset.chain.as_ref().expect("chain saved").order;
         assert_eq!(names[8], "vibe");
-        assert_eq!(names[9], "amp");
-        assert_eq!(names[10], "cab");
+        assert_eq!(names[9], "boost");
+        assert_eq!(names[10], "amp");
+        assert_eq!(names[11], "cab");
         assert_eq!(names[12], "comp");
 
         // Apply onto fresh params and confirm the slots land.

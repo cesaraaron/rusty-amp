@@ -313,11 +313,11 @@ in `docs/fidelity-references.md` before changing any preset on their basis.
   first in Phase 3.
 - **Missing components with the largest expected impact** for Pink Floyd /
   Eagles / Led Zeppelin: Binson Echorec (multi-head drum echo; currently the
-  EP-3 tape mode), a spring reverb for the Twin (currently Freeverb), small
-  Supro-style and tweed-Deluxe-style combos (`add-amp-model` skill), a
+  EP-3 tape mode), small tweed-Deluxe-style combos (`add-amp-model` skill), and a
   pickup/guitar-volume input model (single-coil vs humbucker loading; Fuzz Face
-  cleanup), and a Colorsound Power Boost-style boost as the period-correct
-  alternative to the TS.
+  cleanup). Now built: the Supro-style combo, the Twin spring tank, and a
+  Colorsound Power Boost-style clean boost as the period-correct alternative to
+  the TS.
 
 ---
 
@@ -356,6 +356,7 @@ Append one row per commit from Workstreams A/B onward.
 | supro-amp | amp | Added the **Supro-style small combo** (`src/dsp/amp/supro.rs`, `AmpModel::Supro`): a two-knob (Volume/Tone) valve-rectified small American combo, built from the shared blocks (tube rectifier-style sag, small output transformer, small-cab speaker load, passive stack Tone). Wired through `AmpBank`, the `AmpModel` enum/`ALL`/`controls`/cycle, the preset model strings, and the UI counts; amp-modal snapshot re-blessed. | all `dsp::amp` tests (touch-sensitive, bright-cap, loudness-matched) + `ui::` tests | `AMP_MAX` unchanged (2 knobs); the model is an **approximation**, not schematic-exact; no preset uses it yet (the Phase 5 Stairway rebuild is next) |
 | stairway-supro | preset | Rebuilt `led_zeppelin_stairway_solo` on the Supro combo through a Fender open 2×12, dropped the anachronistic TS-808 and the compensating pre-EQ/parametric EQ (sparse gate → Supro → cab → slap → room), updated the description; removed its `KNOWN_ANACHRONISMS` entry. | `all_bundled_presets_parse`, `no_new_device_anachronisms`; harness before/after + level-matched A/B | **pending maintainer listening:** brighter, more dynamic and ~3–5 dB quieter than the old Plexi+TS+2-EQ chain; A/B under `target/fidelity/stairway-matched/` (gitignored) |
 | spring-tank | effects | Replaced the Twin's Freeverb-derived onboard "spring" with `SpringReverb` (`src/dsp/effects/spring.rs`): a 20-stage first-order-allpass dispersion cascade (lows delayed more than highs → downward chirp) into two unequal damped recirculating spring lines (27/41 ms), HP 180 Hz at both ends, LP 5 kHz, decay-normalized so a long tail does not also mean a loud reverb. `Fender` now uses it in the same slot (post-voice, before the bias tremolo/power amp); the panel knob is the recovery level. | `dsp::effects::spring` (silence, decaying tail, dispersion group-delay, full-decay stability); all `dsp::amp` + full suite (327) | model, not a capture; the wet is additive (no dry attenuation); baseline for `eagles_hotel_california_clean` regenerated in this commit (spring vs old Freeverb: +0.55 dB `lufs_i`, crest/correlation near-unchanged) |
+| clean-boost | effects/chain | Added the **Clean Boost** (`src/dsp/effects/clean_boost.rs`, `ChainStage::Boost`): a linear Power-Boost-style front-end gain (Gain 0→+24 dB; Bass/Treble ±12 dB shelves at 120 Hz / 3 kHz) with no clipping, placed as the last pedal before the amp. This is the period-correct replacement for the anachronistic TS-808. New chain slot: `CHAIN_LEN` 20 → 21 and all `ChainStage` ids ≥ Amp shift by one (presets persist by name, so `[chain]` is unaffected). Wired through `Params`/`DspChain`, the preset `[boost]` section, the UI `KNOBS`/`PEDALS` tables (new `PEDAL_MINT` livery), and the header ribbon; `add_pedal_modal` snapshot re-blessed. | `dsp::effects::clean_boost` (knob response, unity/clean at minimum gain); all `dsp::amp` + full suite (329); UI table tripwires | off by default, so default renders are unchanged (baseline not regenerated); model — a single linear gain + two shelves, not the pedal's interactive tone network; no preset uses it yet (the Phase 5 TS-rebuild presets are next) |
 
 ### Reference rig (B8)
 

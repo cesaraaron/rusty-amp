@@ -15,6 +15,7 @@ use crate::dsp::biquad::Biquad;
 use std::f32::consts::PI;
 
 pub mod chorus;
+pub mod clean_boost;
 pub mod compressor;
 pub mod delay;
 pub mod distortion;
@@ -35,6 +36,7 @@ pub mod uni_vibe;
 pub mod wah;
 
 pub use chorus::Chorus;
+pub use clean_boost::CleanBoost;
 pub use compressor::Compressor;
 pub use delay::Delay;
 pub use distortion::Distortion;

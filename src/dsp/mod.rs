@@ -24,8 +24,8 @@ use std::sync::atomic::{
 use amp::{AMP_MAX, AmpBank, AmpKnob};
 use cab::{CabBank, ExternalIrCab};
 use effects::{
-    Chorus, Compressor, Delay, Distortion, Flanger, Fuzz, GraphicEq, MetalCore, NoiseGate,
-    ParametricEq, Phaser, Pitch, PreampEq, Reverb, Tremolo, TubeScreamer, UniVibe, Wah,
+    Chorus, CleanBoost, Compressor, Delay, Distortion, Flanger, Fuzz, GraphicEq, MetalCore,
+    NoiseGate, ParametricEq, Phaser, Pitch, PreampEq, Reverb, Tremolo, TubeScreamer, UniVibe, Wah,
 };
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
@@ -214,7 +214,7 @@ impl CabModel {
     ];
 }
 
-/// One slot in the reorderable signal chain: the 10 pre pedals (mono DSP), the
+/// One slot in the reorderable signal chain: the 11 pre pedals (mono DSP), the
 /// amp head, the cabinet/mic, then the 8 stereo rack pedals. The amp and cab are
 /// separate stages so they can be moved independently, but the amp must always
 /// precede its cab (see [`sanitize_chain_order`]). Effects placed *between* them
@@ -234,20 +234,21 @@ pub enum ChainStage {
     Metal = 7,
     PreEq = 8,
     Vibe = 9,
-    Amp = 10,
-    Cab = 11,
-    Geq = 12,
-    Eq = 13,
-    Flanger = 14,
-    Chorus = 15,
-    Phaser = 16,
-    Trem = 17,
-    Delay = 18,
-    Reverb = 19,
+    Boost = 10,
+    Amp = 11,
+    Cab = 12,
+    Geq = 13,
+    Eq = 14,
+    Flanger = 15,
+    Chorus = 16,
+    Phaser = 17,
+    Trem = 18,
+    Delay = 19,
+    Reverb = 20,
 }
 
-/// Number of slots in [`ChainStage`]: 10 pre + amp + cab + 8 rack.
-pub const CHAIN_LEN: usize = 20;
+/// Number of slots in [`ChainStage`]: 11 pre + amp + cab + 8 rack.
+pub const CHAIN_LEN: usize = 21;
 
 /// Bounded number of attempts the audio-thread reader makes before giving up and
 /// reusing its last-good order (see [`Params::try_chain_slots`]).
@@ -266,16 +267,17 @@ impl ChainStage {
             7 => Some(Self::Metal),
             8 => Some(Self::PreEq),
             9 => Some(Self::Vibe),
-            10 => Some(Self::Amp),
-            11 => Some(Self::Cab),
-            12 => Some(Self::Geq),
-            13 => Some(Self::Eq),
-            14 => Some(Self::Flanger),
-            15 => Some(Self::Chorus),
-            16 => Some(Self::Phaser),
-            17 => Some(Self::Trem),
-            18 => Some(Self::Delay),
-            19 => Some(Self::Reverb),
+            10 => Some(Self::Boost),
+            11 => Some(Self::Amp),
+            12 => Some(Self::Cab),
+            13 => Some(Self::Geq),
+            14 => Some(Self::Eq),
+            15 => Some(Self::Flanger),
+            16 => Some(Self::Chorus),
+            17 => Some(Self::Phaser),
+            18 => Some(Self::Trem),
+            19 => Some(Self::Delay),
+            20 => Some(Self::Reverb),
             _ => None,
         }
     }
@@ -295,6 +297,7 @@ impl ChainStage {
             Self::Metal => "metal",
             Self::PreEq => "preeq",
             Self::Vibe => "vibe",
+            Self::Boost => "boost",
             Self::Amp => "amp",
             Self::Cab => "cab",
             Self::Geq => "geq",
@@ -320,6 +323,7 @@ impl ChainStage {
             "metal" => Some(Self::Metal),
             "preeq" => Some(Self::PreEq),
             "vibe" => Some(Self::Vibe),
+            "boost" => Some(Self::Boost),
             "amp" => Some(Self::Amp),
             "cab" => Some(Self::Cab),
             "geq" => Some(Self::Geq),
@@ -347,6 +351,7 @@ impl ChainStage {
             Self::Metal as u8,
             Self::PreEq as u8,
             Self::Vibe as u8,
+            Self::Boost as u8,
             Self::Amp as u8,
             Self::Cab as u8,
             Self::Geq as u8,
@@ -361,7 +366,7 @@ impl ChainStage {
     }
 
     /// Index into the UI `PEDALS` table, or `None` for the amp and cab stages.
-    /// Pre pedals map 1:1; rack pedals sit right after the 10 pre entries.
+    /// Pre pedals map 1:1; rack pedals sit right after the 11 pre entries.
     pub fn pedal_index(self) -> Option<usize> {
         match self {
             Self::Gate => Some(0),
@@ -374,15 +379,16 @@ impl ChainStage {
             Self::Metal => Some(7),
             Self::PreEq => Some(8),
             Self::Vibe => Some(9),
+            Self::Boost => Some(10),
             Self::Amp | Self::Cab => None,
-            Self::Geq => Some(10),
-            Self::Eq => Some(11),
-            Self::Flanger => Some(12),
-            Self::Chorus => Some(13),
-            Self::Phaser => Some(14),
-            Self::Trem => Some(15),
-            Self::Delay => Some(16),
-            Self::Reverb => Some(17),
+            Self::Geq => Some(11),
+            Self::Eq => Some(12),
+            Self::Flanger => Some(13),
+            Self::Chorus => Some(14),
+            Self::Phaser => Some(15),
+            Self::Trem => Some(16),
+            Self::Delay => Some(17),
+            Self::Reverb => Some(18),
         }
     }
 
@@ -398,14 +404,15 @@ impl ChainStage {
             7 => Some(Self::Metal),
             8 => Some(Self::PreEq),
             9 => Some(Self::Vibe),
-            10 => Some(Self::Geq),
-            11 => Some(Self::Eq),
-            12 => Some(Self::Flanger),
-            13 => Some(Self::Chorus),
-            14 => Some(Self::Phaser),
-            15 => Some(Self::Trem),
-            16 => Some(Self::Delay),
-            17 => Some(Self::Reverb),
+            10 => Some(Self::Boost),
+            11 => Some(Self::Geq),
+            12 => Some(Self::Eq),
+            13 => Some(Self::Flanger),
+            14 => Some(Self::Chorus),
+            15 => Some(Self::Phaser),
+            16 => Some(Self::Trem),
+            17 => Some(Self::Delay),
+            18 => Some(Self::Reverb),
             _ => None,
         }
     }
@@ -425,6 +432,7 @@ impl ChainStage {
                 | Self::Metal
                 | Self::PreEq
                 | Self::Vibe
+                | Self::Boost
         )
     }
 }
@@ -526,6 +534,13 @@ const DEFAULT_UV_RATE: f32 = 0.30;
 const DEFAULT_UV_DEPTH: f32 = 0.60;
 const DEFAULT_UV_MIX: f32 = 0.50;
 const DEFAULT_UV_MODE: f32 = 0.00;
+
+// Clean boost (linear front-end gain). Off by default; a moderate boost and a
+// flat tone stack when added.
+const DEFAULT_BOOST_ENABLED: bool = false;
+const DEFAULT_BOOST_GAIN: f32 = 0.40;
+const DEFAULT_BOOST_TREBLE: f32 = 0.50;
+const DEFAULT_BOOST_BASS: f32 = 0.50;
 
 const DEFAULT_FZ_ENABLED: bool = false;
 const DEFAULT_FZ_FUZZ: f32 = 0.70;
@@ -674,6 +689,12 @@ pub struct Params {
     pub uv_depth: Arc<AtomicF32>,
     pub uv_mix: Arc<AtomicF32>,
     pub uv_mode: Arc<AtomicF32>,
+
+    // Clean boost (linear Power-Boost-style front-end gain, before the amp)
+    pub boost_enabled: Arc<AtomicBool>,
+    pub boost_gain: Arc<AtomicF32>,
+    pub boost_treble: Arc<AtomicF32>,
+    pub boost_bass: Arc<AtomicF32>,
 
     // Fuzz (Big Muff style)
     pub fz_enabled: Arc<AtomicBool>,
@@ -863,6 +884,11 @@ impl Params {
             uv_mix: p!(DEFAULT_UV_MIX),
             uv_mode: p!(DEFAULT_UV_MODE),
 
+            boost_enabled: b!(DEFAULT_BOOST_ENABLED),
+            boost_gain: p!(DEFAULT_BOOST_GAIN),
+            boost_treble: p!(DEFAULT_BOOST_TREBLE),
+            boost_bass: p!(DEFAULT_BOOST_BASS),
+
             fz_enabled: b!(DEFAULT_FZ_ENABLED),
             fz_fuzz: p!(DEFAULT_FZ_FUZZ),
             fz_tone: p!(DEFAULT_FZ_TONE),
@@ -997,6 +1023,11 @@ impl Params {
         self.uv_mix.store(DEFAULT_UV_MIX, Relaxed);
         self.uv_mode.store(DEFAULT_UV_MODE, Relaxed);
 
+        self.boost_enabled.store(DEFAULT_BOOST_ENABLED, Relaxed);
+        self.boost_gain.store(DEFAULT_BOOST_GAIN, Relaxed);
+        self.boost_treble.store(DEFAULT_BOOST_TREBLE, Relaxed);
+        self.boost_bass.store(DEFAULT_BOOST_BASS, Relaxed);
+
         self.fz_enabled.store(DEFAULT_FZ_ENABLED, Relaxed);
         self.fz_fuzz.store(DEFAULT_FZ_FUZZ, Relaxed);
         self.fz_tone.store(DEFAULT_FZ_TONE, Relaxed);
@@ -1123,6 +1154,7 @@ impl Params {
             ChainStage::Metal => self.ml_enabled.load(Relaxed),
             ChainStage::PreEq => self.peq_enabled.load(Relaxed),
             ChainStage::Vibe => self.uv_enabled.load(Relaxed),
+            ChainStage::Boost => self.boost_enabled.load(Relaxed),
             // The amp and cab have no bypass flag: the amp always runs, and the
             // cab is skipped only by the dispatch when a full-rig AU supplies it.
             ChainStage::Amp | ChainStage::Cab => true,
@@ -1319,6 +1351,7 @@ pub struct DspChain {
     ml: MetalCore,
     peq: PreampEq,
     uv: UniVibe,
+    boost: CleanBoost,
     amp: AmpBank,
     cab: CabBank,
     geq: GraphicEq,
@@ -1366,6 +1399,7 @@ impl DspChain {
             ml: MetalCore::new(sr),
             peq: PreampEq::new(sr),
             uv: UniVibe::new(sr),
+            boost: CleanBoost::new(sr),
             amp: AmpBank::new(sr),
             cab: CabBank::new(sr),
             geq: GraphicEq::new(sr),
@@ -1575,6 +1609,18 @@ impl DspChain {
             ChainStage::Vibe => {
                 mono_stage!(
                     self, p, x, uv_enabled, uv, uv_rate, uv_depth, uv_mix, uv_mode
+                )
+            }
+            ChainStage::Boost => {
+                mono_stage!(
+                    self,
+                    p,
+                    x,
+                    boost_enabled,
+                    boost,
+                    boost_gain,
+                    boost_treble,
+                    boost_bass
                 )
             }
             _ => x,

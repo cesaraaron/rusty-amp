@@ -5,9 +5,9 @@ use atomic_float::AtomicF32;
 use ratatui::style::Color;
 
 use super::styles::{
-    PEDAL_BLUE, PEDAL_CYAN, PEDAL_GOLD, PEDAL_GREEN, PEDAL_INDIGO, PEDAL_LIME, PEDAL_ORANGE,
-    PEDAL_ORCHID, PEDAL_PINK, PEDAL_PURPLE, PEDAL_RED, PEDAL_ROSE, PEDAL_SAND, PEDAL_SILVER,
-    PEDAL_STEEL, PEDAL_TEAL, PEDAL_VIBE, PEDAL_YELLOW,
+    PEDAL_BLUE, PEDAL_CYAN, PEDAL_GOLD, PEDAL_GREEN, PEDAL_INDIGO, PEDAL_LIME, PEDAL_MINT,
+    PEDAL_ORANGE, PEDAL_ORCHID, PEDAL_PINK, PEDAL_PURPLE, PEDAL_RED, PEDAL_ROSE, PEDAL_SAND,
+    PEDAL_SILVER, PEDAL_STEEL, PEDAL_TEAL, PEDAL_VIBE, PEDAL_YELLOW,
 };
 use crate::dsp::Params;
 pub(super) struct Knob {
@@ -72,8 +72,11 @@ pub(super) const PEQ_END: usize = PEQ_START + 3;
 // Uni-Vibe — the last pedal before the amp (guitar → fuzz → vibe → amp).
 pub(super) const UV_START: usize = PEQ_END;
 pub(super) const UV_END: usize = UV_START + 4;
+// Clean boost — linear front-end gain, the last pedal before the amp.
+pub(super) const BOOST_START: usize = UV_END;
+pub(super) const BOOST_END: usize = BOOST_START + 3;
 // Post-cab rack pedals (after the cab), in signal order.
-pub(super) const GEQ_START: usize = UV_END;
+pub(super) const GEQ_START: usize = BOOST_END;
 pub(super) const GEQ_END: usize = GEQ_START + 8;
 pub(super) const EQ_START: usize = GEQ_END;
 pub(super) const EQ_END: usize = EQ_START + 3;
@@ -279,8 +282,21 @@ pub(super) const KNOBS: &[Knob] = &[
         label: "MODE",
         param: |p| &p.uv_mode,
     },
+    // 42–44: Clean boost
+    Knob {
+        label: "GAIN",
+        param: |p| &p.boost_gain,
+    },
+    Knob {
+        label: "TREBLE",
+        param: |p| &p.boost_treble,
+    },
+    Knob {
+        label: "BASS",
+        param: |p| &p.boost_bass,
+    },
     // ── Post-cab rack pedals (after the cab), in signal order ──
-    // 42–49: Graphic EQ (Boss GE-7 — seven band faders + output level)
+    // 45–52: Graphic EQ (Boss GE-7 — seven band faders + output level)
     Knob {
         label: "100",
         param: |p| &p.geq_b1,
@@ -506,6 +522,14 @@ pub(super) const PEDALS: &[Pedal] = &[
         enabled: |p| &p.uv_enabled,
         ui: PedalUi::Knobs,
     },
+    Pedal {
+        name: "CLEAN BOOST",
+        color: PEDAL_MINT,
+        start: BOOST_START,
+        end: BOOST_END,
+        enabled: |p| &p.boost_enabled,
+        ui: PedalUi::Knobs,
+    },
     // Post-cab rack (after the cab), in signal order.
     Pedal {
         name: "GRAPHIC EQ",
@@ -714,8 +738,8 @@ mod tests {
     fn table_sizes_are_stable() {
         // Deliberate tripwire: bump these when you add or remove a pedal/knob so
         // the change is a conscious, reviewed edit rather than an accident.
-        assert_eq!(PEDALS.len(), 18, "pedal count changed");
-        assert_eq!(KNOBS.len(), 76, "knob count changed");
+        assert_eq!(PEDALS.len(), 19, "pedal count changed");
+        assert_eq!(KNOBS.len(), 79, "knob count changed");
     }
 
     #[test]

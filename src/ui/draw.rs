@@ -248,6 +248,7 @@ fn pedal_stage_state(params: &Params, stage: ChainStage) -> Option<(&'static str
         ChainStage::Metal => Some(("ML-2", on(&params.ml_enabled))),
         ChainStage::PreEq => Some(("PRE-EQ", on(&params.peq_enabled))),
         ChainStage::Vibe => Some(("VIBE", on(&params.uv_enabled))),
+        ChainStage::Boost => Some(("BOOST", on(&params.boost_enabled))),
         ChainStage::Geq => Some(("G-EQ", on(&params.geq_enabled))),
         ChainStage::Eq => Some(("EQ", on(&params.eq_enabled))),
         ChainStage::Flanger => Some(("FLANGER", on(&params.fl_enabled))),
