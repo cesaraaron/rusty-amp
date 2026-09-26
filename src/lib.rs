@@ -4,6 +4,9 @@
 //! the DSP, preset, recording, and UI modules can be unit-tested and reused
 //! without going through the executable entry point.
 
+/// Offline analysis (metrics, synthetic DI corpus, preset rendering) for the
+/// fidelity harness and tests — never used on the audio thread.
+pub mod analysis;
 pub mod audio;
 pub mod dsp;
 pub mod export;
