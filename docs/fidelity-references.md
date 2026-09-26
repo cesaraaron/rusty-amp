@@ -101,55 +101,78 @@ both reproduced so the flag is auditable.
 
 ## 2. Reference matrix
 
-For each preset, the questions to answer with sources. Record the answer and its
-confidence. Leave blank until sourced.
+> **Uncited draft.** The lines below are *widely reported* claims gathered for the
+> citation pass to confirm or reject. `Supports` is the maximum tier a claim could
+> reach once a source is logged; until then it is **not** evidence. `Source: _TBD_`
+> means no citation yet. Do not treat any line here as verified.
 
 ### `acdc_back_in_black.toml` / `acdc_highway_to_hell.toml`
 
-- Amp revision/channel: which Super Lead era did AC/DC use on each album?
-- Cab & speakers: Greenback model/era, open/closed, mic position, room.
-- Effects & order: were the EQs in the preset actually used, or compensating for
-  the cab model? Any boost?
-- Known studio processing vs the guitar-amp chain.
-- Sources:
+- Angus — Gibson SG into a Marshall (JTM45 / 1987 / Super Lead era), **no drive
+  pedals**; Malcolm — Gretsch into a Marshall. · Supports: `plausible` · Source: _TBD_
+- Marshall 4×12 with Greenbacks, close-miked, dry. · Supports: `plausible` · Source: _TBD_
+- Sessions: *Highway to Hell* (1979) at Albert Studios, Sydney; *Back in Black*
+  (1980) at Compass Point, Bahamas; Vanda/Young and Mutt Lange production. ·
+  Supports: `unknown` · Source: _TBD_
+- **Contradiction:** both presets say "no pedals" yet enable pre-EQ + parametric
+  EQ + reverb — decide studio/mix processing vs model compensation. (Phase 5)
 
 ### `eagles_hotel_california_clean.toml` / `_solo.toml`
 
-- Clean amp/guitar parts vs the multi-guitar arrangement; is one preset enough?
-- Lead: TS + compressor + EQ — used, or model compensation?
-- Reverb: the Twin's onboard spring (`[amp.knobs] reverb = 0.30`) plus the rack
-  reverb — is the stacking intended?
-- Sources:
+- The clean intro is commonly reported as a **12-string acoustic** plus electric,
+  so the Twin + chorus + digital delay + two-reverb preset may not map to a
+  recorded part. · Supports: `unknown` · Source: _TBD_
+- The solo is **harmonized** (Felder + Walsh), recorded as separate parts; a
+  single mono preset cannot reproduce two performances. · Supports: `plausible` · Source: _TBD_
+- Leads commonly reported through **small Fender tweed combos**, not a dimed
+  Plexi. · Supports: `plausible` · Source: _TBD_
+- **Contradiction:** the lead enables compressor + TS + two EQs — likely model
+  compensation for a mis-voiced base. (Phase 5)
 
 ### `led_zeppelin_stairway_solo.toml` / `_whole_lotta_love.toml`
 
-- Session amp/guitar/cabinet **per track**; small combo vs Plexi/Greenback.
-- Tone Bender use and version; TS/slap delay/compression presence.
-- Sources:
+- Stairway solo (1971) commonly reported as a **Telecaster into a small Supro
+  combo**; the current Plexi + Greenback 4×12 + TS is a likely mismatch. ·
+  Supports: `plausible` · Source: _TBD_
+- Whole Lotta Love (1969): Page, Les Paul/Tele, **Sola Sound Tone Bender MkII**,
+  some echo. · Supports: `plausible` · Source: _TBD_
+- Sessions (Headley Grange / Olympic / Island) and per-track gear need
+  verification. · Supports: `unknown` · Source: _TBD_
 
 ### `pink_floyd_*` (9 files)
 
-- Per-song/session fuzz (Muff version vs Fuzz Face), boost, wah, Uni-Vibe,
-  Electric Mistress/phase, and echo device (Binson/Echoplex) **and position**.
-- Was any claimed wah manually rocked (the DSP `wah` is an envelope auto-wah)?
-- Studio EQ/compression vs the amp/cab chain; is the two-EQ stack compensating?
-- `mother_solo` (The Wall, 1979) and `have_a_cigar_solo` (Wish You Were Here,
-  1975): which amp/cab and pedals, and is the sparse preset here close enough?
-- Sources:
+- Core rig: Gilmour — Stratocaster → **Hiwatt DR103 → WEM 4×12 (Fane)**, with a
+  **Colorsound Power Boost** as the boost. · Supports: `plausible` · Source: _TBD_
+- Fuzz: **Fuzz Face** for early *Dark Side* material; **Big Muff (Ram's Head-era)**
+  from *Wish You Were Here* onward. · Supports: `plausible` · Source: _TBD_
+- Echo: **Binson Echorec** (drum echo) on *Dark Side*; **Echoplex** later. The DSP
+  has no Echorec (the tape mode approximates). · Supports: `plausible` · Source: _TBD_
+- Modulation: **Uni-Vibe** (*Time*, *Shine On*); **Electric Mistress** flanger on
+  *The Wall*; the "Phase 90" claim on *Another Brick pt2* is unverified. ·
+  Supports: `plausible` · Source: _TBD_
+- `money`: a manually rocked wah is commonly claimed, but the DSP `wah` is an
+  envelope auto-wah. · Supports: `unknown` · Source: _TBD_
+- `mother_solo` (1979) and `have_a_cigar_solo` (1975): amp/cab/pedals unverified;
+  the sparse Hiwatt/WEM starting points are placeholders. · Supports: `unknown` · Source: _TBD_
+- **Contradiction:** many Floyd leads are double-tracked and carry studio
+  EQ/compression; the two-EQ stack in the presets may be compensating. (Phase 5)
 
 ### `guns_n_roses_november_rain_solo.toml`
 
-- Slash's lead: Les Paul + which Marshall (JCM800 / Silver Jubilee / Plexi) and
-  cab; was any pedal (wah, boost) in use for the solos?
-- Is the wide delay/reverb ours, or the record's mix processing?
-- Sources:
+- Slash — Les Paul → a **Marshall** (JCM800 / Silver Jubilee era), possibly with a
+  wah; the wide delay/reverb may be the record's mix rather than the rig. ·
+  Supports: `plausible` · Source: _TBD_
+- The orchestral arrangement and separately recorded solos mean one preset is an
+  approximation. · Supports: `unknown` · Source: _TBD_
 
 ### `van_halen_beat_it_solo.toml`
 
-- EVH's guest solo on Michael Jackson's "Beat It" (1982): which amp (his Plexi?),
-  cab, and effects; was a phaser/echo in use, and is the solo double-tracked?
-- The rhythm on the record is not EVH — out of scope for this preset.
-- Sources:
+- EVH (1982) is commonly reported on his main **Plexi (1959 Super Lead)** into a
+  4×12, with an MXR Phase 90 / Echoplex; the solo may be double-tracked. ·
+  Supports: `plausible` · Source: _TBD_
+- The **rhythm is not EVH** (credited to the session players) — out of scope
+  for this preset. · Supports: `plausible` · Source: _TBD_
+
 
 ---
 
