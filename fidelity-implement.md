@@ -344,6 +344,7 @@ Append one row per commit from Workstreams A/B onward.
 | B8 | calibration | Measured the reference rig and set the engine targets to the measured P99 peaks: **humbucker −19.7 dBFS**, **single-coil −24.6 dBFS**; P90 stays provisional at −4.5 (no P90 guitar). `REFERENCE_VERSION` 1 → 2; `analysis::synth::humbucker_peak()` now derives the corpus peak from `target_peak_dbfs(Humbucker)`; calibration tests derive their expectations from the targets. Baseline regenerated and `--check` passes. Added a maintainer runbook to `CONTRIBUTING.md` ("Reference calibration"). | calibration tests (13); `--check` OK (17 presets); `tests/fidelity_harness.rs` passes at the new level | full re-measure only needed if the **reference rig** changes (new interface/normal gain/re-voicing); a new guitar of an already-measured class just needs `N`; a new pickup class needs `N` and possibly a target bump (documented in the runbook) |
 | B7 | docs | README gains an "Input level" section and the `N` key; `CONTRIBUTING.md` gains a "Fidelity harness" section (commands, DI manifest, DI recording, baseline check); `AGENTS.md` lists `src/analysis/`, `src/audio/calibration.rs`, and `examples/fidelity_render.rs`; `docs/fidelity-references.md`'s source-log `Listen/measure` field cites a harness `report.toml`. The `K` help `N` row shipped in B4. | n/a | the README is kept to a quickstart, so the harness details live in `CONTRIBUTING.md` rather than the README |
 | bundle | presets | Removed `van_halen_brown_sound`/`van_halen_aint_talkin_bout_love`; added `van_halen_beat_it_solo`, `guns_n_roses_november_rain_solo`, `pink_floyd_mother_solo`, `pink_floyd_have_a_cigar_solo` (inspired-by, uncited; Phase 0 will source them). Updated `RENDER_SUBSET`, test samples, harness examples, the inventories (15 → 17), and regenerated the baseline. | `all_bundled_presets_parse`, `bundled_presets_load_deterministically`; baseline `--check` (17) | the four new presets are inspired-by pending Phase 0; `[master] width` stays at the default pending the period-preset width pass |
+| phase0 | docs | `docs/fidelity-references.md` §2 now carries the recording dates/studios/producers/credits per preset group, cited to Wikipedia (secondary) and marked `documented`, plus the Phase-5 contradiction list. Gear remains unsourced (`plausible`/`unknown`, `Source: _TBD_`). | n/a | only secondary sources so far; gear needs primary sourcing |
 
 ### Reference rig (B8)
 
@@ -408,13 +409,16 @@ material that cannot be invented from code:
 
 ### Phase 0 — reference matrix
 
-Scaffold created: [`docs/fidelity-references.md`](docs/fidelity-references.md)
-holds the code-derived inventory, the per-preset checklist, and the source-log
-template. It is **unfilled on the evidence side**: a human or following agent
-must log the sources per claim (song/section/era, guitar, pickups, effects with
-order, amp revision/channel, cab/speakers, mic/room, studio processing) and mark
-each *documented* / *plausible* / *unknown*; presets without a firm source stay
-"inspired by".
+Partially filled. [`docs/fidelity-references.md`](docs/fidelity-references.md)
+now records **recording dates, studios, producers and guitar credits** for every
+preset group, cited to Wikipedia (secondary) and marked `documented`, plus the
+per-preset contradictions to action in Phase 5. **Gear claims are still unsourced**
+(all `plausible`/`unknown`, `Source: _TBD_`): a human or following agent must log
+primary sources for amp revision, cab/speakers, effects **with order**, mic/room
+and studio processing before any preset is called an exact rig. Note the new
+presets added after the original scaffold (`van_halen_beat_it_solo`,
+`guns_n_roses_november_rain_solo`, `pink_floyd_mother_solo`,
+`pink_floyd_have_a_cigar_solo`) are covered by the same matrix.
 
 ### Phase 3 — amp/cab fidelity
 
