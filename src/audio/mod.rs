@@ -78,6 +78,17 @@ pub struct TrackAck {
 /// buffers are pre-sized to this, and plugin inserts are activated with it as
 /// their maximum block size.
 pub const MAX_BLOCK: usize = 4096;
+
+/// Split `frames` interleaved frames into half-open `(start, end)` ranges of at
+/// most `max` frames each, in order. An oversized device callback is processed
+/// one range at a time so every buffer stays within its preallocated capacity
+/// (the callback never resizes or allocates).
+fn block_ranges(frames: usize, max: usize) -> impl Iterator<Item = (usize, usize)> {
+    let step = max.max(1);
+    (0..frames)
+        .step_by(step)
+        .map(move |start| (start, (start + step).min(frames)))
+}
 /// Frames per audio callback we request from the OS. 256 ≈ 5.3 ms at 48 kHz:
 /// tight enough that playing feels connected (stock DAWs run 64–256), loose
 /// enough that a release build never underruns on Apple Silicon. Without an
@@ -831,17 +842,39 @@ impl InputState {
             }
         }
 
+        // Process in chunks of at most MAX_BLOCK frames. A device callback can ask
+        // for more than our preallocated block (large ALSA periods); splitting
+        // keeps every buffer within its preallocated capacity so the callback
+        // never allocates. Per-chunk transport/metronome/route snapshots are
+        // intentional — each chunk is a self-contained block.
+        debug_assert!(self.in_channels > 0);
         let frames = data.len() / self.in_channels;
-        if self.out_l.len() < frames {
-            self.out_l.resize(frames, 0.0);
-            self.out_r.resize(frames, 0.0);
-            self.take_l.resize(frames, 0.0);
-            self.take_r.resize(frames, 0.0);
-            self.take_in.resize(frames, 0.0);
+        for (start, end) in block_ranges(frames, MAX_BLOCK) {
+            let chunk = &data[start * self.in_channels..end * self.in_channels];
+            self.on_input_chunk(chunk);
         }
 
+        // Publish the timeline cursor and meters once per callback (a chunk's
+        // worth of playback shows as one position).
+        self.practice.store_position(self.player.cursor());
+        self.levels.input.store(self.in_env, Relaxed);
+        self.levels.output.store(self.out_env, Relaxed);
+    }
+
+    /// Process one chunk of at most [`MAX_BLOCK`] interleaved frames. Split out of
+    /// [`on_input`](Self::on_input) so an oversized device callback is handled in
+    /// preallocated pieces instead of resizing buffers on the audio thread.
+    fn on_input_chunk<T>(&mut self, data: &[T])
+    where
+        T: Sample,
+        f32: FromSample<T>,
+    {
+        let frames = data.len() / self.in_channels;
+        debug_assert!(frames <= MAX_BLOCK, "chunk exceeds the preallocated block");
+
         // Deinterleave the guitar channel into the mono input block, converting
-        // from the device's sample type to the engine's f32 domain.
+        // from the device's sample type to the engine's f32 domain. `in_buf` is
+        // preallocated to MAX_BLOCK, so this never reallocates.
         self.in_buf.clear();
         self.in_buf
             .extend(data.chunks(self.in_channels).map(|frame| {
@@ -986,11 +1019,6 @@ impl InputState {
                 let _ = self.producer.push(s);
             }
         }
-        // Publish the timeline cursor for the UI. Stored after the loop so a
-        // block's worth of playback shows as one position.
-        self.practice.store_position(self.player.cursor());
-        self.levels.input.store(self.in_env, Relaxed);
-        self.levels.output.store(self.out_env, Relaxed);
     }
 }
 
@@ -1250,4 +1278,42 @@ fn build_engine(
         track_ack_rx,
         capture_rx: Some(capture_rx),
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::block_ranges;
+
+    /// An oversized callback is split into preallocated pieces: contiguous,
+    /// in-order, each at most `max` frames, covering every frame exactly once.
+    #[test]
+    fn block_ranges_splits_into_bounded_pieces() {
+        assert_eq!(block_ranges(0, 4096).collect::<Vec<_>>(), vec![]);
+        assert_eq!(block_ranges(100, 4096).collect::<Vec<_>>(), vec![(0, 100)]);
+        assert_eq!(
+            block_ranges(4096, 4096).collect::<Vec<_>>(),
+            vec![(0, 4096)]
+        );
+        assert_eq!(
+            block_ranges(10_000, 4096).collect::<Vec<_>>(),
+            vec![(0, 4096), (4096, 8192), (8192, 10_000)]
+        );
+        // Every range is bounded and the union is contiguous.
+        let mut covered = 0;
+        for (start, end) in block_ranges(10_000, 4096) {
+            assert_eq!(start, covered, "ranges must be contiguous");
+            assert!(end > start && end - start <= 4096, "range must be bounded");
+            covered = end;
+        }
+        assert_eq!(covered, 10_000, "every frame is covered exactly once");
+    }
+
+    /// A zero `max` must not panic or loop forever.
+    #[test]
+    fn block_ranges_handles_zero_max() {
+        assert_eq!(
+            block_ranges(3, 0).collect::<Vec<_>>(),
+            vec![(0, 1), (1, 2), (2, 3)]
+        );
+    }
 }
