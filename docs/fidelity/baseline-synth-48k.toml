@@ -1,0 +1,1367 @@
+sr = 48000.0
+phrase = "chugs"
+
+[[render]]
+preset = "acdc_back_in_black"
+lufs_i = -12.406096
+crest_db = 13.199928
+correlation = 0.59344095
+centroid_hz = 3256.695
+
+[[render.ltas]]
+hz = 70.0
+db = 18.98164
+
+[[render.ltas]]
+hz = 88.19447
+db = 1.7907715
+
+[[render.ltas]]
+hz = 111.11807
+db = -2.6525803
+
+[[render.ltas]]
+hz = 140.0
+db = 22.222424
+
+[[render.ltas]]
+hz = 176.38895
+db = 5.8062553
+
+[[render.ltas]]
+hz = 222.23615
+db = 22.396759
+
+[[render.ltas]]
+hz = 280.0
+db = 3.926117
+
+[[render.ltas]]
+hz = 352.7779
+db = 0.13480377
+
+[[render.ltas]]
+hz = 444.4723
+db = 11.792713
+
+[[render.ltas]]
+hz = 560.0
+db = -9.708649
+
+[[render.ltas]]
+hz = 705.5558
+db = 9.859783
+
+[[render.ltas]]
+hz = 888.9446
+db = 3.6440125
+
+[[render.ltas]]
+hz = 1120.0
+db = -14.262329
+
+[[render.ltas]]
+hz = 1411.1116
+db = -4.133789
+
+[[render.ltas]]
+hz = 1777.8892
+db = -5.273033
+
+[[render.ltas]]
+hz = 2240.0
+db = -6.714569
+
+[[render.ltas]]
+hz = 2822.2231
+db = -5.202202
+
+[[render.ltas]]
+hz = 3555.7783
+db = -8.333275
+
+[[render.ltas]]
+hz = 4480.0
+db = 7.799206
+
+[[render.ltas]]
+hz = 5644.4463
+db = -14.534599
+
+[[render.ltas]]
+hz = 7111.5566
+db = -37.539444
+
+[[render]]
+preset = "acdc_highway_to_hell"
+lufs_i = -12.530682
+crest_db = 13.54271
+correlation = 0.6040836
+centroid_hz = 3444.732
+
+[[render.ltas]]
+hz = 70.0
+db = 17.660698
+
+[[render.ltas]]
+hz = 88.19447
+db = 0.7357712
+
+[[render.ltas]]
+hz = 111.11807
+db = -2.8768158
+
+[[render.ltas]]
+hz = 140.0
+db = 22.07267
+
+[[render.ltas]]
+hz = 176.38895
+db = 4.9817276
+
+[[render.ltas]]
+hz = 222.23615
+db = 22.2864
+
+[[render.ltas]]
+hz = 280.0
+db = 3.4040756
+
+[[render.ltas]]
+hz = 352.7779
+db = -0.54024506
+
+[[render.ltas]]
+hz = 444.4723
+db = 11.205963
+
+[[render.ltas]]
+hz = 560.0
+db = -8.725327
+
+[[render.ltas]]
+hz = 705.5558
+db = 9.239189
+
+[[render.ltas]]
+hz = 888.9446
+db = 2.9272766
+
+[[render.ltas]]
+hz = 1120.0
+db = -12.362915
+
+[[render.ltas]]
+hz = 1411.1116
+db = -3.9589157
+
+[[render.ltas]]
+hz = 1777.8892
+db = -6.4826736
+
+[[render.ltas]]
+hz = 2240.0
+db = -6.1888504
+
+[[render.ltas]]
+hz = 2822.2231
+db = -3.7688751
+
+[[render.ltas]]
+hz = 3555.7783
+db = -7.49102
+
+[[render.ltas]]
+hz = 4480.0
+db = 8.858658
+
+[[render.ltas]]
+hz = 5644.4463
+db = -15.3064575
+
+[[render.ltas]]
+hz = 7111.5566
+db = -35.670372
+
+[[render]]
+preset = "eagles_hotel_california_clean"
+lufs_i = -16.885426
+crest_db = 16.990528
+correlation = 0.24715836
+centroid_hz = 3791.6306
+
+[[render.ltas]]
+hz = 70.0
+db = 16.99503
+
+[[render.ltas]]
+hz = 88.19447
+db = -0.27738953
+
+[[render.ltas]]
+hz = 111.11807
+db = -6.7388763
+
+[[render.ltas]]
+hz = 140.0
+db = 7.93145
+
+[[render.ltas]]
+hz = 176.38895
+db = -5.6454086
+
+[[render.ltas]]
+hz = 222.23615
+db = 3.6804504
+
+[[render.ltas]]
+hz = 280.0
+db = -6.8442764
+
+[[render.ltas]]
+hz = 352.7779
+db = -3.6194
+
+[[render.ltas]]
+hz = 444.4723
+db = -2.3316422
+
+[[render.ltas]]
+hz = 560.0
+db = -2.7857285
+
+[[render.ltas]]
+hz = 705.5558
+db = 4.922531
+
+[[render.ltas]]
+hz = 888.9446
+db = -2.0216064
+
+[[render.ltas]]
+hz = 1120.0
+db = -5.20533
+
+[[render.ltas]]
+hz = 1411.1116
+db = -3.8426132
+
+[[render.ltas]]
+hz = 1777.8892
+db = -3.2446518
+
+[[render.ltas]]
+hz = 2240.0
+db = -2.708641
+
+[[render.ltas]]
+hz = 2822.2231
+db = 3.2465515
+
+[[render.ltas]]
+hz = 3555.7783
+db = 1.378685
+
+[[render.ltas]]
+hz = 4480.0
+db = 15.30793
+
+[[render.ltas]]
+hz = 5644.4463
+db = 2.8316345
+
+[[render.ltas]]
+hz = 7111.5566
+db = -11.028404
+
+[[render]]
+preset = "eagles_hotel_california_solo"
+lufs_i = -14.222626
+crest_db = 12.619016
+correlation = 0.30191803
+centroid_hz = 2764.504
+
+[[render.ltas]]
+hz = 70.0
+db = 18.763687
+
+[[render.ltas]]
+hz = 88.19447
+db = 2.106926
+
+[[render.ltas]]
+hz = 111.11807
+db = 2.436676
+
+[[render.ltas]]
+hz = 140.0
+db = 8.2559395
+
+[[render.ltas]]
+hz = 176.38895
+db = 0.968071
+
+[[render.ltas]]
+hz = 222.23615
+db = 18.009575
+
+[[render.ltas]]
+hz = 280.0
+db = 2.2722702
+
+[[render.ltas]]
+hz = 352.7779
+db = 3.3738098
+
+[[render.ltas]]
+hz = 444.4723
+db = 14.639187
+
+[[render.ltas]]
+hz = 560.0
+db = 3.734497
+
+[[render.ltas]]
+hz = 705.5558
+db = 16.406574
+
+[[render.ltas]]
+hz = 888.9446
+db = 9.210518
+
+[[render.ltas]]
+hz = 1120.0
+db = -11.026108
+
+[[render.ltas]]
+hz = 1411.1116
+db = -2.3038483
+
+[[render.ltas]]
+hz = 1777.8892
+db = -0.44676208
+
+[[render.ltas]]
+hz = 2240.0
+db = -8.958824
+
+[[render.ltas]]
+hz = 2822.2231
+db = -6.8795013
+
+[[render.ltas]]
+hz = 3555.7783
+db = -11.812653
+
+[[render.ltas]]
+hz = 4480.0
+db = 4.074318
+
+[[render.ltas]]
+hz = 5644.4463
+db = -19.249298
+
+[[render.ltas]]
+hz = 7111.5566
+db = -43.574852
+
+[[render]]
+preset = "led_zeppelin_stairway_solo"
+lufs_i = -13.607976
+crest_db = 13.112268
+correlation = 0.38916796
+centroid_hz = 2874.4133
+
+[[render.ltas]]
+hz = 70.0
+db = 19.900124
+
+[[render.ltas]]
+hz = 88.19447
+db = 0.6976166
+
+[[render.ltas]]
+hz = 111.11807
+db = -0.6468735
+
+[[render.ltas]]
+hz = 140.0
+db = 8.120369
+
+[[render.ltas]]
+hz = 176.38895
+db = -0.8894348
+
+[[render.ltas]]
+hz = 222.23615
+db = 15.371994
+
+[[render.ltas]]
+hz = 280.0
+db = 2.4498367
+
+[[render.ltas]]
+hz = 352.7779
+db = 1.6207275
+
+[[render.ltas]]
+hz = 444.4723
+db = 14.588448
+
+[[render.ltas]]
+hz = 560.0
+db = 1.3695374
+
+[[render.ltas]]
+hz = 705.5558
+db = 17.136024
+
+[[render.ltas]]
+hz = 888.9446
+db = 8.510536
+
+[[render.ltas]]
+hz = 1120.0
+db = -11.766441
+
+[[render.ltas]]
+hz = 1411.1116
+db = -4.2832947
+
+[[render.ltas]]
+hz = 1777.8892
+db = -0.55443573
+
+[[render.ltas]]
+hz = 2240.0
+db = -9.582993
+
+[[render.ltas]]
+hz = 2822.2231
+db = -4.829376
+
+[[render.ltas]]
+hz = 3555.7783
+db = -9.262466
+
+[[render.ltas]]
+hz = 4480.0
+db = 7.648899
+
+[[render.ltas]]
+hz = 5644.4463
+db = -17.88552
+
+[[render.ltas]]
+hz = 7111.5566
+db = -37.713097
+
+[[render]]
+preset = "led_zeppelin_whole_lotta_love"
+lufs_i = -11.759258
+crest_db = 13.084659
+correlation = 0.5777284
+centroid_hz = 2559.7354
+
+[[render.ltas]]
+hz = 70.0
+db = 3.890541
+
+[[render.ltas]]
+hz = 88.19447
+db = 16.6372
+
+[[render.ltas]]
+hz = 111.11807
+db = 14.448711
+
+[[render.ltas]]
+hz = 140.0
+db = 15.472004
+
+[[render.ltas]]
+hz = 176.38895
+db = 10.736923
+
+[[render.ltas]]
+hz = 222.23615
+db = 13.977894
+
+[[render.ltas]]
+hz = 280.0
+db = 7.1823425
+
+[[render.ltas]]
+hz = 352.7779
+db = -3.4206543
+
+[[render.ltas]]
+hz = 444.4723
+db = 8.514889
+
+[[render.ltas]]
+hz = 560.0
+db = -4.265259
+
+[[render.ltas]]
+hz = 705.5558
+db = 8.144505
+
+[[render.ltas]]
+hz = 888.9446
+db = 4.3459435
+
+[[render.ltas]]
+hz = 1120.0
+db = -10.982872
+
+[[render.ltas]]
+hz = 1411.1116
+db = -4.9354324
+
+[[render.ltas]]
+hz = 1777.8892
+db = -4.353714
+
+[[render.ltas]]
+hz = 2240.0
+db = -10.72084
+
+[[render.ltas]]
+hz = 2822.2231
+db = -5.240135
+
+[[render.ltas]]
+hz = 3555.7783
+db = -3.5412674
+
+[[render.ltas]]
+hz = 4480.0
+db = -0.6485748
+
+[[render.ltas]]
+hz = 5644.4463
+db = -18.915703
+
+[[render.ltas]]
+hz = 7111.5566
+db = -36.326477
+
+[[render]]
+preset = "pink_floyd_another_brick_pt2"
+lufs_i = -12.903562
+crest_db = 15.852484
+correlation = 0.5428179
+centroid_hz = 3774.9001
+
+[[render.ltas]]
+hz = 70.0
+db = 5.8382645
+
+[[render.ltas]]
+hz = 88.19447
+db = 15.063885
+
+[[render.ltas]]
+hz = 111.11807
+db = 8.485546
+
+[[render.ltas]]
+hz = 140.0
+db = 12.778015
+
+[[render.ltas]]
+hz = 176.38895
+db = 5.3955383
+
+[[render.ltas]]
+hz = 222.23615
+db = 11.077286
+
+[[render.ltas]]
+hz = 280.0
+db = 3.5864944
+
+[[render.ltas]]
+hz = 352.7779
+db = -12.301918
+
+[[render.ltas]]
+hz = 444.4723
+db = -4.628662
+
+[[render.ltas]]
+hz = 560.0
+db = -5.253113
+
+[[render.ltas]]
+hz = 705.5558
+db = 0.0845871
+
+[[render.ltas]]
+hz = 888.9446
+db = -7.619789
+
+[[render.ltas]]
+hz = 1120.0
+db = -5.9428406
+
+[[render.ltas]]
+hz = 1411.1116
+db = -10.8318405
+
+[[render.ltas]]
+hz = 1777.8892
+db = -5.963028
+
+[[render.ltas]]
+hz = 2240.0
+db = -8.188698
+
+[[render.ltas]]
+hz = 2822.2231
+db = 2.7844543
+
+[[render.ltas]]
+hz = 3555.7783
+db = 4.833477
+
+[[render.ltas]]
+hz = 4480.0
+db = 13.063583
+
+[[render.ltas]]
+hz = 5644.4463
+db = -3.2015228
+
+[[render.ltas]]
+hz = 7111.5566
+db = -19.059708
+
+[[render]]
+preset = "pink_floyd_comfortably_numb_solo_1"
+lufs_i = -14.629389
+crest_db = 16.348812
+correlation = 0.6513785
+centroid_hz = 3113.6243
+
+[[render.ltas]]
+hz = 70.0
+db = 2.3925095
+
+[[render.ltas]]
+hz = 88.19447
+db = 15.561031
+
+[[render.ltas]]
+hz = 111.11807
+db = 12.764572
+
+[[render.ltas]]
+hz = 140.0
+db = 13.992622
+
+[[render.ltas]]
+hz = 176.38895
+db = 6.804203
+
+[[render.ltas]]
+hz = 222.23615
+db = 10.07933
+
+[[render.ltas]]
+hz = 280.0
+db = -2.4465942
+
+[[render.ltas]]
+hz = 352.7779
+db = -3.7342758
+
+[[render.ltas]]
+hz = 444.4723
+db = -4.119751
+
+[[render.ltas]]
+hz = 560.0
+db = -13.069153
+
+[[render.ltas]]
+hz = 705.5558
+db = 6.137741
+
+[[render.ltas]]
+hz = 888.9446
+db = 1.214592
+
+[[render.ltas]]
+hz = 1120.0
+db = -1.8456879
+
+[[render.ltas]]
+hz = 1411.1116
+db = -4.7713776
+
+[[render.ltas]]
+hz = 1777.8892
+db = -6.5788574
+
+[[render.ltas]]
+hz = 2240.0
+db = -5.657875
+
+[[render.ltas]]
+hz = 2822.2231
+db = 3.1985016
+
+[[render.ltas]]
+hz = 3555.7783
+db = -4.2431335
+
+[[render.ltas]]
+hz = 4480.0
+db = 6.38385
+
+[[render.ltas]]
+hz = 5644.4463
+db = -8.483208
+
+[[render.ltas]]
+hz = 7111.5566
+db = -23.57911
+
+[[render]]
+preset = "pink_floyd_comfortably_numb_solo_2"
+lufs_i = -15.621918
+crest_db = 16.549116
+correlation = 0.58280927
+centroid_hz = 2842.5134
+
+[[render.ltas]]
+hz = 70.0
+db = 2.1257782
+
+[[render.ltas]]
+hz = 88.19447
+db = 16.54673
+
+[[render.ltas]]
+hz = 111.11807
+db = 14.838436
+
+[[render.ltas]]
+hz = 140.0
+db = 12.738258
+
+[[render.ltas]]
+hz = 176.38895
+db = 6.574608
+
+[[render.ltas]]
+hz = 222.23615
+db = 11.715164
+
+[[render.ltas]]
+hz = 280.0
+db = 5.859146
+
+[[render.ltas]]
+hz = 352.7779
+db = -1.2692184
+
+[[render.ltas]]
+hz = 444.4723
+db = -9.469543
+
+[[render.ltas]]
+hz = 560.0
+db = -10.797691
+
+[[render.ltas]]
+hz = 705.5558
+db = -6.903183
+
+[[render.ltas]]
+hz = 888.9446
+db = 0.7459488
+
+[[render.ltas]]
+hz = 1120.0
+db = -4.646576
+
+[[render.ltas]]
+hz = 1411.1116
+db = -3.4233322
+
+[[render.ltas]]
+hz = 1777.8892
+db = -9.686943
+
+[[render.ltas]]
+hz = 2240.0
+db = -5.3936844
+
+[[render.ltas]]
+hz = 2822.2231
+db = 3.374443
+
+[[render.ltas]]
+hz = 3555.7783
+db = -2.0232544
+
+[[render.ltas]]
+hz = 4480.0
+db = 6.877205
+
+[[render.ltas]]
+hz = 5644.4463
+db = -11.508377
+
+[[render.ltas]]
+hz = 7111.5566
+db = -16.273819
+
+[[render]]
+preset = "pink_floyd_money"
+lufs_i = -14.367232
+crest_db = 14.550579
+correlation = 0.7812394
+centroid_hz = 2192.3638
+
+[[render.ltas]]
+hz = 70.0
+db = 7.907711
+
+[[render.ltas]]
+hz = 88.19447
+db = 0.97052
+
+[[render.ltas]]
+hz = 111.11807
+db = 2.3369598
+
+[[render.ltas]]
+hz = 140.0
+db = 6.52787
+
+[[render.ltas]]
+hz = 176.38895
+db = -6.6366425
+
+[[render.ltas]]
+hz = 222.23615
+db = 5.2361183
+
+[[render.ltas]]
+hz = 280.0
+db = -0.10205841
+
+[[render.ltas]]
+hz = 352.7779
+db = -8.424538
+
+[[render.ltas]]
+hz = 444.4723
+db = 1.5962715
+
+[[render.ltas]]
+hz = 560.0
+db = 3.1453972
+
+[[render.ltas]]
+hz = 705.5558
+db = 13.467758
+
+[[render.ltas]]
+hz = 888.9446
+db = 11.409531
+
+[[render.ltas]]
+hz = 1120.0
+db = 3.2791862
+
+[[render.ltas]]
+hz = 1411.1116
+db = -6.2650146
+
+[[render.ltas]]
+hz = 1777.8892
+db = -3.8046265
+
+[[render.ltas]]
+hz = 2240.0
+db = 0.5917282
+
+[[render.ltas]]
+hz = 2822.2231
+db = -3.9043655
+
+[[render.ltas]]
+hz = 3555.7783
+db = -4.7118225
+
+[[render.ltas]]
+hz = 4480.0
+db = 9.408707
+
+[[render.ltas]]
+hz = 5644.4463
+db = -9.5577545
+
+[[render.ltas]]
+hz = 7111.5566
+db = -22.47091
+
+[[render]]
+preset = "pink_floyd_shine_on_crazy_diamond"
+lufs_i = -16.08175
+crest_db = 16.757263
+correlation = 0.6841208
+centroid_hz = 2999.7627
+
+[[render.ltas]]
+hz = 70.0
+db = 2.501503
+
+[[render.ltas]]
+hz = 88.19447
+db = -0.73859406
+
+[[render.ltas]]
+hz = 111.11807
+db = 1.3385544
+
+[[render.ltas]]
+hz = 140.0
+db = 4.971718
+
+[[render.ltas]]
+hz = 176.38895
+db = 0.7771759
+
+[[render.ltas]]
+hz = 222.23615
+db = 16.366291
+
+[[render.ltas]]
+hz = 280.0
+db = 8.339844
+
+[[render.ltas]]
+hz = 352.7779
+db = -4.5555954
+
+[[render.ltas]]
+hz = 444.4723
+db = 2.9757004
+
+[[render.ltas]]
+hz = 560.0
+db = -2.8912125
+
+[[render.ltas]]
+hz = 705.5558
+db = 4.8285217
+
+[[render.ltas]]
+hz = 888.9446
+db = -1.5603943
+
+[[render.ltas]]
+hz = 1120.0
+db = 1.9748154
+
+[[render.ltas]]
+hz = 1411.1116
+db = -5.932144
+
+[[render.ltas]]
+hz = 1777.8892
+db = -4.252861
+
+[[render.ltas]]
+hz = 2240.0
+db = -3.4563522
+
+[[render.ltas]]
+hz = 2822.2231
+db = 3.5756302
+
+[[render.ltas]]
+hz = 3555.7783
+db = -1.9281387
+
+[[render.ltas]]
+hz = 4480.0
+db = 7.7892227
+
+[[render.ltas]]
+hz = 5644.4463
+db = -9.266357
+
+[[render.ltas]]
+hz = 7111.5566
+db = -20.857353
+
+[[render]]
+preset = "pink_floyd_time_chorus"
+lufs_i = -11.0984955
+crest_db = 16.079027
+correlation = 0.75357157
+centroid_hz = 3722.51
+
+[[render.ltas]]
+hz = 70.0
+db = 14.03101
+
+[[render.ltas]]
+hz = 88.19447
+db = 1.6704636
+
+[[render.ltas]]
+hz = 111.11807
+db = -6.520035
+
+[[render.ltas]]
+hz = 140.0
+db = 17.009487
+
+[[render.ltas]]
+hz = 176.38895
+db = 1.2484665
+
+[[render.ltas]]
+hz = 222.23615
+db = 17.869606
+
+[[render.ltas]]
+hz = 280.0
+db = 1.2679367
+
+[[render.ltas]]
+hz = 352.7779
+db = -8.092552
+
+[[render.ltas]]
+hz = 444.4723
+db = 2.5899582
+
+[[render.ltas]]
+hz = 560.0
+db = -10.354019
+
+[[render.ltas]]
+hz = 705.5558
+db = 3.9262238
+
+[[render.ltas]]
+hz = 888.9446
+db = -0.22311401
+
+[[render.ltas]]
+hz = 1120.0
+db = -2.2205505
+
+[[render.ltas]]
+hz = 1411.1116
+db = -11.640663
+
+[[render.ltas]]
+hz = 1777.8892
+db = -6.232216
+
+[[render.ltas]]
+hz = 2240.0
+db = -6.52227
+
+[[render.ltas]]
+hz = 2822.2231
+db = 4.857048
+
+[[render.ltas]]
+hz = 3555.7783
+db = 0.25953674
+
+[[render.ltas]]
+hz = 4480.0
+db = 13.786579
+
+[[render.ltas]]
+hz = 5644.4463
+db = -7.9531937
+
+[[render.ltas]]
+hz = 7111.5566
+db = -18.75779
+
+[[render]]
+preset = "pink_floyd_time_solo"
+lufs_i = -13.094846
+crest_db = 15.025785
+correlation = 0.7012034
+centroid_hz = 3727.7185
+
+[[render.ltas]]
+hz = 70.0
+db = 10.462173
+
+[[render.ltas]]
+hz = 88.19447
+db = 9.450161
+
+[[render.ltas]]
+hz = 111.11807
+db = 0.62415314
+
+[[render.ltas]]
+hz = 140.0
+db = 8.588726
+
+[[render.ltas]]
+hz = 176.38895
+db = 3.5729675
+
+[[render.ltas]]
+hz = 222.23615
+db = 15.791821
+
+[[render.ltas]]
+hz = 280.0
+db = 6.801468
+
+[[render.ltas]]
+hz = 352.7779
+db = 2.986187
+
+[[render.ltas]]
+hz = 444.4723
+db = 1.6006927
+
+[[render.ltas]]
+hz = 560.0
+db = -1.3687439
+
+[[render.ltas]]
+hz = 705.5558
+db = 3.2648354
+
+[[render.ltas]]
+hz = 888.9446
+db = -3.1434784
+
+[[render.ltas]]
+hz = 1120.0
+db = -1.7614746
+
+[[render.ltas]]
+hz = 1411.1116
+db = -9.968285
+
+[[render.ltas]]
+hz = 1777.8892
+db = -7.243698
+
+[[render.ltas]]
+hz = 2240.0
+db = -9.368202
+
+[[render.ltas]]
+hz = 2822.2231
+db = 2.852642
+
+[[render.ltas]]
+hz = 3555.7783
+db = -3.5947418
+
+[[render.ltas]]
+hz = 4480.0
+db = 3.473896
+
+[[render.ltas]]
+hz = 5644.4463
+db = -10.6989975
+
+[[render.ltas]]
+hz = 7111.5566
+db = -22.322334
+
+[[render]]
+preset = "van_halen_aint_talkin_bout_love"
+lufs_i = -18.718342
+crest_db = 15.656429
+correlation = 0.37098137
+centroid_hz = 3852.0054
+
+[[render.ltas]]
+hz = 70.0
+db = 19.008858
+
+[[render.ltas]]
+hz = 88.19447
+db = -2.8679276
+
+[[render.ltas]]
+hz = 111.11807
+db = -10.353577
+
+[[render.ltas]]
+hz = 140.0
+db = 5.2543488
+
+[[render.ltas]]
+hz = 176.38895
+db = -4.2725983
+
+[[render.ltas]]
+hz = 222.23615
+db = 14.938675
+
+[[render.ltas]]
+hz = 280.0
+db = 0.1084137
+
+[[render.ltas]]
+hz = 352.7779
+db = -1.7243805
+
+[[render.ltas]]
+hz = 444.4723
+db = 8.633789
+
+[[render.ltas]]
+hz = 560.0
+db = 3.4449615
+
+[[render.ltas]]
+hz = 705.5558
+db = 12.192722
+
+[[render.ltas]]
+hz = 888.9446
+db = 4.501213
+
+[[render.ltas]]
+hz = 1120.0
+db = -3.229042
+
+[[render.ltas]]
+hz = 1411.1116
+db = -11.190826
+
+[[render.ltas]]
+hz = 1777.8892
+db = -3.882141
+
+[[render.ltas]]
+hz = 2240.0
+db = -2.6824493
+
+[[render.ltas]]
+hz = 2822.2231
+db = -3.739479
+
+[[render.ltas]]
+hz = 3555.7783
+db = 1.3447037
+
+[[render.ltas]]
+hz = 4480.0
+db = 12.204384
+
+[[render.ltas]]
+hz = 5644.4463
+db = -12.558807
+
+[[render.ltas]]
+hz = 7111.5566
+db = -25.13089
+
+[[render]]
+preset = "van_halen_brown_sound"
+lufs_i = -17.016512
+crest_db = 14.872995
+correlation = 0.63187253
+centroid_hz = 3472.6274
+
+[[render.ltas]]
+hz = 70.0
+db = 19.52703
+
+[[render.ltas]]
+hz = 88.19447
+db = -2.4217224
+
+[[render.ltas]]
+hz = 111.11807
+db = -10.030983
+
+[[render.ltas]]
+hz = 140.0
+db = 10.217678
+
+[[render.ltas]]
+hz = 176.38895
+db = -3.2372437
+
+[[render.ltas]]
+hz = 222.23615
+db = 19.128262
+
+[[render.ltas]]
+hz = 280.0
+db = 2.8477936
+
+[[render.ltas]]
+hz = 352.7779
+db = -0.1284256
+
+[[render.ltas]]
+hz = 444.4723
+db = 13.251377
+
+[[render.ltas]]
+hz = 560.0
+db = -2.595169
+
+[[render.ltas]]
+hz = 705.5558
+db = 9.31831
+
+[[render.ltas]]
+hz = 888.9446
+db = 3.7706451
+
+[[render.ltas]]
+hz = 1120.0
+db = -5.060028
+
+[[render.ltas]]
+hz = 1411.1116
+db = -7.2533417
+
+[[render.ltas]]
+hz = 1777.8892
+db = -1.9765015
+
+[[render.ltas]]
+hz = 2240.0
+db = -5.7503204
+
+[[render.ltas]]
+hz = 2822.2231
+db = -1.9628448
+
+[[render.ltas]]
+hz = 3555.7783
+db = -1.7977066
+
+[[render.ltas]]
+hz = 4480.0
+db = 9.054428
+
+[[render.ltas]]
+hz = 5644.4463
+db = -15.333443
+
+[[render.ltas]]
+hz = 7111.5566
+db = -29.567902
