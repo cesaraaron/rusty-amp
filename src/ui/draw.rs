@@ -7,6 +7,7 @@ use ratatui::{
 };
 use std::sync::atomic::Ordering::Relaxed;
 
+use crate::audio::calibration::InputCalibration;
 use crate::dsp::{AmpModel, CabModel, ChainStage, Levels, Params};
 use crate::practice::Practice;
 
@@ -23,6 +24,7 @@ pub(super) fn draw(
     f: &mut Frame,
     params: &Params,
     levels: &Levels,
+    cal: &InputCalibration,
     focus: Option<usize>,
     board: &[bool],
     recording: bool,
@@ -80,6 +82,7 @@ pub(super) fn draw(
         rows[i],
         params,
         levels,
+        cal,
         board,
         plugin,
         ext_cab,
@@ -118,6 +121,7 @@ fn render_header(
     area: Rect,
     params: &Params,
     levels: &Levels,
+    cal: &InputCalibration,
     board: &[bool],
     plugin: Option<&str>,
     ext_cab: Option<&str>,
@@ -226,7 +230,7 @@ fn render_header(
         .direction(Direction::Horizontal)
         .constraints([Constraint::Ratio(1, 2), Constraint::Ratio(1, 2)])
         .split(meter_rows[1]);
-    render_vu_row(f, bars[0], "IN ", levels.input.load(Relaxed));
+    render_vu_row(f, bars[0], &in_label(cal), levels.input.load(Relaxed));
     render_vu_row(f, bars[1], "OUT ", levels.output.load(Relaxed));
 }
 
@@ -253,6 +257,17 @@ fn pedal_stage_state(params: &Params, stage: ChainStage) -> Option<(&'static str
         ChainStage::Delay => Some(("DELAY", on(&params.delay_enabled))),
         ChainStage::Reverb => Some(("REVERB", on(&params.rev_enabled))),
         ChainStage::Amp | ChainStage::Cab => None,
+    }
+}
+
+/// The header's input label: the applied trim when calibrated, `uncal`
+/// otherwise. A live `CLIP` is shown by the calibration wizard, not here.
+fn in_label(cal: &InputCalibration) -> String {
+    let trim = cal.trim_db.load(Relaxed);
+    if trim.abs() < 0.05 {
+        "IN uncal".to_string()
+    } else {
+        format!("IN {trim:+.1}")
     }
 }
 
@@ -1294,6 +1309,7 @@ pub(super) fn render_help_modal(f: &mut Frame) {
         row("  J", "  session browser: new / save / save as / load"),
         row("  T", "  chromatic tuner"),
         row("  M", "  practice metronome (+/− tempo, Space on/off)"),
+        row("  N", "  calibrate input level"),
     ]);
     #[cfg(feature = "clap")]
     lines.push(row("  V", "  plugin browser"));
@@ -1814,6 +1830,7 @@ mod tests {
                 f,
                 params,
                 &levels,
+                &InputCalibration::default(),
                 focus,
                 board,
                 false,
@@ -1887,6 +1904,7 @@ mod tests {
                     f,
                     &params,
                     &levels,
+                    &InputCalibration::default(),
                     focus,
                     &board,
                     rec,
@@ -1962,6 +1980,7 @@ mod tests {
                 f,
                 &params,
                 &levels,
+                &InputCalibration::default(),
                 None,
                 &board_all(false),
                 false,
@@ -2025,6 +2044,7 @@ mod tests {
                 f,
                 &params,
                 &levels,
+                &InputCalibration::default(),
                 None,
                 &board,
                 false,
@@ -2209,6 +2229,7 @@ mod tests {
                 f,
                 &params,
                 &levels,
+                &InputCalibration::default(),
                 None,
                 &board_all(false),
                 recording,

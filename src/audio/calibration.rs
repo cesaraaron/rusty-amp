@@ -11,6 +11,7 @@ use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
 use std::sync::atomic::AtomicBool;
 
+use crate::analysis::metrics::{db, percentile};
 use crate::dsp::effects::db_to_lin;
 
 /// Length of one measurement window.
@@ -140,6 +141,32 @@ pub fn target_peak_dbfs(p: PickupClass) -> f32 {
         PickupClass::SingleCoil => -9.0,
         PickupClass::P90 => -4.5,
         PickupClass::Humbucker => -3.0,
+    }
+}
+
+impl PickupClass {
+    pub fn next(self) -> Self {
+        match self {
+            Self::SingleCoil => Self::P90,
+            Self::P90 => Self::Humbucker,
+            Self::Humbucker => Self::SingleCoil,
+        }
+    }
+
+    pub fn prev(self) -> Self {
+        match self {
+            Self::SingleCoil => Self::Humbucker,
+            Self::P90 => Self::SingleCoil,
+            Self::Humbucker => Self::P90,
+        }
+    }
+
+    pub fn label(self) -> &'static str {
+        match self {
+            Self::SingleCoil => "single-coil",
+            Self::P90 => "P90",
+            Self::Humbucker => "humbucker",
+        }
     }
 }
 
@@ -275,6 +302,102 @@ pub fn remove_calibration_at(path: &Path, identity: &InputIdentity) -> std::io::
     let mut file = read_file(path);
     file.inputs.retain(|e| !e.matches(identity));
     write_file(path, &file)
+}
+
+// ── Calibration computation (pure) ─────────────────────────────────────────────
+
+/// The outcome of a calibration capture.
+#[derive(Clone, Debug, PartialEq)]
+pub struct CalResult {
+    pub measured_peak_dbfs: f32,
+    pub noise_floor_dbfs: f32,
+    pub target_peak_dbfs: f32,
+    pub trim_db: f32,
+    pub warnings: Vec<CalWarning>,
+}
+
+/// Why a capture could not produce a calibration.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum CalError {
+    /// A raw sample hit full scale — lower the interface gain and retry.
+    Clipped,
+    /// Fewer than 2 s of playing was captured.
+    TooShort,
+    /// The playing was effectively silent.
+    NoSignal,
+    /// Window statistics were dropped (ring full) — retry.
+    Overflow,
+}
+
+/// Non-fatal notes about a calibration.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum CalWarning {
+    /// The trim is large (above +18 dB).
+    HighTrim,
+    /// The signal-to-noise ratio is under 40 dB.
+    LowSnr,
+    /// The raw trim was outside the ±24 dB clamp.
+    Clamped,
+}
+
+/// Number of 10 ms windows in the 2 s minimum capture.
+const MIN_PLAY_WINDOWS: usize = 200;
+
+/// Compute a calibration from raw play/noise windows. Pure; unit-tested.
+pub fn compute_calibration(
+    play: &[WindowStat],
+    noise: &[WindowStat],
+    pickup: PickupClass,
+    clipped: bool,
+    overflow: bool,
+) -> Result<CalResult, CalError> {
+    if clipped {
+        return Err(CalError::Clipped);
+    }
+    if overflow {
+        return Err(CalError::Overflow);
+    }
+    if play.len() < MIN_PLAY_WINDOWS {
+        return Err(CalError::TooShort);
+    }
+
+    let mut peaks: Vec<f32> = play.iter().map(|w| w.peak_raw).collect();
+    peaks.sort_by(f32::total_cmp);
+    let measured_peak_dbfs = db(percentile(&peaks, 0.99));
+    if measured_peak_dbfs < -50.0 {
+        return Err(CalError::NoSignal);
+    }
+
+    let noise_frames: f32 = noise.iter().map(|w| w.frames as f32).sum();
+    let noise_rms = if noise_frames <= 0.0 {
+        0.0
+    } else {
+        (noise.iter().map(|w| w.sum_sq_raw).sum::<f32>() / noise_frames).sqrt()
+    };
+    let noise_floor_dbfs = db(noise_rms);
+
+    let target = target_peak_dbfs(pickup);
+    let raw_trim = target - measured_peak_dbfs;
+    let trim_db = raw_trim.clamp(-24.0, 24.0);
+
+    let mut warnings = Vec::new();
+    if (raw_trim - trim_db).abs() > f32::EPSILON {
+        warnings.push(CalWarning::Clamped);
+    }
+    if trim_db > 18.0 {
+        warnings.push(CalWarning::HighTrim);
+    }
+    if measured_peak_dbfs - noise_floor_dbfs < 40.0 {
+        warnings.push(CalWarning::LowSnr);
+    }
+
+    Ok(CalResult {
+        measured_peak_dbfs,
+        noise_floor_dbfs,
+        target_peak_dbfs: target,
+        trim_db,
+        warnings,
+    })
 }
 
 #[cfg(test)]
@@ -469,5 +592,92 @@ mod tests {
         save_calibration_at(&path, &entry("Dev", 1, 0, 1.0)).unwrap();
         assert!(load_calibration_at(&path, &identity("Dev", 1, 0)).is_some());
         let _ = std::fs::remove_dir_all(path.parent().unwrap());
+    }
+
+    fn windows(peak: f32, count: usize) -> Vec<WindowStat> {
+        (0..count)
+            .map(|_| WindowStat {
+                peak_raw: peak,
+                sum_sq_raw: peak * peak * 480.0,
+                frames: 480,
+            })
+            .collect()
+    }
+
+    #[test]
+    fn nominal_humbucker_calibration() {
+        // −15 dBFS peak with a −3 dB target → +12 dB.
+        let play = windows(db_to_lin(-15.0), 250);
+        let noise = windows(db_to_lin(-80.0), 200);
+        let r = compute_calibration(&play, &noise, PickupClass::Humbucker, false, false).unwrap();
+        assert!(
+            (r.measured_peak_dbfs + 15.0).abs() < 0.1,
+            "{}",
+            r.measured_peak_dbfs
+        );
+        assert!((r.trim_db - 12.0).abs() < 0.1, "{}", r.trim_db);
+        assert!(r.warnings.is_empty(), "{:?}", r.warnings);
+    }
+
+    #[test]
+    fn pickup_targets_shift_the_trim() {
+        let play = windows(db_to_lin(-15.0), 250);
+        let noise = windows(db_to_lin(-80.0), 200);
+        let sc = compute_calibration(&play, &noise, PickupClass::SingleCoil, false, false).unwrap();
+        let p90 = compute_calibration(&play, &noise, PickupClass::P90, false, false).unwrap();
+        assert!((sc.trim_db - 6.0).abs() < 0.1, "{}", sc.trim_db);
+        assert!((p90.trim_db - 10.5).abs() < 0.1, "{}", p90.trim_db);
+    }
+
+    #[test]
+    fn calibration_errors_cover_each_branch() {
+        let play = windows(0.5, 250);
+        let noise = windows(1e-4, 200);
+        assert_eq!(
+            compute_calibration(&play, &noise, PickupClass::Humbucker, true, false),
+            Err(CalError::Clipped)
+        );
+        assert_eq!(
+            compute_calibration(&play, &noise, PickupClass::Humbucker, false, true),
+            Err(CalError::Overflow)
+        );
+        let short = windows(0.5, 10);
+        assert_eq!(
+            compute_calibration(&short, &noise, PickupClass::Humbucker, false, false),
+            Err(CalError::TooShort)
+        );
+        let quiet = windows(db_to_lin(-60.0), 250);
+        assert_eq!(
+            compute_calibration(&quiet, &noise, PickupClass::Humbucker, false, false),
+            Err(CalError::NoSignal)
+        );
+    }
+
+    #[test]
+    fn clamping_and_low_snr_warn() {
+        // −30 dBFS peak with a −3 dB target → raw +27 dB, clamped to +24.
+        let play = windows(db_to_lin(-30.0), 250);
+        let clean_noise = windows(db_to_lin(-72.0), 200);
+        let r =
+            compute_calibration(&play, &clean_noise, PickupClass::Humbucker, false, false).unwrap();
+        assert_eq!(r.trim_db, 24.0);
+        assert!(r.warnings.contains(&CalWarning::Clamped));
+        assert!(r.warnings.contains(&CalWarning::HighTrim));
+
+        // Noise only ~24 dB below the peak → LowSnr.
+        let noisy = windows(db_to_lin(-30.0), 200);
+        let r2 = compute_calibration(
+            &windows(0.5, 250),
+            &noisy,
+            PickupClass::Humbucker,
+            false,
+            false,
+        )
+        .unwrap();
+        assert!(
+            r2.warnings.contains(&CalWarning::LowSnr),
+            "{:?}",
+            r2.warnings
+        );
     }
 }

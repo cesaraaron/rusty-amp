@@ -1,5 +1,6 @@
 #[cfg(all(feature = "au", target_os = "macos"))]
 mod amp_plugins;
+mod calibration;
 mod config;
 mod draw;
 mod input;
@@ -252,6 +253,8 @@ pub fn run(
     let mut save_msg: Option<(String, std::time::Instant)> = None;
     let mut tuner_open = false;
     let mut metronome_open = false;
+    // Input-calibration wizard (`N`).
+    let mut cal_ui = calibration::CalibrationUi::new();
     // Keybinding cheat-sheet modal, toggled with K.
     let mut help_open = false;
     // Which top-level panels are shown (session-only; toggled with 1/2/3).
@@ -447,6 +450,7 @@ pub fn run(
                     f,
                     &params,
                     &levels,
+                    &calibration,
                     focus,
                     &board,
                     rec_active,
@@ -548,6 +552,9 @@ pub fn run(
                 if metronome_open {
                     metronome::render_metronome(f, &metronome, blink);
                 }
+                if cal_ui.open {
+                    cal_ui.render(f, &calibration);
+                }
                 if help_open {
                     render_help_modal(f);
                 }
@@ -555,6 +562,9 @@ pub fn run(
                     render_export_progress(f, handle.percent());
                 }
             })?;
+
+            // Drain calibration windows and advance the wizard's timed steps.
+            cal_ui.tick(&mut engine, &calibration);
 
             if event::poll(Duration::from_millis(30))?
                 && let Event::Key(key) = event::read()?
@@ -782,7 +792,9 @@ pub fn run(
                     continue;
                 }
 
-                if help_open {
+                if cal_ui.open {
+                    cal_ui.handle_key(key.code, &calibration, &engine.input_identity());
+                } else if help_open {
                     match key.code {
                         KeyCode::Esc | KeyCode::Char('k') | KeyCode::Char('K') => {
                             help_open = false;
@@ -1220,6 +1232,14 @@ pub fn run(
                         }
                         KeyCode::Char('m') | KeyCode::Char('M') => {
                             metronome_open = true;
+                        }
+                        KeyCode::Char('n') | KeyCode::Char('N') => {
+                            if !cal_ui.open(&calibration, practice_ui.is_recording()) {
+                                save_msg = Some((
+                                    "Can't calibrate while recording".to_string(),
+                                    std::time::Instant::now(),
+                                ));
+                            }
                         }
                         #[cfg(feature = "clap")]
                         KeyCode::Char('v') | KeyCode::Char('V') => browser.open(),

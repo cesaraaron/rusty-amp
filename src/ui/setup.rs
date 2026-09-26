@@ -61,6 +61,8 @@ pub fn run(
                 f,
                 params,
                 levels,
+                // No engine yet, so no calibration to show on the picker.
+                &crate::audio::calibration::InputCalibration::default(),
                 None,
                 &[],
                 false,
