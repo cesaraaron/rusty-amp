@@ -62,8 +62,11 @@ pub const KNOBS: &[AmpKnob] = &[
 ///   • **Fuller, rounder voicing** than the JCM800: a lower inter-stage coupling
 ///     corner keeps more low-mid body, and the output transformer saturates earlier
 ///     for the complex cranked-PA low end.
-///   • **Tube-rectified supply** (GZ34): sags more and recovers more slowly than
-///     the JCM800's solid-state rectifier, giving the elastic "give" under load.
+///   • **Solid-state rectified supply**: the 1959 Super Lead moved from a GZ34
+///     valve rectifier to a silicon bridge around 1966, so the late-60s/70s amps
+///     the presets target have a *stiff*, fast-recovering rail — the power-amp
+///     compression and bloom come from the output stage and transformer, not
+///     rectifier sag.
 pub struct Plexi {
     sr: f32,
     front: FrontEnd,
@@ -86,7 +89,7 @@ pub struct Plexi {
     voice: VoiceBalance,
     out_hp: Biquad,
     envelope: f32,
-    // Tube-rectified mains ripple (UK 100 Hz).
+    // Solid-state rectifier: the rail is stiff, so mains ripple is shallow.
     ripple: SupplyRipple,
     speaker: SpeakerLoad,
 }
@@ -127,10 +130,12 @@ impl Plexi {
             voice: VoiceBalance::new(sr, 170.0, 6.0, 800.0, -5.0),
             out_hp: Biquad::highpass(sr, 12.0, 0.707),
             envelope: 0.0,
-            // UK mains → 100 Hz full-wave ripple (ghost notes) when loaded.
-            ripple: SupplyRipple::new(sr, 100.0, 0.05),
-            // Greenback 4×12 resonance ~95 Hz; a little more dynamic bloom than the
-            // JCM800's, matching the tube rectifier's softer supply.
+            // UK mains → 100 Hz full-wave ripple; a silicon-bridge rail with big
+            // filter caps stays stiff, so the ripple depth is small.
+            ripple: SupplyRipple::new(sr, 100.0, 0.035),
+            // Greenback 4×12 resonance ~95 Hz; dynamic bloom comes from the output
+            // transformer and speaker interaction, not rectifier sag (the 1959 is
+            // solid-state rectified).
             speaker: SpeakerLoad::new(sr, 95.0, 1.1, 0.07, 0.35, 0.9),
         };
         p.update_tone_stack(0.5, 0.45, 0.65);
@@ -146,19 +151,21 @@ impl Plexi {
         self.presence.set_knob((presence - 0.5) * 12.0 + 2.0);
     }
 
-    /// Tube-rectified sag: slower attack and longer recovery than the JCM800's
-    /// solid-state supply, with a deeper sag term — the elastic "give" of a cranked
-    /// Plexi.
+    /// Solid-state rectified supply: a stiff, fast-recovering rail (shallow sag,
+    /// quick attack/release), so the Plexi's compression comes from the output
+    /// stage and transformer rather than a sagging valve rectifier.
     #[inline]
     fn power_amp(&mut self, x: f32) -> f32 {
         let abs_x = x.abs();
         let coeff = if abs_x > self.envelope {
-            1.0 - (-150.0 / self.sr).exp()
+            // ~4.5 ms attack: the silicon rail tracks the signal quickly.
+            1.0 - (-220.0 / self.sr).exp()
         } else {
-            1.0 - (-5.0 / self.sr).exp()
+            // ~150 ms recovery, matching the solid-state JCM800 supply.
+            1.0 - (-6.7 / self.sr).exp()
         };
         self.envelope += coeff * (abs_x - self.envelope);
-        let sag = 1.0 / (1.0 + self.envelope * 1.8);
+        let sag = 1.0 / (1.0 + self.envelope * 1.3);
         let supply = self.ripple.gain(sag, self.envelope);
         tube_clip_asym(x * supply * 2.6) * 0.6
     }

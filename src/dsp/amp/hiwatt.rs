@@ -177,9 +177,9 @@ impl Hiwatt {
         let coeff = if abs_x > self.envelope {
             1.0 - (-200.0 / self.sr).exp()
         } else {
-            // Solid-state-rectified supply: stiffer than the tube-rectified
-            // Marshall, so it sags less and recovers faster. ~90 ms release keeps
-            // the bottom tight and percussive.
+            // Solid-state-rectified supply: stiffer than the Marshall models, so it
+            // sags less and recovers faster. ~90 ms release keeps the bottom tight
+            // and percussive.
             1.0 - (-11.0 / self.sr).exp()
         };
         self.envelope += coeff * (abs_x - self.envelope);

@@ -300,10 +300,13 @@ in `docs/fidelity-references.md` before changing any preset on their basis.
   amps. The intro is commonly reported as a 12-string acoustic, so the clean
   Twin + chorus + digital delay + two reverbs preset may not correspond to a
   recorded part.
-- **Plexi rectifier.** The GZ34 tube-rectifier assumption fits a JTM45; 1959
-  Super Leads from roughly 1967 onward are generally silicon-rectified, which
-  covers the Zeppelin/AC/DC/EVH era. Check a schematic, then retune the sag
-  (Phase 3), using the Workstream B harness for before/after.
+- **Plexi rectifier — resolved (Phase 3).** The GZ34 tube-rectifier assumption
+  fits a JTM45, not the model 1959 the presets target. The Unicord 1970 1959
+  schematic shows a solid-state bridge (`4 X DIODE`) and drtube dates the GZ34
+  phase-out to ~1966, so the supply was retuned to a stiff, fast-recovering
+  silicon rail (see the Phase 3 component references and the `fix(amp)` commit).
+  The amp's bloom now comes from the output transformer/speaker, not rectifier
+  sag.
 - **Hiwatt DR103** silicon-rectified supply claim is consistent with the
   hardware; the Hiwatt/WEM pair dominates every Floyd preset, so it stays
   first in Phase 3.
@@ -346,6 +349,7 @@ Append one row per commit from Workstreams A/B onward.
 | bundle | presets | Removed `van_halen_brown_sound`/`van_halen_aint_talkin_bout_love`; added `van_halen_beat_it_solo`, `guns_n_roses_november_rain_solo`, `pink_floyd_mother_solo`, `pink_floyd_have_a_cigar_solo` (inspired-by, uncited; Phase 0 will source them). Updated `RENDER_SUBSET`, test samples, harness examples, the inventories (15 → 17), and regenerated the baseline. | `all_bundled_presets_parse`, `bundled_presets_load_deterministically`; baseline `--check` (17) | the four new presets are inspired-by pending Phase 0; `[master] width` stays at the default pending the period-preset width pass |
 | phase0 | docs | `docs/fidelity-references.md` §2 now carries the recording dates/studios/producers/credits per preset group, cited to Wikipedia (secondary) and marked `documented`, plus the Phase-5 contradiction list. Gear remains unsourced (`plausible`/`unknown`, `Source: _TBD_`). | n/a | only secondary sources so far; gear needs primary sourcing |
 | phase0-gear | docs | Gear link pass: added **verified secondary** gear sources (gilmourish for Floyd; Guitar World for Eagles/Zeppelin; MusicRadar/Mixdown for Slash; musicradar/Guitar World for Page/EVH) and marked each `plausible`; unverified rows stay `TBD`. **Phase 0 closed (evidence-as-available)** — all presets are *inspired by*. Also recorded **Phase 3 component references** (Marshall 1959 silicon bridge; Hiwatt BYX94 + passive TMB; Twin solid-state + Jensen C12N; Greenback G12M specs) in the Phase 3 section. | n/a | full session-gear sourcing is out of scope; the amp/cab work will rely on component refs + the harness, not session history |
+| plexi-rect | amp | The model 1959 Super Lead is silicon-rectified (Unicord 1970 schematic; GZ34 phased out ~1966), so `Plexi::power_amp` was retuned from valve-style sag to a stiff solid-state rail (attack 150→220/s, release 5→6.7/s, sag depth 1.8→1.3, ripple depth 0.05→0.035) and the doc comments corrected; bloom is now attributed to the output transformer/speaker. The stale "tube-rectified Marshall" note in `hiwatt.rs` was fixed. | all `dsp::amp` tests incl. `amps_are_loudness_matched`; harness before/after `--check` | only `lufs_i` moved — **+0.15–0.19 dB** on the six Plexi presets (less supply compression); crest, correlation, centroid and LTAS unchanged. `docs/fidelity/baseline-synth-48k.toml` regenerated in this commit. |
 
 ### Reference rig (B8)
 
