@@ -1214,7 +1214,10 @@ mod tests {
     #[test]
     fn preset_chain_missing_or_invalid_falls_back() {
         let params = Params::new();
-        params.set_chain_order(&[ChainStage::Reverb as u8; crate::dsp::CHAIN_LEN]);
+        // A valid but non-default prior order: a preset without `[chain]` resets it.
+        let mut shuffled = ChainStage::default_order();
+        shuffled.swap(0, 1); // Gate <-> Whammy
+        params.set_chain_order(&shuffled);
 
         // No chain section → default order.
         let mut preset = Preset::from_params("X".to_string(), None, &params);

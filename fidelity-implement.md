@@ -253,7 +253,7 @@ finding **resolved** here, with the commit, when its item ships.
 
 | # | Severity | Finding | Evidence | Resolved by | Status |
 | --- | --- | --- | --- | --- | --- |
-| R1 | **High** | The chain-order seqlock reader spins without bound on the audio thread while a writer holds the sequence odd; a preempted UI writer stalls the callback. Single-writer is assumed, not enforced. | `Params::chain_slots` / `set_chain_order`, `src/dsp/mod.rs` ~1110–1140; called from `process` / `process_block` | A1 | open |
+| R1 | **High** | The chain-order seqlock reader spins without bound on the audio thread while a writer holds the sequence odd; a preempted UI writer stalls the callback. Single-writer is assumed, not enforced. | `Params::chain_slots` / `set_chain_order`, `src/dsp/mod.rs` ~1110–1140; called from `process` / `process_block` | A1 | **resolved** (A1) |
 | R2 | Medium | Routing state is read at inconsistent rates: `use_ext_amp` per block, but the Cab stage's `ext_amp_supplies_cab()` per sample. A mid-block AU toggle can run the built-in amp with no cab for the rest of the block. `process()` never runs the AU yet skips the cab when a full-rig AU is flagged active. | `process_block` ~1697 vs `run_ordered_stage` ~1605; `ext_amp_supplies_cab` ~1379 | A2 | open |
 | R3 | Low | With a **full-rig** AU, stages placed between AMP and CAB process the AU's already-miked output, not a line-level signal; the docs describe that region only as "virtual load box". | `run_ordered_stage` Cab arm; README and in-app `K` help | A4 | open |
 | R4 | Low | `amp_stage` doc says it is bypassed when an external amp is active (only `process_block` does that); comments still say "19 byte stores" although `CHAIN_LEN = 20`. | `src/dsp/mod.rs` ~1107, ~1386 | A1, A2 | open |
@@ -321,6 +321,7 @@ Append one row per commit from Workstreams A/B onward.
 | `26359e2` | docs | Rewrote `CONTRIBUTING.md` as local development notes (no fork/PR/site flow). | n/a | — |
 | `3a13c5f` | docs | Updated and renamed `Agents.md` → `AGENTS.md`; dropped the docs-site section and old config paths. | n/a | — |
 | `52d3195` | docs | Rewrote `.claude/skills/add-*` without the docs-site steps or PR flow. | n/a | — |
+| A1 | routing | Bounded audio-thread chain-order read: `try_chain_slots` (≤`CHAIN_READ_ATTEMPTS` tries) plus an audio-owned `last_order` fallback; a writer-only mutex serializes `set_chain_order`; `chain_slots()` is now control-thread-only. `process`/`process_block` use `snapshot_order`. R1 resolved. | `audio_read_never_waits_for_a_stalled_writer`, `concurrent_writers_never_tear_the_order`; existing torn/rapid order tests | `debug_assert` checks a pure permutation, not `sanitize_chain_order(order) == *order`: amp-before-cab is a UI-level constraint and `rapid_reorder` legitimately swaps across that boundary |
 
 ---
 

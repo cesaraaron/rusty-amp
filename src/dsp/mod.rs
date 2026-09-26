@@ -241,6 +241,10 @@ pub enum ChainStage {
 /// Number of slots in [`ChainStage`]: 10 pre + amp + cab + 8 rack.
 pub const CHAIN_LEN: usize = 20;
 
+/// Bounded number of attempts the audio-thread reader makes before giving up and
+/// reusing its last-good order (see [`Params::try_chain_slots`]).
+pub const CHAIN_READ_ATTEMPTS: usize = 4;
+
 impl ChainStage {
     pub fn from_u8(v: u8) -> Option<Self> {
         match v {
@@ -756,12 +760,35 @@ pub struct Params {
     // as a **seqlock** so the audio thread always sees a whole, coherent order.
     // `chain_seq` guards the slot array: writers bump it odd, write the slots,
     // then bump it even; readers snapshot the slots and accept the read only if
-    // the sequence is unchanged and even, otherwise retry. This closes the old
-    // window where a concurrent swap could be observed half-applied (a stage
-    // duplicated or missing). The audio thread reads once per block, not per
-    // sample, so the retry cost is off the hot per-sample path.
+    // the sequence is unchanged and even. This closes the old window where a
+    // concurrent swap could be observed half-applied (a stage duplicated or
+    // missing). The audio thread reads once per block via the **bounded**
+    // [`Params::try_chain_slots`] (never spinning on a preempted writer) and keeps
+    // its last good order; the blocking [`Params::chain_slots`] is control-thread
+    // only.
     pub chain_order: Arc<[AtomicU8; CHAIN_LEN]>,
     pub chain_seq: Arc<AtomicU64>,
+    /// Serializes *writers* of the chain order so the seqlock stays single-writer.
+    /// Only [`Params::set_chain_order`] takes it; the audio thread never touches it.
+    chain_write: std::sync::Mutex<()>,
+}
+
+/// True when `order` contains every [`ChainStage`] id exactly once (and nothing
+/// else). Allocation-free, so it can guard [`Params::set_chain_order`]'s
+/// `debug_assert` on the control thread.
+fn is_chain_permutation(order: &[u8; CHAIN_LEN]) -> bool {
+    let mut seen = [false; CHAIN_LEN];
+    for &v in order {
+        match ChainStage::from_u8(v) {
+            Some(s) => {
+                if std::mem::replace(&mut seen[s as usize], true) {
+                    return false;
+                }
+            }
+            None => return false,
+        }
+    }
+    seen.iter().all(|&b| b)
 }
 
 impl Default for Params {
@@ -909,6 +936,7 @@ impl Params {
 
             chain_order: Arc::new(ChainStage::default_order().map(AtomicU8::new)),
             chain_seq: Arc::new(AtomicU64::new(0)),
+            chain_write: std::sync::Mutex::new(()),
         }
     }
 
@@ -1101,14 +1129,12 @@ impl Params {
         }
     }
 
-    /// Snapshot the whole chain order as one coherent value via the seqlock.
+    /// Audio-thread reader: at most [`CHAIN_READ_ATTEMPTS`] tries, never waits for
+    /// a writer. `None` means "a write is in flight — keep your last order".
     ///
-    /// Retries only while a writer holds the sequence odd or completes a write
-    /// between the two sequence reads; each write is 19 byte stores, so at most
-    /// a couple of retries. Call this once per audio block (or per `process`
-    /// call), never per sample.
-    pub fn chain_slots(&self) -> [u8; CHAIN_LEN] {
-        loop {
+    /// Call this once per audio block (or per `process` call), never per sample.
+    pub fn try_chain_slots(&self) -> Option<[u8; CHAIN_LEN]> {
+        for _ in 0..CHAIN_READ_ATTEMPTS {
             let before = self.chain_seq.load(SeqCst);
             if before & 1 != 0 {
                 std::hint::spin_loop();
@@ -1117,17 +1143,42 @@ impl Params {
             let slots = std::array::from_fn(|i| self.chain_order[i].load(SeqCst));
             let after = self.chain_seq.load(SeqCst);
             if before == after {
-                return slots;
+                return Some(slots);
             }
             std::hint::spin_loop();
+        }
+        None
+    }
+
+    /// Blocking snapshot of the whole chain order as one coherent value.
+    ///
+    /// **Control-thread only** (UI drawing, preset save, tests): it loops until a
+    /// clean read. The audio thread must use [`try_chain_slots`](Self::try_chain_slots)
+    /// instead, so a preempted writer can never stall the callback.
+    pub fn chain_slots(&self) -> [u8; CHAIN_LEN] {
+        loop {
+            if let Some(slots) = self.try_chain_slots() {
+                return slots;
+            }
         }
     }
 
     /// Install a full chain order (UI move / preset apply), publishing it
-    /// atomically through the seqlock. Callers pass sanitized orders containing
-    /// every stage exactly once (see `sanitize_chain_order`); unknown slots are
-    /// skipped, never stored.
+    /// atomically through the seqlock. The caller must pass a sanitized
+    /// permutation containing every stage exactly once (see
+    /// [`sanitize_chain_order`]); a `debug_assert` enforces that in debug builds,
+    /// and unknown ids are skipped rather than stored.
     pub fn set_chain_order(&self, order: &[u8; CHAIN_LEN]) {
+        debug_assert!(
+            is_chain_permutation(order),
+            "set_chain_order requires a permutation containing every stage exactly once"
+        );
+        // Serialize writers so the seqlock stays single-writer. The audio thread
+        // never takes this lock.
+        let _guard = self
+            .chain_write
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
         // Odd sequence: the slots are now mid-write and must not be read.
         self.chain_seq.fetch_add(1, SeqCst);
         for (slot, &v) in self.chain_order.iter().zip(order.iter()) {
@@ -1270,10 +1321,15 @@ pub struct DspChain {
     /// Delays the built-in amp path by the loaded AU's reported latency so switching
     /// built-in↔AU stays time-coherent. Only engaged while an AU is loaded.
     comp_delay: CompDelay,
+    /// Last chain order this chain read cleanly. The audio thread keeps this and
+    /// falls back to it when a writer is mid-publish (see [`Self::snapshot_order`]),
+    /// so it never waits on the control/UI thread.
+    last_order: [u8; CHAIN_LEN],
 }
 
 impl DspChain {
     pub fn new(sr: f32, params: Arc<Params>) -> Self {
+        let last_order = params.chain_slots();
         Self {
             ng: NoiseGate::new(sr),
             pitch: Pitch::new(sr),
@@ -1301,6 +1357,7 @@ impl DspChain {
             ext_amp: None,
             // Cap the compensation delay at 1 s — far beyond any real plugin latency.
             comp_delay: CompDelay::new(sr as usize),
+            last_order,
         }
     }
 
@@ -1653,6 +1710,17 @@ impl DspChain {
         self.run_range(Sig::Mono(sample), order).into_stereo()
     }
 
+    /// The chain order for this call: a bounded, non-blocking read that falls
+    /// back to the last good order when a writer is mid-publish. Never waits on
+    /// the control/UI thread.
+    #[inline]
+    fn snapshot_order(&mut self) -> [u8; CHAIN_LEN] {
+        if let Some(o) = self.params.try_chain_slots() {
+            self.last_order = o;
+        }
+        self.last_order
+    }
+
     /// Process one mono input sample, returning a stereo (L, R) pair.
     ///
     /// The plugin-free path: the ordered core chain followed by the
@@ -1660,7 +1728,7 @@ impl DspChain {
     /// the optional plugin insert between the two.
     #[inline]
     pub fn process(&mut self, sample: f32) -> (f32, f32) {
-        let order = self.params.chain_slots();
+        let order = self.snapshot_order();
         let width = self.params.master_width.load(Relaxed);
         let (l, r) = self.process_core(sample, &order);
         master_bus(l, r, width)
@@ -1692,11 +1760,11 @@ impl DspChain {
         let out_l = &mut out_l[..n];
         let out_r = &mut out_r[..n];
 
+        // One bounded, coherent snapshot of the whole order for the entire block.
+        let order = self.snapshot_order();
         let p = &self.params;
         let amp_loaded = self.ext_amp.is_some();
         let use_ext_amp = amp_loaded && p.amp_external_active.load(Relaxed);
-        // One coherent snapshot of the whole order for the entire block.
-        let order = p.chain_slots();
         if use_ext_amp {
             let amp_idx = Self::stage_index(&order, ChainStage::Amp, 10);
             // Ordered stages before the amp (mono), duplicated to stereo for the
@@ -2173,6 +2241,86 @@ mod tests {
             );
         }
         writer.join().expect("writer thread panicked");
+    }
+
+    /// The audio-thread reader never waits for a stalled writer: with the
+    /// seqlock sequence stuck odd (a writer preempted mid-publish), a block
+    /// render must still complete, falling back to its last good order.
+    #[test]
+    fn audio_read_never_waits_for_a_stalled_writer() {
+        use std::sync::mpsc;
+        use std::time::Duration;
+
+        let sr = 48_000.0;
+        let input: Vec<f32> = (0..256)
+            .map(|n| (2.0 * PI * 110.0 * n as f32 / sr).sin() * 0.6)
+            .collect();
+
+        let params = Arc::new(Params::new());
+        let mut chain = DspChain::new(sr, Arc::clone(&params));
+        let mut reference = DspChain::new(sr, Arc::clone(&params));
+
+        // Ground truth: render the same input with a clean, even sequence.
+        let mut want_l = vec![0.0f32; input.len()];
+        let mut want_r = vec![0.0f32; input.len()];
+        reference.process_block(&input, &mut want_l, &mut want_r);
+
+        // Fake a writer stuck between the two sequence bumps.
+        params.chain_seq.fetch_add(1, SeqCst);
+
+        let (tx, rx) = mpsc::channel();
+        let handle = std::thread::spawn(move || {
+            let mut l = vec![0.0f32; input.len()];
+            let mut r = vec![0.0f32; input.len()];
+            chain.process_block(&input, &mut l, &mut r);
+            tx.send((l, r)).ok();
+        });
+        let (got_l, got_r) = rx
+            .recv_timeout(Duration::from_secs(2))
+            .expect("process_block must not wait for a stalled writer");
+        handle.join().ok();
+
+        // Restore an even sequence so later tests see a clean lock.
+        params.chain_seq.fetch_add(1, SeqCst);
+
+        assert_eq!(got_l, want_l, "L must match the last-good order render");
+        assert_eq!(got_r, want_r, "R must match the last-good order render");
+    }
+
+    /// Even with two writer threads publishing different permutations, the
+    /// writer mutex keeps the seqlock single-writer, so every reader snapshot is
+    /// exactly one of the two orders — never a torn mix.
+    #[test]
+    fn concurrent_writers_never_tear_the_order() {
+        let params = Arc::new(Params::new());
+        let mut a = ChainStage::default_order();
+        a.swap(0, 18);
+        let mut b = ChainStage::default_order();
+        b.swap(3, 4);
+        params.set_chain_order(&a);
+
+        let writers: Vec<_> = [a, b]
+            .into_iter()
+            .map(|order| {
+                let params = Arc::clone(&params);
+                std::thread::spawn(move || {
+                    for _ in 0..50_000 {
+                        params.set_chain_order(&order);
+                    }
+                })
+            })
+            .collect();
+
+        for _ in 0..100_000 {
+            let snap = params.chain_slots();
+            assert!(
+                snap == a || snap == b,
+                "reader observed a torn order: {snap:?}"
+            );
+        }
+        for writer in writers {
+            writer.join().expect("writer thread panicked");
+        }
     }
 
     /// Sanitizing drops unknowns/dupes and appends missing stages in default order.
