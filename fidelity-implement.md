@@ -24,8 +24,8 @@ before reviewing or continuing. (This file was formerly
 | Phase 2 item 5 — real preamp/loop/power-amp split | Not started | plan Phase 2.5 |
 | Phase 0 — reference matrix | **Scaffold only**: no sources logged | `docs/fidelity-references.md` |
 | Phase 0 — offline harness, CPU/latency capture | Not started → **Workstream B (B1, B2)** | plan "Next increments" |
-| Workstream A — routing hardening (review findings) | **Pending** | plan "Next increments" |
-| Workstream B — input calibration + harness | **Pending** | plan "Next increments" |
+| Workstream A — routing hardening (review findings) | **Done** (A1–A5) | increment log |
+| Workstream B — input calibration + harness | **Pending** (next) | plan "Next increments" |
 | Phases 3–5 — amp/cab fidelity, named pedals, preset rebuild | Not started | plan Phases 3–5 |
 
 The work below changed routing, topology, and documentation only. **No voicing
@@ -327,11 +327,28 @@ Append one row per commit from Workstreams A/B onward.
 | `26359e2` | docs | Rewrote `CONTRIBUTING.md` as local development notes (no fork/PR/site flow). | n/a | — |
 | `3a13c5f` | docs | Updated and renamed `Agents.md` → `AGENTS.md`; dropped the docs-site section and old config paths. | n/a | — |
 | `52d3195` | docs | Rewrote `.claude/skills/add-*` without the docs-site steps or PR flow. | n/a | — |
-| A1 | routing | Bounded audio-thread chain-order read: `try_chain_slots` (≤`CHAIN_READ_ATTEMPTS` tries) plus an audio-owned `last_order` fallback; a writer-only mutex serializes `set_chain_order`; `chain_slots()` is now control-thread-only. `process`/`process_block` use `snapshot_order`. R1 resolved. | `audio_read_never_waits_for_a_stalled_writer`, `concurrent_writers_never_tear_the_order`; existing torn/rapid order tests | `debug_assert` checks a pure permutation, not `sanitize_chain_order(order) == *order`: amp-before-cab is a UI-level constraint and `rapid_reorder` legitimately swaps across that boundary |
-| A2 | routing | One `BlockRoute` snapshot (order, `use_ext_amp`, `skip_cab`, `width`) taken per block/call and threaded through `process_core`/`run_full`/`run_range`/`run_ordered_stage`; the Cab decision is no longer re-read per sample, and `process()` never runs an AU or skips the cab. Deleted `ext_amp_supplies_cab`; fixed the `amp_stage` doc. R2 and R4 resolved. | `route_truth_table`, `per_sample_process_keeps_the_cab_with_a_full_rig_au_flagged`; existing `process_block_matches_per_sample` and AU full-rig/amp-only tests | built-in↔AU switch lands on a block boundary only (no crossfade; documented under "Findings not yet actioned") |
-| A3 | tests | `rig_fingerprint` now includes the active model's used amp knobs, `fz_type`/`delay_type`, and every knob of each enabled stage; `hostile_params` scrambles every knob, the amp banks, and the types. New `bundled_presets_render_identically_after_hostile_state` renders fresh vs hostile through a real `DspChain`. R6 resolved. | `bundled_presets_load_deterministically` (strengthened), `bundled_presets_render_identically_after_hostile_state` | render gate covers a 3-preset representative subset at 48 kHz, not all 15, because `DspChain::new` is ~1.7 s in debug (construction, not sample count, dominates); padding amp slots beyond `controls().len()` are excluded as inaudible. The strengthened fingerprint first flagged a false positive on padding slots, now fixed |
-| A4 | docs | The `K` help modal now states that stages between AMP and CAB are line-level, and process the already-miked output of a full-rig AU (`post-mic`). R3 resolved. | `snapshot_help_modal` (re-blessed) | the README is intentionally a text-only quickstart, so the caveat lives in the help modal only; the optional `post-mic` ribbon dim was not added (the CAB tile is already dimmed to `AU CAB` when a full-rig AU is active) |
-| A5 | audio | `on_input` now splits an oversized callback into `block_ranges(frames, MAX_BLOCK)` chunks, each processed by a new `on_input_chunk` helper; the `resize`/`extend` allocation path is gone. Level and timeline-position stores happen once per callback. R7 resolved. | `block_ranges_splits_into_bounded_pieces`, `block_ranges_handles_zero_max` | `InputState` is built inline in `build_engine` from live cpal streams, so it could not be constructed in a unit test; per the plan fallback the chunking was extracted into the pure `block_ranges` and unit-tested, and `on_input_chunk` carries a `debug_assert!(frames <= MAX_BLOCK)`. Per-chunk transport/metronome/route snapshots are intentional |
+| `f923640` | routing | Bounded audio-thread chain-order read: `try_chain_slots` (≤`CHAIN_READ_ATTEMPTS` tries) plus an audio-owned `last_order` fallback; a writer-only mutex serializes `set_chain_order`; `chain_slots()` is now control-thread-only. `process`/`process_block` use `snapshot_order`. R1 resolved. | `audio_read_never_waits_for_a_stalled_writer`, `concurrent_writers_never_tear_the_order`; existing torn/rapid order tests | `debug_assert` checks a pure permutation, not `sanitize_chain_order(order) == *order`: amp-before-cab is a UI-level constraint and `rapid_reorder` legitimately swaps across that boundary |
+| `7784ec8` | routing | One `BlockRoute` snapshot (order, `use_ext_amp`, `skip_cab`, `width`) taken per block/call and threaded through `process_core`/`run_full`/`run_range`/`run_ordered_stage`; the Cab decision is no longer re-read per sample, and `process()` never runs an AU or skips the cab. Deleted `ext_amp_supplies_cab`; fixed the `amp_stage` doc. R2 and R4 resolved. | `route_truth_table`, `per_sample_process_keeps_the_cab_with_a_full_rig_au_flagged`; existing `process_block_matches_per_sample` and AU full-rig/amp-only tests | built-in↔AU switch lands on a block boundary only (no crossfade; documented under "Findings not yet actioned") |
+| `1a8284b` | tests | `rig_fingerprint` now includes the active model's used amp knobs, `fz_type`/`delay_type`, and every knob of each enabled stage; `hostile_params` scrambles every knob, the amp banks, and the types. New `bundled_presets_render_identically_after_hostile_state` renders fresh vs hostile through a real `DspChain`. R6 resolved. | `bundled_presets_load_deterministically` (strengthened), `bundled_presets_render_identically_after_hostile_state` | render gate covers a 3-preset representative subset at 48 kHz, not all 15, because `DspChain::new` is ~1.7 s in debug (construction, not sample count, dominates); padding amp slots beyond `controls().len()` are excluded as inaudible. The strengthened fingerprint first flagged a false positive on padding slots, now fixed |
+| `5355842` | docs | The `K` help modal now states that stages between AMP and CAB are line-level, and process the already-miked output of a full-rig AU (`post-mic`). R3 resolved. | `snapshot_help_modal` (re-blessed) | the README is intentionally a text-only quickstart, so the caveat lives in the help modal only; the optional `post-mic` ribbon dim was not added (the CAB tile is already dimmed to `AU CAB` when a full-rig AU is active) |
+| `604b4b1` | audio | `on_input` now splits an oversized callback into `block_ranges(frames, MAX_BLOCK)` chunks, each processed by a new `on_input_chunk` helper; the `resize`/`extend` allocation path is gone. Level and timeline-position stores happen once per callback. R7 resolved. | `block_ranges_splits_into_bounded_pieces`, `block_ranges_handles_zero_max` | `InputState` is built inline in `build_engine` from live cpal streams, so it could not be constructed in a unit test; per the plan fallback the chunking was extracted into the pure `block_ranges` and unit-tested, and `on_input_chunk` carries a `debug_assert!(frames <= MAX_BLOCK)`. Per-chunk transport/metronome/route snapshots are intentional |
+
+### Workstream A close-out
+
+Gate met:
+
+- **No unbounded wait or allocation reachable from the audio callback.** The
+  order read is bounded (`try_chain_slots`, A1) and an oversized `on_input`
+  callback is chunked into preallocated pieces (A5).
+- **`process()` and `process_block()` agree on routing.** Both take one
+  `BlockRoute` per block/call; the per-sample path intentionally never runs a
+  hosted AU and never skips the cab (A2).
+- **Bundled presets are render-deterministic.** The strengthened fingerprint
+  covers all 15 presets cheaply; fresh-vs-hostile audio is compared through a real
+  `DspChain` for a representative subset (A3).
+
+Review findings: R1–R7 resolved (R5 in the earlier doc reorganization); R8 is a
+deferred per-preset decision; R9 and R10 are Workstream B.
 
 ---
 
