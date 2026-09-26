@@ -25,6 +25,7 @@ use std::sync::atomic::Ordering::Relaxed;
 
 use super::styles::{ACCENT, AMBER, CHROME, DIM, HOT, SAFE, WARN};
 use crate::audio::AudioEngine;
+use crate::audio::calibration::{InputCalibration, REFERENCE_VERSION};
 use crate::dsp::Params;
 use crate::dsp::cab::{ExternalIrCab, MAX_IR_LEN, load_ir};
 use crate::dsp::metronome::Metronome;
@@ -227,10 +228,11 @@ impl PracticeUi {
         engine: &mut AudioEngine,
         practice: &Practice,
         capture: &CaptureState,
+        calibration: &InputCalibration,
     ) -> bool {
         let mut touched = false;
         touched |= self.poll_decodes(engine);
-        touched |= self.poll_capture(engine, capture);
+        touched |= self.poll_capture(engine, capture, calibration);
         touched |= self.poll_acks(engine);
         // Auto-stopped at a loop out-point: finalize on the UI side.
         if self.recording_id.is_some()
@@ -331,7 +333,12 @@ impl PracticeUi {
         touched
     }
 
-    fn poll_capture(&mut self, engine: &mut AudioEngine, capture: &CaptureState) -> bool {
+    fn poll_capture(
+        &mut self,
+        engine: &mut AudioEngine,
+        capture: &CaptureState,
+        calibration: &InputCalibration,
+    ) -> bool {
         let Some(rx) = &self.capture_result else {
             return false;
         };
@@ -380,6 +387,16 @@ impl PracticeUi {
             track.peaks = result.peaks.clone();
             track.generation = generation;
             track.lifecycle = TrackLifecycle::Ready;
+            // Record the calibration this take was captured under, so it can be
+            // re-amped/exported identically. Trim 0 (uncalibrated) records None.
+            let trim = calibration.trim_db.load(Relaxed);
+            let (input_trim_db, calibration_ref) = if trim.abs() < 1e-3 {
+                (None, None)
+            } else {
+                (Some(trim), Some(REFERENCE_VERSION))
+            };
+            track.input_trim_db = input_trim_db;
+            track.calibration_ref = calibration_ref;
         }
         if let Err(e) = engine.install_track(
             result.generation,
@@ -741,6 +758,8 @@ impl PracticeUi {
                 length_ticks: track.length_ticks,
                 gain: track.gain,
                 muted: track.muted,
+                input_trim_db: track.input_trim_db,
+                calibration_ref: track.calibration_ref,
             });
         }
 
@@ -1337,6 +1356,8 @@ impl PracticeUi {
             TrackKind::Import => ("IMP ", CHROME),
             TrackKind::RawTake => ("TAKE", CHROME),
         };
+        // A raw take captured before calibration carries no input trim.
+        let uncal = matches!(track.kind, TrackKind::RawTake) && track.input_trim_db.is_none();
         let led = if track.muted {
             Span::styled("○ ", Style::default().fg(DIM))
         } else if loaded {
@@ -1355,15 +1376,21 @@ impl PracticeUi {
             ),
             led,
             Span::styled(tag.to_owned(), Style::default().fg(tag_color)),
-            Span::raw(" "),
-            Span::styled(
-                format!("{:<name_w$}", truncate(&track.name, name_w)),
-                Style::default().fg(if loaded { CHROME } else { DIM }),
-            ),
-            Span::styled(gain, Style::default().fg(AMBER)),
-            Span::raw(" "),
         ];
-        let used = 1 + 2 + 4 + 1 + name_w + 4 + 1;
+        let tag_w = if uncal {
+            spans.push(Span::styled(" uncal", Style::default().fg(DIM)));
+            tag.len() + 6
+        } else {
+            tag.len()
+        };
+        spans.push(Span::raw(" "));
+        spans.push(Span::styled(
+            format!("{:<name_w$}", truncate(&track.name, name_w)),
+            Style::default().fg(if loaded { CHROME } else { DIM }),
+        ));
+        spans.push(Span::styled(gain, Style::default().fg(AMBER)));
+        spans.push(Span::raw(" "));
+        let used = 1 + 2 + tag_w + 1 + name_w + 4 + 1;
         let wave_w = width.saturating_sub(used);
         if !loaded || wave_w == 0 || total == 0 || track.peaks.is_empty() {
             if let TrackLifecycle::Error(e) = &track.lifecycle {

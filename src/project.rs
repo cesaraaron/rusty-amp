@@ -157,6 +157,12 @@ pub struct TrackSection {
     pub length_ticks: u64,
     pub gain: f32,
     pub muted: bool,
+    /// Input trim (dB) applied when this raw take was captured, if calibrated.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub input_trim_db: Option<f32>,
+    /// Engine reference version the trim was calibrated against.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub calibration_ref: Option<u32>,
 }
 
 /// A source file to copy into the project folder. `rel` is the destination path
@@ -472,6 +478,8 @@ impl Manifest {
                 muted: t.muted,
                 peaks: Vec::new(),
                 generation: 0,
+                input_trim_db: t.input_trim_db,
+                calibration_ref: t.calibration_ref,
             });
         }
         session.restore_tracks(tracks);
@@ -613,6 +621,8 @@ mod tests {
                 length_ticks: 9600,
                 gain: 0.5,
                 muted: true,
+                input_trim_db: None,
+                calibration_ref: None,
             }],
         )
         .expect("build manifest");
@@ -636,9 +646,38 @@ mod tests {
         let session = read.into_session(&dir).expect("into_session");
         assert_eq!(session.name(), "My Session");
         assert_eq!(session.track(7).map(|t| t.muted), Some(true));
+        assert_eq!(session.track(7).and_then(|t| t.input_trim_db), None);
         assert_eq!(session.seek_seconds(), 10);
 
         let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// Trim metadata round-trips, and an older manifest without the fields still
+    /// parses (both fields serde-default to `None`).
+    #[test]
+    fn track_trim_metadata_round_trips_and_old_manifests_load() {
+        let section = TrackSection {
+            id: 3,
+            kind: "raw_take".into(),
+            name: "Take 1".into(),
+            asset: Some("audio/track-3.wav".into()),
+            start_ticks: 0,
+            length_ticks: 96_000,
+            gain: 1.0,
+            muted: false,
+            input_trim_db: Some(7.5),
+            calibration_ref: Some(1),
+        };
+        let text = toml::to_string(&section).expect("serialize");
+        let back: TrackSection = toml::from_str(&text).expect("parse");
+        assert_eq!(back.input_trim_db, Some(7.5));
+        assert_eq!(back.calibration_ref, Some(1));
+
+        let old = "id = 3\nkind = \"raw_take\"\nname = \"Take 1\"\n\
+                   start_ticks = 0\nlength_ticks = 96000\ngain = 1.0\nmuted = false\n";
+        let old: TrackSection = toml::from_str(old).expect("old manifest parses");
+        assert_eq!(old.input_trim_db, None);
+        assert_eq!(old.calibration_ref, None);
     }
 
     #[test]

@@ -381,7 +381,7 @@ pub fn run(
             let rec_active = practice_ui.is_recording();
 
             // Install finished background decodes / capture results before drawing.
-            practice_ui.poll(&mut engine, &practice, &capture);
+            practice_ui.poll(&mut engine, &practice, &capture, &calibration);
 
             // Poll a running export; reinsert the handle while it is still going.
             if let Some(handle) = export_handle.take() {

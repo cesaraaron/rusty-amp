@@ -87,6 +87,10 @@ pub struct Track {
     pub peaks: Vec<(f32, f32)>,
     /// Bumped on every (re)install so stale decodes can be discarded.
     pub generation: Generation,
+    /// Input trim (dB) applied when this raw take was captured, if calibrated.
+    pub input_trim_db: Option<f32>,
+    /// Engine reference version the trim was calibrated against.
+    pub calibration_ref: Option<u32>,
 }
 
 impl Track {
@@ -233,6 +237,8 @@ impl Session {
             muted: false,
             peaks: Vec::new(),
             generation: 0,
+            input_trim_db: None,
+            calibration_ref: None,
         });
         if self.selected.is_none() {
             self.selected = Some(id);
@@ -369,6 +375,8 @@ mod tests {
             muted: false,
             peaks: Vec::new(),
             generation: 0,
+            input_trim_db: None,
+            calibration_ref: None,
         }
     }
 
